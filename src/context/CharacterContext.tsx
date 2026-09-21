@@ -128,7 +128,7 @@ function normalizeInventory(value: unknown): InventoryEntry[] {
 }
 
 function normalizeCharacter(value: Character): Character {
-  return {
+  const merged = {
     ...defaultCharacter,
     ...value,
     abilities: { ...defaultCharacter.abilities, ...(value.abilities ?? {}) },
@@ -141,6 +141,22 @@ function normalizeCharacter(value: Character): Character {
     inventory: normalizeInventory(value.inventory),
     optionalFeatures: Array.isArray(value.optionalFeatures) ? value.optionalFeatures : [],
     accessOverrides: Array.isArray(value.accessOverrides) ? value.accessOverrides : [],
+  };
+
+  const level = Math.max(1, Math.min(20, Number(merged.level) || 1));
+  const maxHp = getExpectedMaxHp(merged.className, level, merged.abilities.con);
+  const wasAtMax = Number(merged.hp) >= Number(merged.maxHp);
+  const hp = wasAtMax
+    ? maxHp
+    : Math.max(0, Math.min(maxHp, Number(merged.hp) || 0));
+
+  return {
+    ...merged,
+    level,
+    maxHp,
+    hp,
+    hitDice: getExpectedHitDice(merged.className, level),
+    proficiencyBonus: getProficiencyBonus(level),
   };
 }
 
@@ -197,8 +213,7 @@ function makeMaps(
   const spellSubclassesById = new Map<string, Set<string>>();
   for (const link of spellSubclassRows) {
     const name = subclassNameById.get(link.subclass_id);
-    if (!name) continue;
-    if (!spellSubclassesById.has(link.spell_id)) spellSubclassesById.set(link.spell_id, new Set());
+    if (!name) continue;    if (!spellSubclassesById.has(link.spell_id)) spellSubclassesById.set(link.spell_id, new Set());
     spellSubclassesById.get(link.spell_id)!.add(name);
   }
 
@@ -398,7 +413,6 @@ async function loadContentMaps(): Promise<ContentMaps> {
     supabase.from("subclass_features").select("subclass_id,feature_id,required_level"),
     supabase.from("feats").select("id,name,description,prerequisite,ability,source,source_code,edition,content_key").eq("edition", "2014").is("owner_id", null),
   ]);
-
   const results = [
     classesResult,
     racesResult,
@@ -597,7 +611,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     async function load() {
       setHydrated(false);
       setDatabaseStatus("loading");
-
       try {
         const maps = await loadContentMaps();
         setCatalogue(maps.catalogue);
@@ -734,9 +747,16 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
     createCharacter: async (input) => {
       const baseId = crypto.randomUUID();
+      const level = Math.max(1, Math.min(20, Number(input.level) || 1));
+      const maxHp = getExpectedMaxHp(input.className, level, input.abilities.con);
       const baseCharacter: Character = {
         id: baseId,
         ...input,
+        level,
+        hp: Math.max(0, Math.min(maxHp, input.hp || maxHp)),
+        maxHp,
+        hitDice: getExpectedHitDice(input.className, level),
+        proficiencyBonus: getProficiencyBonus(level),
         tempHp: 0,
         savingThrows: [],
         skills: [],
@@ -784,7 +804,32 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     },
 
     updateCharacter: async (id, patch) => {
-      setCharacters((current) => current.map((character) => character.id === id ? { ...character, ...patch } : character));
+      const currentCharacter = characters.find((entry) => entry.id === id);
+      const progressionChanged =
+        patch.level !== undefined ||
+        patch.className !== undefined ||
+        patch.abilities?.con !== undefined;
+
+      const localPatch: Partial<Character> = { ...patch };
+
+      if (currentCharacter && progressionChanged) {
+        const nextClassName = patch.className ?? currentCharacter.className;
+        const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
+        const nextConstitution = patch.abilities?.con ?? currentCharacter.abilities.con;
+        const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextConstitution);
+        const hpDelta = nextMaxHp - currentCharacter.maxHp;
+
+        localPatch.level = nextLevel;
+        localPatch.maxHp = nextMaxHp;
+        localPatch.hp = Math.max(0, Math.min(nextMaxHp, currentCharacter.hp + hpDelta));
+        localPatch.hitDice = getExpectedHitDice(nextClassName, nextLevel);
+        localPatch.proficiencyBonus = getProficiencyBonus(nextLevel);
+      }
+
+      setCharacters((current) => current.map((character) =>
+        character.id === id ? { ...character, ...localPatch } : character
+      ));
+
       if (!supabase || !user || !isUuid(id)) return;
 
       try {
@@ -792,29 +837,17 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         const dbPatch: Record<string, unknown> = {};
 
         if (patch.name !== undefined) dbPatch.name = patch.name;
-        const currentCharacter = characters.find((entry) => entry.id === id);
-        const progressionChanged =
-          patch.level !== undefined ||
-          patch.className !== undefined ||
-          patch.abilities?.con !== undefined;
-
-        if (patch.level !== undefined) {
-          const nextLevel = Math.max(1, Math.min(20, patch.level));
-          dbPatch.level = nextLevel;          dbPatch.proficiency_bonus = getProficiencyBonus(nextLevel);
-        }
-
-        if (currentCharacter && progressionChanged) {
+        if (progressionChanged && currentCharacter) {
+        if (progressionChanged && currentCharacter) {
           const nextClassName = patch.className ?? currentCharacter.className;
           const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
           const nextConstitution = patch.abilities?.con ?? currentCharacter.abilities.con;
           const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextConstitution);
           const hpDelta = nextMaxHp - currentCharacter.maxHp;
 
+          dbPatch.level = nextLevel;
           dbPatch.max_hp = nextMaxHp;
-          dbPatch.current_hp = Math.max(
-            0,
-            Math.min(nextMaxHp, currentCharacter.hp + hpDelta),
-          );
+          dbPatch.current_hp = Math.max(0, Math.min(nextMaxHp, currentCharacter.hp + hpDelta));
           dbPatch.hit_dice = getExpectedHitDice(nextClassName, nextLevel);
           dbPatch.proficiency_bonus = getProficiencyBonus(nextLevel);
         }
@@ -997,8 +1030,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       }));
 
       if (supabase && user && isUuid(characterId)) {
-        try {
-          const maps = await getMapsForWrite();
+        try {          const maps = await getMapsForWrite();
           const dbItemId = appIdToDbId(maps.itemByAppId, itemId);          if (!dbItemId) return;
 
           if (nextQuantity <= 0) {
@@ -1197,7 +1229,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           setDatabaseStatus("error");
         }
       }
-
       return true;    },
 
     addOptionalFeature: async (characterId, optionalFeatureKey, override = false) => {
@@ -1397,8 +1428,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     }] : [];
   });
 
-  const featureRows = character.features.flatMap((featureId) => {    const featureIdDb = maps.featureByAppId.get(featureId);
-    return featureIdDb ? [{
+  const featureRows = character.features.flatMap((featureId) => {    const featureIdDb = maps.featureByAppId.get(featureId);    return featureIdDb ? [{
       character_id: dbId,
       feature_id: featureIdDb,
       source: "Migrated",
