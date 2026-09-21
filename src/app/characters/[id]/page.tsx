@@ -7,19 +7,19 @@ import { Badge, PageHeader, SectionCard, StatTile } from "../../../components/Ap
 import { useCharacters } from "../../../context/CharacterContext";
 import { features, items, spells } from "../../../lib/data";
 import { getAvailableFeatures, getAvailableItems, getAvailableSpells, getCantripsKnown, getFeatureRestrictionReason, getItemRestrictionReason, getMaxSpellLevel, getPreparedSpellCount, getSpellcastingMode, getSpellRestrictionReason, getSpellsKnown, getSpellcastingSummary, hasOverride, isFeatureNormallyAvailable, isItemNormallyAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
-import type { AbilityKey, Feature, Spell } from "../../../lib/types";
+import type { AbilityKey, Feature, Item, Spell } from "../../../lib/types";
 
 const labels: Record<AbilityKey, string> = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
 function abilityModifier(score: number) {
   const value = Math.floor((score - 10) / 2);
   return value >= 0 ? `+${value}` : String(value);
 }
-type Tab = "overview" | "spells" | "inventory" | "features" | "notes";
-const tabs: { id: Tab; label: string }[] = [{ id: "overview", label: "Overview" }, { id: "spells", label: "Spells" }, { id: "inventory", label: "Inventory" }, { id: "features", label: "Features" }, { id: "notes", label: "Notes" }];
+type Tab = "overview" | "combat" | "skills" | "spells" | "inventory" | "features" | "notes";
+const tabs: { id: Tab; label: string }[] = [{ id: "overview", label: "Overview" }, { id: "combat", label: "Combat" }, { id: "skills", label: "Skills" }, { id: "spells", label: "Spells" }, { id: "inventory", label: "Inventory" }, { id: "features", label: "Features" }, { id: "notes", label: "Notes" }];
 
 export default function CharacterPage() {
   const params = useParams<{ id: string }>();
-  const { characters, accessMode, addSpell, removeSpell, toggleSpellPrepared, addInventoryItem, removeInventoryItem, changeInventoryQuantity, toggleInventoryEquipped, addFeature, removeFeature, revokeOverride, updateCharacter, spellCatalogue, featureCatalogue, featCatalogue, raceRules, backgroundRules } = useCharacters();
+  const { characters, accessMode, addSpell, removeSpell, toggleSpellPrepared, addInventoryItem, removeInventoryItem, changeInventoryQuantity, toggleInventoryEquipped, addFeature, removeFeature, revokeOverride, updateCharacter, spellCatalogue, featureCatalogue, featCatalogue, itemCatalogue, raceRules, backgroundRules } = useCharacters();
   const [tab, setTab] = useState<Tab>("overview");
   const character = characters.find((entry) => entry.id === params.id);
   const [showRestricted, setShowRestricted] = useState(false);
@@ -31,12 +31,12 @@ export default function CharacterPage() {
     return spell ? { spell, entry } : null;
   }).filter((x): x is { spell: Spell; entry: (typeof character.spells)[number] } => Boolean(x)) : [], [character, librarySpells]);
   const charFeatures = useMemo(() => character ? character.features.map((id) => featureCatalogue.find((feature) => feature.id === id) ?? features.find((feature) => feature.id === id)).filter((feature): feature is Feature => Boolean(feature)) : [], [character, featureCatalogue]);
-  const charItems = useMemo(() => character ? character.inventory.map((entry) => { const item = items.find((candidate) => candidate.id === entry.itemId); return item ? { item, entry } : null; }).filter((x): x is { item: (typeof items)[number]; entry: (typeof character.inventory)[number] } => Boolean(x)) : [], [character]);
+  const charItems = useMemo(() => character ? character.inventory.map((entry) => { const item = itemCatalogue.find((candidate) => candidate.id === entry.itemId) ?? items.find((candidate) => candidate.id === entry.itemId); return item ? { item, entry } : null; }).filter((x): x is { item: (typeof items)[number]; entry: (typeof character.inventory)[number] } => Boolean(x)) : [], [character]);
   if (!character) return <div className="mx-auto max-w-5xl px-4 py-12"><SectionCard title="Character not found"><Link href="/characters" className="text-amber-400">Back to Characters</Link></SectionCard></div>;
 
   const accessibleSpells = getAvailableSpells(character, true, librarySpells);
   const accessibleFeatures = featureCatalogue.length ? featureCatalogue.filter((feature) => isFeatureNormallyAvailable(character, feature) || hasOverride(character, "feature", feature.id)) : getAvailableFeatures(character);
-  const accessibleItems = getAvailableItems(character);
+  const accessibleItems = getAvailableItems(character, true, itemCatalogue.length ? itemCatalogue : items);
   const maxSpellLevel = getMaxSpellLevel(character);
   const castingMode = getSpellcastingMode(character);
   const spellSummary = getSpellcastingSummary(character);
@@ -48,6 +48,45 @@ export default function CharacterPage() {
   const preparedLevelledSpells = charSpells.filter(({ entry, spell }) => entry.prepared && spell.level > 0).length;
   const raceInfo = raceRules[character.race];
   const backgroundInfo = backgroundRules[character.background];
+  const dexMod = abilityModifier(character.abilities.dex);
+  const strMod = abilityModifier(character.abilities.str);
+  const proficientSkill = (name: string) => character.skills.some((skill) => skill.toLowerCase() === name.toLowerCase());
+  const skillDefinitions: Array<[string, AbilityKey]> = [
+    ["Acrobatics", "dex"], ["Animal Handling", "wis"], ["Arcana", "int"], ["Athletics", "str"],
+    ["Deception", "cha"], ["History", "int"], ["Insight", "wis"], ["Intimidation", "cha"],
+    ["Investigation", "int"], ["Medicine", "wis"], ["Nature", "int"], ["Perception", "wis"],
+    ["Performance", "cha"], ["Persuasion", "cha"], ["Religion", "int"], ["Sleight of Hand", "dex"],
+    ["Stealth", "dex"], ["Survival", "wis"],
+  ];
+  const equippedWeapons = character.inventory
+    .filter((entry) => entry.equipped)
+    .map((entry) => itemCatalogue.find((item) => item.id === entry.itemId) ?? items.find((item) => item.id === entry.itemId))
+    .filter((item): item is Item => Boolean(item?.isWeapon));
+  const combatFeatures = charFeatures.filter((feature) => feature.uses);
+  const toggleResource = (feature: Feature) => {
+    if (!feature.uses) return;
+    const used = character.resourceUses[feature.id] ?? 0;
+    const nextUsed = used >= feature.uses.max ? 0 : used + 1;
+    void updateCharacter(character.id, { resourceUses: { ...character.resourceUses, [feature.id]: nextUsed } });
+  };
+  const attackAbility = (item: Item) => {
+    const props = (item.weaponProperties ?? []).map((property) => property.toLowerCase());
+    const category = item.category.toLowerCase();
+    if (props.includes("finesse")) return Math.max(character.abilities.str, character.abilities.dex) === character.abilities.dex ? "dex" : "str";
+    if (category.includes("ranged") || props.includes("ammunition")) return "dex";
+    return "str";
+  };
+  const weaponAttack = (item: Item) => {
+    const key = attackAbility(item) as AbilityKey;
+    const mod = Math.floor((character.abilities[key] - 10) / 2);
+    const proficient = true;
+    return mod + (proficient ? character.proficiencyBonus : 0) + (item.magicBonus ?? 0);
+  };
+  const weaponDamage = (item: Item) => {
+    const key = attackAbility(item) as AbilityKey;
+    const mod = Math.floor((character.abilities[key] - 10) / 2) + (item.magicBonus ?? 0);
+    return item.weaponDamage ? `${item.weaponDamage} ${mod >= 0 ? "+" : ""}${mod}` : "See item";
+  };
 
   return <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8"><PageHeader eyebrow="Character Sheet" title={character.name} description={`${character.race} • ${character.className} • ${character.subclass || "No subclass"}`} actions={<div className="flex flex-wrap gap-2"><Link href="/characters" className="rounded-xl border border-stone-700 px-4 py-2.5 text-sm text-stone-300 hover:bg-stone-800">← Characters</Link><Link href={`/characters/${character.id}/edit`} className="rounded-xl bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300">Edit Character</Link></div>} />
     <div className="mb-6 flex flex-wrap gap-2 rounded-xl border border-stone-800 bg-stone-900/70 p-1">{tabs.map((entry) => <button key={entry.id} onClick={() => setTab(entry.id)} className={`rounded-lg px-4 py-2.5 text-sm font-medium ${tab === entry.id ? "bg-stone-100 text-stone-950" : "text-stone-400 hover:bg-stone-800 hover:text-stone-100"}`}>{entry.label}</button>)}</div>
@@ -155,6 +194,46 @@ export default function CharacterPage() {
       </div>
     )}
 
+    {tab === "combat" && (
+      <div className="space-y-6">
+        <SectionCard title="Attacks" description="Equipped weapons are calculated from your ability modifier, proficiency bonus and weapon magic bonus.">
+          <div className="space-y-3">
+            {equippedWeapons.map((weapon) => (
+              <article key={weapon.id} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div><h3 className="text-lg font-semibold">{weapon.name}</h3><p className="text-xs uppercase tracking-wider text-stone-600">{weapon.weaponDamageType || weapon.category}{weapon.weaponProperties?.length ? ` • ${weapon.weaponProperties.join(", ")}` : ""}</p></div>
+                  <div className="rounded-xl border border-stone-700 px-4 py-2 text-lg font-bold">{weaponAttack(weapon) >= 0 ? "+" : ""}{weaponAttack(weapon)} to hit</div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div><div className="text-xs uppercase tracking-wider text-stone-600">Damage</div><div className="mt-1 text-xl font-semibold">{weaponDamage(weapon)}</div></div>
+                  <div><div className="text-xs uppercase tracking-wider text-stone-600">Ability</div><div className="mt-1 text-sm">{attackAbility(weapon) === "dex" ? "Dexterity" : "Strength"}</div></div>
+                  <div><div className="text-xs uppercase tracking-wider text-stone-600">Range</div><div className="mt-1 text-sm">{weapon.weaponRange || "5 ft."}</div></div>
+                </div>
+              </article>
+            ))}
+            <article className="rounded-2xl border border-stone-800 bg-stone-950/60 p-4"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold">Unarmed Strike</h3><span className="rounded-xl border border-stone-700 px-4 py-2 font-bold">{strMod} to hit</span></div><p className="mt-2 text-sm text-stone-500">1 + Strength modifier bludgeoning damage.</p></article>
+            {equippedWeapons.length === 0 && <p className="text-sm text-stone-500">Equip a weapon in Inventory and it will appear here with its attack bonus and damage dice.</p>}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Combat Actions" description="The standard 2014 combat actions, plus your limited-use class and subclass features.">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {["Attack", "Dash", "Disengage", "Dodge", "Help", "Hide", "Ready", "Search", "Use an Object", "Grapple", "Shove", "Improvise"].map((action) => <div key={action} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4 font-semibold">{action}</div>)}
+          </div>
+        </SectionCard>
+
+        {combatFeatures.length > 0 && <SectionCard title="Limited-use abilities" description="Tap the boxes as you spend uses. Tapping the last box resets the ability for the next use cycle.">
+          <div className="space-y-4">
+            {combatFeatures.map((feature) => {
+              const used = character.resourceUses[feature.id] ?? 0;
+              const max = feature.uses!.max;
+              return <article key={feature.id} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-4"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>{feature.uses!.recovery}</Badge></div><p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-400">{feature.description}</p><div className="mt-4 flex gap-2">{Array.from({ length: max }, (_, index) => <button type="button" key={index} onClick={() => toggleResource(feature)} className={`h-8 w-8 rounded-lg border ${index < used ? "border-red-700 bg-red-700" : "border-stone-600 bg-stone-900"}`} aria-label={`${feature.name} use ${index + 1}`}>{index < used ? "✓" : ""}</button>)}</div></article>;
+            })}
+          </div>
+        </SectionCard>}
+      </div>
+    )}
+
     {tab === "spells" && <SectionCard title="Spellbook" description={castingMode === "none"
       ? "This class has no normal spellcasting."
       : addedCantrips + "/" + spellSummary.cantripsKnown + " cantrips"
@@ -188,6 +267,20 @@ export default function CharacterPage() {
         </div>
       </div>
     </SectionCard>}
+    {tab === "skills" && (
+      <SectionCard title="Skills" description="All 18 standard 2014 skills, with your ability modifier and proficiency bonus calculated automatically.">
+        <div className="grid gap-2 lg:grid-cols-2">
+          {skillDefinitions.map(([name, key]) => {
+            const proficient = proficientSkill(name);
+            const mod = Math.floor((character.abilities[key] - 10) / 2);
+            const total = mod + (proficient ? character.proficiencyBonus : 0);
+            return <div key={name} className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/60 p-4"><div className="flex items-center gap-3"><span className={`h-3 w-3 rounded-full border ${proficient ? "border-amber-300 bg-amber-300" : "border-stone-600"}`} /><div><div className="font-semibold">{name}</div><div className="text-xs uppercase tracking-wider text-stone-600">{key.toUpperCase()}</div></div></div><span className="rounded-lg border border-stone-700 px-3 py-1.5 font-semibold">{total >= 0 ? "+" : ""}{total}</span></div>;
+          })}
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3"><StatTile label="Passive Perception" value={10 + Math.floor((character.abilities.wis - 10) / 2) + (proficientSkill("Perception") ? character.proficiencyBonus : 0)} /><StatTile label="Passive Insight" value={10 + Math.floor((character.abilities.wis - 10) / 2) + (proficientSkill("Insight") ? character.proficiencyBonus : 0)} /><StatTile label="Passive Investigation" value={10 + Math.floor((character.abilities.int - 10) / 2) + (proficientSkill("Investigation") ? character.proficiencyBonus : 0)} /></div>
+      </SectionCard>
+    )}
+
     {tab === "inventory" && <SectionCard title="Inventory" description={`${charItems.length} item types carried. Player Mode respects item restrictions; DM Mode can grant restricted content.`} actions={<button onClick={() => { setSearch(""); setShowRestricted(true); }} className="rounded-xl bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-950">Find Equipment</button>}><div className="space-y-3">{charItems.length === 0 ? <p className="text-sm text-stone-500">Nothing carried yet.</p> : charItems.map(({ item, entry }) => <article key={item.id} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{item.name}</h3><Badge>{item.rarity}</Badge>{entry.equipped && <Badge tone="good">Equipped</Badge>}{hasOverride(character, "item", item.id) && <Badge tone="warn">DM granted</Badge>}</div><p className="mt-1 text-xs uppercase tracking-wider text-stone-600">{item.category}</p><p className="mt-2 text-sm leading-6 text-stone-400">{item.description}</p></div><div className="flex flex-wrap items-center gap-2"><div className="flex items-center rounded-xl border border-stone-700"><button onClick={() => changeInventoryQuantity(character.id, item.id, -1)} className="px-3 py-2">−</button><span className="min-w-10 text-center text-sm">{entry.quantity}</span><button onClick={() => changeInventoryQuantity(character.id, item.id, 1)} className="px-3 py-2">+</button></div><button onClick={() => toggleInventoryEquipped(character.id, item.id)} className="rounded-xl border border-stone-700 px-3 py-2 text-sm">{entry.equipped ? "Unequip" : "Equip"}</button><button onClick={() => removeInventoryItem(character.id, item.id)} className="rounded-xl border border-red-950 px-3 py-2 text-sm text-red-400">Remove</button></div></div></article>)}</div><div className="mt-6"><h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-stone-500">Catalogue</h3><div className="mb-4 flex flex-col gap-3 sm:flex-row"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search equipment..." className="flex-1 rounded-xl border border-stone-800 bg-stone-950 px-4 py-3 text-sm outline-none focus:border-amber-400" /><label className="flex items-center gap-2 text-sm text-stone-400"><input type="checkbox" checked={showRestricted} onChange={(e) => setShowRestricted(e.target.checked)} /> Show restricted</label></div><div className="grid gap-3 md:grid-cols-2">{items.filter((item) => `${item.name} ${item.description} ${item.category}`.toLowerCase().includes(search.toLowerCase())).filter((item) => showRestricted || isItemNormallyAvailable(character, item) || hasOverride(character, "item", item.id)).map((item) => { const allowed = isItemNormallyAvailable(character, item) || hasOverride(character, "item", item.id); return <LibraryCard key={item.id} title={item.name} meta={`${item.rarity} • ${item.category}${item.requiresAttunement ? " • Attunement" : ""}`} description={item.description} status={allowed ? "Available" : getItemRestrictionReason(character, item)} tone={allowed ? "good" : "warn"} actions={allowed ? <button onClick={() => addInventoryItem(character.id, item.id)} className="rounded-xl bg-stone-100 px-3 py-2 text-sm font-semibold text-stone-950">+ Add</button> : accessMode === "dm" ? <button onClick={() => addInventoryItem(character.id, item.id, 1, true)} className="rounded-xl border border-amber-700 px-3 py-2 text-sm text-amber-300">DM Grant</button> : <span className="text-xs text-stone-600">Locked in Player Mode</span>} />; })}</div></div></SectionCard>}
 
     {tab === "features" && <SectionCard title="Features, Abilities & Feats" description="Selected features show their full descriptions. Feats also show what they do so you do not have to remember the rules text."><div className="space-y-6">
