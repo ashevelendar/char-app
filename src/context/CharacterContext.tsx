@@ -238,7 +238,7 @@ function makeMaps(
       subclasses: [...(spellSubclassesById.get(row.id) ?? new Set<string>())],
       races: [...(spellRacesById.get(row.id) ?? new Set<string>())],
       source: row.source ?? row.source_code ?? undefined,
-      edition: row.edition === "2024" || row.edition === "custom" ? row.edition : "2014",
+      edition: (row.edition === "2024" || row.edition === "custom" ? row.edition : "2014") as Spell["edition"],
       contentKey: row.content_key ?? undefined,
     }))
     .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
@@ -1107,7 +1107,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
     toggleSpellPrepared: async (characterId, spellId) => {
       const character = characters.find((entry) => entry.id === characterId);
-      const current = character?.spells.find((entry) => entry.spellId === spellId);
+      if (!character) return;
+      const current = character.spells.find((entry) => entry.spellId === spellId);
       if (!current) return;
 
       const nextPrepared = !current.prepared;
