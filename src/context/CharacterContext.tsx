@@ -359,8 +359,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
     rows.backgrounds.length === 0 ||
     rows.spells.length === 0 ||
     rows.features.length === 0 ||
-    rows.items.length === 0 ||
-    rows.spells.length === 0
+    rows.items.length === 0
   ) {
     throw new Error("The Supabase content library is empty. Run supabase/002_seed_and_permissions.sql first.");
   }
@@ -371,12 +370,12 @@ async function loadContentMaps(): Promise<ContentMaps> {
     rows.subclasses,
     rows.backgrounds,
     rows.spells,
-    rows.features,
-    rows.items,
-    rows.optionalFeatures,
     rows.spellClasses,
     rows.spellSubclasses,
     rows.spellRaces,
+    rows.features,
+    rows.items,
+    rows.optionalFeatures,
   );
 }
 
