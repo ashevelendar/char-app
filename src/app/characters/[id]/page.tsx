@@ -76,10 +76,25 @@ export default function CharacterPage() {
     if (category.includes("ranged") || props.includes("ammunition")) return "dex";
     return "str";
   };
+  const specificWeaponProficiencies: Record<string, string[]> = {
+    Bard: ["Hand Crossbow", "Longsword", "Rapier", "Shortsword"],
+    Druid: ["Club", "Dagger", "Dart", "Javelin", "Mace", "Quarterstaff", "Scimitar", "Sickle", "Sling", "Spear"],
+    Monk: ["Shortsword"],
+    Rogue: ["Hand Crossbow", "Longsword", "Rapier", "Shortsword"],
+    Sorcerer: ["Dagger", "Dart", "Sling", "Quarterstaff", "Light Crossbow"],
+    Wizard: ["Dagger", "Dart", "Sling", "Quarterstaff", "Light Crossbow"],
+  };
+  const isWeaponProficient = (item: Item) => {
+    const category = (item.weaponCategory ?? "").toLowerCase();
+    if (category.includes("simple") && ["Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Warlock"].includes(character.className)) return true;
+    if (category.includes("martial") && ["Barbarian", "Fighter", "Paladin", "Ranger"].includes(character.className)) return true;
+    return (specificWeaponProficiencies[character.className] ?? []).some((name) => name.toLowerCase() === item.name.toLowerCase());
+  };
+
   const weaponAttack = (item: Item) => {
     const key = attackAbility(item) as AbilityKey;
     const mod = Math.floor((character.abilities[key] - 10) / 2);
-    const proficient = true;
+    const proficient = isWeaponProficient(item);
     return mod + (proficient ? character.proficiencyBonus : 0) + (item.magicBonus ?? 0);
   };
   const weaponDamage = (item: Item) => {
@@ -202,7 +217,7 @@ export default function CharacterPage() {
               <article key={weapon.id} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div><h3 className="text-lg font-semibold">{weapon.name}</h3><p className="text-xs uppercase tracking-wider text-stone-600">{weapon.weaponDamageType || weapon.category}{weapon.weaponProperties?.length ? ` • ${weapon.weaponProperties.join(", ")}` : ""}</p></div>
-                  <div className="rounded-xl border border-stone-700 px-4 py-2 text-lg font-bold">{weaponAttack(weapon) >= 0 ? "+" : ""}{weaponAttack(weapon)} to hit</div>
+                  <div className="rounded-xl border border-stone-700 px-4 py-2 text-lg font-bold">{weaponAttack(weapon) >= 0 ? "+" : ""}{weaponAttack(weapon)} to hit{isWeaponProficient(weapon) ? "" : " • not proficient"}</div>
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                   <div><div className="text-xs uppercase tracking-wider text-stone-600">Damage</div><div className="mt-1 text-xl font-semibold">{weaponDamage(weapon)}</div></div>
