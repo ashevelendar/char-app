@@ -332,7 +332,7 @@ function extractNaturalArmor(raw: unknown): { base: number; dexMax?: number | nu
   return undefined;
 }
 
-function calculateArmorClass(character: Character, itemCatalogue: Item[], raceRules: Record<string, RaceRules>): number {
+function calculateArmorClass(character: Pick<Character, "abilities" | "inventory" | "race">, itemCatalogue: Item[], raceRules: Record<string, RaceRules>): number {
   const dex = Math.floor((character.abilities.dex - 10) / 2);
   const equipped = character.inventory.filter((entry) => entry.equipped).map((entry) => itemCatalogue.find((item) => item.id === entry.itemId)).filter((item): item is Item => Boolean(item));
   const armor = equipped.find((item) => item.isArmor && !item.isShield);
@@ -826,6 +826,8 @@ function toCharacter(
       }), {} as AbilityScores)
     : storedAbilities;
 
+  const calculatedAc = calculateArmorClass({ abilities, inventory: inventoryForCharacter, race: raceName }, maps.itemCatalogue, maps.raceRules);
+
   return normalizeCharacter({
     id: row.id,
     name: row.name,
@@ -839,7 +841,7 @@ function toCharacter(
     hp: row.current_hp ?? 0,
     maxHp: row.max_hp ?? 0,
     tempHp: row.temporary_hp ?? 0,
-    ac: row.armor_class ?? 10,
+    ac: Math.max(Number(row.armor_class) || 0, calculatedAc),
     speed: row.speed ?? 30,
     hitDice: row.hit_dice ?? "",
     proficiencyBonus: row.proficiency_bonus ?? 2,
