@@ -18,6 +18,42 @@ export function getSpellcastingMode(character: Character) {
   return getClassDefinition(character.className)?.spellcasting ?? "none";
 }
 
+export function getHitDieSize(className: string) {
+  const sizes: Record<string, number> = {
+    Barbarian: 12,
+    Bard: 8,
+    Cleric: 8,
+    Druid: 8,
+    Fighter: 10,
+    Monk: 8,
+    Paladin: 10,
+    Ranger: 10,
+    Rogue: 8,
+    Sorcerer: 6,
+    Warlock: 8,
+    Wizard: 6,
+    Artificer: 8,
+  };
+  return sizes[className] ?? 8;
+}
+
+export function getAbilityModifier(score: number) {
+  return Math.floor((score - 10) / 2);
+}
+
+export function getProficiencyBonus(level: number) {
+  const safeLevel = Math.max(1, Math.min(20, level));
+  return 2 + Math.floor((safeLevel - 1) / 4);
+}
+
+export function getExpectedMaxHp(className: string, level: number, constitution: number) {
+  const safeLevel = Math.max(1, Math.min(20, level));
+  const hitDie = getHitDieSize(className);
+  const averageGain = Math.floor(hitDie / 2) + 1;
+  const conMod = getAbilityModifier(constitution);
+  return Math.max(1, hitDie + conMod + Math.max(0, safeLevel - 1) * (averageGain + conMod));
+}
+
 export function hasOverride(character: Character, type: ContentType, contentId: string) {
   return character.accessOverrides.some((entry) => entry.type === type && entry.contentId === contentId);
 }
