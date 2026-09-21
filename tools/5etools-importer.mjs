@@ -1571,35 +1571,34 @@ function printDryRun(entity, records) {
 }
 
 async function discoverSources(entity, edition, dataDir, sourceFile) {
+  const sources = [];
+
   if (sourceFile) {
     const json = await loadJson(sourceFile);
     if (entity === "races") return uniqSorted((json?.race || []).map((x) => x?.source));
     if (entity === "subraces") return uniqSorted((json?.subrace || []).map((x) => x?.source));
     if (entity === "backgrounds") return uniqSorted((json?.background || []).map((x) => x?.source));
     if (entity === "spells") return uniqSorted((json?.spell || []).map((x) => x?.source));
+    if (entity === "items") return uniqSorted((json?.item || []).map((x) => x?.source));
+    if (entity === "feats") return uniqSorted((json?.feat || []).map((x) => x?.source));
+    if (entity === "optionalfeatures") return uniqSorted((json?.optionalfeature || []).map((x) => x?.source));
     if (entity === "classes") return uniqSorted((json?.class || []).map((x) => x?.source));
     if (entity === "subclasses") return uniqSorted((json?.subclass || []).map((x) => x?.source));
     if (entity === "features") {
-      return uniqSorted([
-        ...(json?.classFeature || []).map((x) => x?.source),
-        ...(json?.subclassFeature || []).map((x) => x?.source),
-      ]);
+      for (const entry of [...(json?.classFeature || []), ...(json?.subclassFeature || [])]) {
+        if (entry?.classSource && !isEditionCompatibleSubclassParent(edition, entry.classSource)) continue;
+        sources.push(entry?.source);
+      }
+      return uniqSorted(sources);
     }
-    if (entity === "items") return uniqSorted((json?.item || []).map((x) => x?.source));
-    if (entity === "feats") return uniqSorted((json?.feat || []).map((x) => x?.source));
-    if (entity === "feats") return uniqSorted((json?.feat || []).map((x) => x?.source));
-  }
-
-  if (entity === "items") {
-    const path = dataDir ? resolve(dataDir, "data", "items.json") : `${githubBaseForEdition(edition)}/data/items.json`;
-    const json = await loadJson(path);
-    return uniqSorted((json?.item || []).map((x) => x?.source));
-  }
-
-  if (entity === "feats") {
-    const path = dataDir ? resolve(dataDir, "data/feats.json") : `${githubBaseForEdition(edition)}/data/feats.json`;
-    const json = await loadJson(path);
-    return uniqSorted((json?.feat || []).map((x) => x?.source));
+    if (entity === "classes" || entity === "subclasses") {
+      const key = entity === "classes" ? "class" : "subclass";
+      for (const entry of Array.isArray(json?.[key]) ? json[key] : []) {
+        if (entity === "subclasses" && !isEditionCompatibleSubclassParent(edition, entry?.classSource)) continue;
+        sources.push(entry?.source);
+      }
+      return uniqSorted(sources);
+    }
   }
 
   if (entity === "races" || entity === "subraces") {
@@ -1607,10 +1606,24 @@ async function discoverSources(entity, edition, dataDir, sourceFile) {
     return uniqSorted((json?.[entity === "races" ? "race" : "subrace"] || []).map((x) => x?.source));
   }
 
-  if (entity === "backgrounds") {
-    const path = dataDir ? resolve(dataDir, "data", "backgrounds.json") : `${githubBaseForEdition(edition)}/data/backgrounds.json`;
+  if (entity === "backgrounds" || entity === "items" || entity === "feats" || entity === "optionalfeatures") {
+    const entityFile = entity === "backgrounds"
+      ? "backgrounds.json"
+      : entity === "items"
+        ? "items.json"
+        : entity === "feats"
+          ? "feats.json"
+          : "optionalfeatures.json";
+    const entityKey = entity === "backgrounds"
+      ? "background"
+      : entity === "items"
+        ? "item"
+        : entity === "feats"
+          ? "feat"
+          : "optionalfeature";
+    const path = dataDir ? resolve(dataDir, "data", entityFile) : `${githubBaseForEdition(edition)}/data/${entityFile}`;
     const json = await loadJson(path);
-    return uniqSorted((json?.background || []).map((x) => x?.source));
+    return uniqSorted((json?.[entityKey] || []).map((x) => x?.source));
   }
 
   if (entity === "spells") {
@@ -1619,7 +1632,6 @@ async function discoverSources(entity, edition, dataDir, sourceFile) {
   }
 
   const files = await listClassFiles({ dataDir, edition });
-  const sources = [];
   for (const filename of files) {
     const json = dataDir
       ? await loadJson(resolve(dataDir, "data/class", filename))
@@ -1790,6 +1802,13 @@ async function main() {
       entries = await loadFeatEntries({
         source, dataDir: dataDir || undefined, sourceFile: sourceFile || undefined, edition,
       });
+    } else if (entity === "optionalfeatures") {
+      entries = await loadOptionalFeatureEntries({
+        source,
+        dataDir: dataDir || undefined,
+        sourceFile: sourceFile || undefined,
+        edition,
+      });
     } else if (entity === "subraces") {
       entries = await loadSubraceEntries({
         source,
@@ -1821,6 +1840,7 @@ async function main() {
       if (entity === "features") return transformFeature(entry.feature, entry.type, edition, source);
       if (entity === "items") return transformItem(entry, edition, source);
       if (entity === "feats") return transformFeat(entry, edition, source);
+      if (entity === "optionalfeatures") return transformOptionalFeature(entry, edition, source);
       return transformBackground(entry, edition, source);
     });
 
@@ -1831,6 +1851,7 @@ async function main() {
       entity === "races" || entity === "subraces" ? "data/races" :
       entity === "items" ? "data/items.json" :
       entity === "feats" ? "data/feats.json" :
+      entity === "optionalfeatures" ? "data/optionalfeatures.json" :
       "data/backgrounds";
     filesUsed.push(sourceFile || `${entityPath}/${source}`);
 
