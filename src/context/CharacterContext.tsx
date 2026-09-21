@@ -1377,6 +1377,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           const dbItemId = appIdToDbId(maps.itemByAppId, itemId);
           if (!dbItemId) return;
           const result = await supabase.from("character_items").update({ equipped: nextEquipped }).eq("character_id", characterId).eq("item_id", dbItemId);
+          const acResult = await supabase.from("characters").update({ armor_class: nextAc }).eq("id", characterId);
+          if (acResult.error) throw acResult.error;
           if (result.error) throw result.error;
         } catch (error) {
           console.error("Could not update equipped state:", error);
