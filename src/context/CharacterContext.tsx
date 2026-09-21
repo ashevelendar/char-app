@@ -163,11 +163,11 @@ function normalizeCharacter(value: Character): Character {
 function catalogueText(value: unknown): string {
   if (typeof value === "string") {
     return value
-      .replace(/\\{@[^\\s}]+\\s+([^}|}]+)(?:\\|[^}]*)?\\}/g, "$1")
+      .replace(/\{@[^\s}]+\s+([^}|}]+)(?:\|[^}]*)?\}/g, "$1")
       .trim();
   }
   if (Array.isArray(value)) {
-    return value.map(catalogueText).filter(Boolean).join("\\n\\n");
+    return value.map(catalogueText).filter(Boolean).join("\n\n");
   }
   if (value && typeof value === "object") {
     const object = value as Record<string, unknown>;
