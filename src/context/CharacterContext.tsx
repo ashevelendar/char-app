@@ -140,10 +140,18 @@ function makeMaps(
 ): ContentMaps {
   const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
   const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));
-  const subclassesCatalogue = subclassRows.map((row: any) => ({
-    name: row.name,
-    className: classNameById.get(row.class_id ?? "") ?? "",
-  }));
+  const uniqueNames = (values: string[]) => [...new Set(values.filter(Boolean))];
+  const subclassesCatalogue = Array.from(
+    new Map(
+      subclassRows
+        .map((row: any) => ({
+          name: row.name,
+          className: classNameById.get(row.class_id ?? "") ?? "",
+        }))
+        .filter((entry) => entry.name && entry.className)
+        .map((entry) => [`${entry.className}::${entry.name}`, entry] as const),
+    ).values(),
+  );
 
   const reverseByName = (rows: Array<{ id: string; name: string }>, source: { id: string; name: string }[]) =>
     new Map(rows.map((row) => [row.id, source.find((entry) => entry.name === row.name)?.id ?? ""]));
@@ -180,10 +188,10 @@ function makeMaps(
     ),
     subclassByDbId: new Map(subclassRows.map((row: any) => [row.id, row.name])),
     catalogue: {
-      classes: classesRows.map((row) => row.name),
-      races: raceRows.map((row) => row.name),
+      classes: uniqueNames(classesRows.map((row) => row.name)),
+      races: uniqueNames(raceRows.map((row) => row.name)),
       subclasses: subclassesCatalogue,
-      backgrounds: backgroundRows.map((row) => row.name),
+      backgrounds: uniqueNames(backgroundRows.map((row) => row.name)),
     },
   };
 }
