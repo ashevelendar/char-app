@@ -1,0 +1,17 @@
+"use client";
+
+import { useState } from "react";
+import { Badge, PageHeader, SectionCard } from "../../components/AppShell";
+import { useCharacters } from "../../context/CharacterContext";
+import { features } from "../../lib/data";
+import { getFeatureRestrictionReason, hasOverride, isFeatureNormallyAvailable } from "../../lib/rules";
+
+export default function FeaturesLibraryPage() {
+  const { characters, accessMode, addFeature } = useCharacters();
+  const [characterId, setCharacterId] = useState(characters[0]?.id ?? "");
+  const [search, setSearch] = useState("");
+  const [showRestricted, setShowRestricted] = useState(false);
+  const character = characters.find((entry) => entry.id === characterId);
+  const filtered = features.filter((feature) => `${feature.name} ${feature.source} ${feature.description}`.toLowerCase().includes(search.toLowerCase()));
+  return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"><PageHeader eyebrow="Content Library" title="Feature Library" description="Features carry source and level metadata so the same library can serve many classes, races and subclasses." /><SectionCard title="Filter access"><div className="flex flex-col gap-3 md:flex-row"><select value={characterId} onChange={(e) => setCharacterId(e.target.value)} className="flex-1 rounded-xl border border-stone-800 bg-stone-950 px-4 py-3 text-sm"><option value="">No character selected</option>{characters.map((c) => <option key={c.id} value={c.id}>{c.name} • Level {c.level} {c.className}</option>)}</select><label className="flex items-center gap-2 px-2 text-sm text-stone-400"><input type="checkbox" checked={showRestricted} onChange={(e) => setShowRestricted(e.target.checked)} /> Show restricted</label></div><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search features..." className="mt-3 w-full rounded-xl border border-stone-800 bg-stone-950 px-4 py-3 text-sm outline-none focus:border-amber-400" /></SectionCard><div className="mt-6 grid gap-3 md:grid-cols-2">{filtered.map((feature) => { const allowed = character ? isFeatureNormallyAvailable(character, feature) || hasOverride(character, "feature", feature.id) : true; if (character && !showRestricted && !allowed) return null; const owned = character?.features.includes(feature.id); return <article key={feature.id} className="rounded-2xl border border-stone-800 bg-stone-900/70 p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold">{feature.name}</h2><p className="mt-1 text-xs uppercase tracking-wider text-stone-600">{feature.source} • Requires level {feature.requiredLevel}</p></div><Badge tone={allowed ? "good" : "warn"}>{allowed ? "Available" : "Restricted"}</Badge></div><p className="mt-3 text-sm leading-6 text-stone-400">{feature.description}</p><div className="mt-4 flex justify-end">{character ? allowed ? owned ? <Badge tone="good">Already added</Badge> : <button onClick={() => addFeature(character.id, feature.id)} className="rounded-xl bg-stone-100 px-3 py-2 text-sm font-semibold text-stone-950">+ Add to {character.name}</button> : accessMode === "dm" ? <button onClick={() => addFeature(character.id, feature.id, true)} className="rounded-xl border border-amber-700 px-3 py-2 text-sm text-amber-300">DM Grant</button> : <span className="text-xs text-stone-600">{getFeatureRestrictionReason(character, feature)}</span> : <span className="text-xs text-stone-600">Select a character to check access</span>}</div></article>; })}</div></div>;
+}
