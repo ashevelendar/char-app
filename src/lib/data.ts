@@ -138,6 +138,7 @@ export const defaultCharacter: Character = {
   skills: ["Animal Handling", "Nature", "Perception", "Survival"],
   languages: ["Common", "Draconic", "Druidic", "Lizardfolk"],
   feats: [],
+  optionalFeatures: [],
   features: ["druidic", "wild-shape", "dragon-affinity", "draconic-speech", "dragon-form", "lizardfolk-bite", "lizardfolk-hold-breath"],
   spells: [
     { spellId: "guidance", prepared: true },
