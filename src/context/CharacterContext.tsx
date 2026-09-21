@@ -691,10 +691,28 @@ function toCharacter(
       return appId ? [{ type: entry.content_type as ContentType, contentId: appId, reason: entry.reason ?? undefined }] : [];
     });
 
+  const raceName = relationName(row.race);
+  const storedAbilities: AbilityScores = {
+    str: row.strength ?? 10,
+    dex: row.dexterity ?? 10,
+    con: row.constitution ?? 10,
+    int: row.intelligence ?? 10,
+    wis: row.wisdom ?? 10,
+    cha: row.charisma ?? 10,
+  };
+  const looksLikeLegacyDefault = Object.values(storedAbilities).every((score) => score === 10);
+  const raceBonuses = maps.raceRules[raceName]?.abilityBonuses ?? {};
+  const abilities = looksLikeLegacyDefault
+    ? ABILITY_KEYS.reduce((result, key) => ({
+        ...result,
+        [key]: Math.min(20, Math.max(1, storedAbilities[key] + (raceBonuses[key] ?? 0))),
+      }), {} as AbilityScores)
+    : storedAbilities;
+
   return normalizeCharacter({
     id: row.id,
     name: row.name,
-    race: relationName(row.race),
+    race: raceName,
     className: relationName(row.class),
     subclass: maps.subclassByDbId.get(row.subclass_id) ?? relationName(row.subclass),
     background: relationName(row.background),
@@ -708,14 +726,7 @@ function toCharacter(
     speed: row.speed ?? 30,
     hitDice: row.hit_dice ?? "",
     proficiencyBonus: row.proficiency_bonus ?? 2,
-    abilities: {
-      str: row.strength ?? 10,
-      dex: row.dexterity ?? 10,
-      con: row.constitution ?? 10,
-      int: row.intelligence ?? 10,
-      wis: row.wisdom ?? 10,
-      cha: row.charisma ?? 10,
-    },
+    abilities,
     savingThrows: Array.isArray(row.saving_throws) ? row.saving_throws : [],
     skills: Array.isArray(row.skills) ? row.skills : [],
     languages: Array.isArray(row.languages) ? row.languages : [],
