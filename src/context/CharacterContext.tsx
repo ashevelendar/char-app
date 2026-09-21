@@ -36,9 +36,11 @@ type ContentMaps = {
   spellByAppId: Map<string, string>;
   featureByAppId: Map<string, string>;
   itemByAppId: Map<string, string>;
+  optionalFeatureByKey: Map<string, string>;
   spellByDbId: Map<string, string>;
   featureByDbId: Map<string, string>;
   itemByDbId: Map<string, string>;
+  optionalFeatureByDbId: Map<string, string>;
 };
 
 type CharacterContextValue = {
@@ -58,6 +60,8 @@ type CharacterContextValue = {
   toggleSpellPrepared: (characterId: string, spellId: string) => Promise<void>;
   addFeature: (characterId: string, featureId: string, override?: boolean) => Promise<boolean>;
   removeFeature: (characterId: string, featureId: string) => Promise<void>;
+  addOptionalFeature: (characterId: string, optionalFeatureKey: string, override?: boolean) => Promise<boolean>;
+  removeOptionalFeature: (characterId: string, optionalFeatureKey: string) => Promise<void>;
   revokeOverride: (characterId: string, type: ContentType, contentId: string) => Promise<void>;
   resetDemoData: () => Promise<void>;
 };
@@ -108,6 +112,7 @@ function normalizeCharacter(value: Character): Character {
     features: Array.isArray(value.features) ? value.features : [],
     spells: normalizeSpells(value.spells),
     inventory: normalizeInventory(value.inventory),
+    optionalFeatures: Array.isArray(value.optionalFeatures) ? value.optionalFeatures : [],
     accessOverrides: Array.isArray(value.accessOverrides) ? value.accessOverrides : [],
   };
 }
@@ -120,6 +125,7 @@ function makeMaps(
   spellRows: Array<{ id: string; name: string }>,
   featureRows: Array<{ id: string; name: string }>,
   itemRows: Array<{ id: string; name: string }>,
+  optionalFeatureRows: Array<{ id: string; content_key: string | null }>,
 ): ContentMaps {
   const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
   const reverseByName = (rows: Array<{ id: string; name: string }>, source: { id: string; name: string }[]) =>
@@ -142,9 +148,19 @@ function makeMaps(
       const dbId = itemRows.find((row) => row.name === item.name)?.id;
       return dbId ? [[item.id, dbId] as const] : [];
     })),
+    optionalFeatureByKey: new Map(
+      optionalFeatureRows.flatMap((row) =>
+        row.content_key ? [[row.content_key, row.id] as const] : [],
+      ),
+    ),
     spellByDbId: reverseByName(spellRows, spells),
     featureByDbId: reverseByName(featureRows, features),
     itemByDbId: reverseByName(itemRows, items),
+    optionalFeatureByDbId: new Map(
+      optionalFeatureRows.flatMap((row) =>
+        row.content_key ? [[row.id, row.content_key] as const] : [],
+      ),
+    ),
   };
 }
 
@@ -159,6 +175,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
     spellsResult,
     featuresResult,
     itemsResult,
+    optionalFeaturesResult,
   ] = await Promise.all([
     supabase.from("classes").select("id,name").is("owner_id", null),
     supabase.from("races").select("id,name").is("owner_id", null),
@@ -167,6 +184,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
     supabase.from("spells").select("id,name").is("owner_id", null),
     supabase.from("features").select("id,name").is("owner_id", null),
     supabase.from("items").select("id,name").is("owner_id", null),
+    supabase.from("optional_features").select("id,content_key").is("owner_id", null),
   ]);
 
   const results = [
@@ -177,6 +195,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
     spellsResult,
     featuresResult,
     itemsResult,
+    optionalFeaturesResult,
   ];
 
   const failed = results.find((result) => result.error);
@@ -190,6 +209,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
     spells: spellsResult.data ?? [],
     features: featuresResult.data ?? [],
     items: itemsResult.data ?? [],
+    optionalFeatures: optionalFeaturesResult.data ?? [],
   };
 
   if (
@@ -204,7 +224,16 @@ async function loadContentMaps(): Promise<ContentMaps> {
     throw new Error("The Supabase content library is empty. Run supabase/002_seed_and_permissions.sql first.");
   }
 
-  return makeMaps(rows.classes, rows.races, rows.subclasses, rows.backgrounds, rows.spells, rows.features, rows.items);
+  return makeMaps(
+    rows.classes,
+    rows.races,
+    rows.subclasses,
+    rows.backgrounds,
+    rows.spells,
+    rows.features,
+    rows.items,
+    rows.optionalFeatures,
+  );
 }
 
 function appIdToDbId(map: Map<string, string>, appId: string) {
@@ -226,6 +255,7 @@ function toCharacter(
   spellRows: any[],
   featureRows: any[],
   itemRows: any[],
+  optionalFeatureRows: any[],
   overrideRows: any[],
   maps: ContentMaps,
 ): Character {
@@ -252,6 +282,13 @@ function toCharacter(
         quantity: Number(entry.quantity) || 1,
         equipped: Boolean(entry.equipped),
       }] : [];
+    });
+
+  const optionalFeaturesForCharacter = optionalFeatureRows
+    .filter((entry) => entry.character_id === row.id)
+    .flatMap((entry) => {
+      const key = maps.optionalFeatureByDbId.get(entry.optional_feature_id);
+      return key ? [key] : [];
     });
 
   const overrides = overrideRows
@@ -294,6 +331,7 @@ function toCharacter(
     skills: Array.isArray(row.skills) ? row.skills : [],
     languages: Array.isArray(row.languages) ? row.languages : [],
     feats: [],
+    optionalFeatures: optionalFeaturesForCharacter,
     features: featuresForCharacter,
     spells: spellsForCharacter,
     inventory: inventoryForCharacter,
@@ -354,7 +392,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
         const ids = (characterResult.data ?? []).map((row: any) => row.id);
 
-        const [spellResult, featureResult, itemResult, overrideResult] = await Promise.all([
+        const [spellResult, featureResult, itemResult, optionalFeatureResult, overrideResult] = await Promise.all([
           ids.length
             ? supabase!.from("character_spells").select("character_id,spell_id,prepared").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
@@ -365,18 +403,29 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             ? supabase!.from("character_items").select("character_id,item_id,quantity,equipped").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
           ids.length
+            ? supabase!.from("character_optional_features").select("character_id,optional_feature_id").in("character_id", ids)
+            : Promise.resolve({ data: [], error: null }),
+          ids.length
             ? supabase!.from("character_overrides").select("character_id,content_type,content_id,reason").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
         ]);
 
-        for (const result of [spellResult, featureResult, itemResult, overrideResult]) {
+        for (const result of [spellResult, featureResult, itemResult, optionalFeatureResult, overrideResult]) {
           if (result.error) throw result.error;
         }
 
         if (cancelled) return;
 
         let nextCharacters = (characterResult.data ?? []).map((row: any) =>
-          toCharacter(row, spellResult.data ?? [], featureResult.data ?? [], itemResult.data ?? [], overrideResult.data ?? [], maps),
+          toCharacter(
+            row,
+            spellResult.data ?? [],
+            featureResult.data ?? [],
+            itemResult.data ?? [],
+            optionalFeatureResult.data ?? [],
+            overrideResult.data ?? [],
+            maps,
+          ),
         );
 
         if (nextCharacters.length === 0) {
@@ -468,6 +517,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         skills: [],
         languages: [],
         feats: [],
+        optionalFeatures: [],
         features: [],
         spells: [],
         inventory: [],
@@ -832,6 +882,69 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       return true;
     },
 
+    addOptionalFeature: async (characterId, optionalFeatureKey, override = false) => {
+      const character = characters.find((entry) => entry.id === characterId);
+      if (!character) return false;
+
+      if (!character.optionalFeatures.includes(optionalFeatureKey)) {
+        setCharacters((current) => current.map((entry) =>
+          entry.id === characterId
+            ? { ...entry, optionalFeatures: [...entry.optionalFeatures, optionalFeatureKey] }
+            : entry,
+        ));
+      }
+
+      if (supabase && user && isUuid(characterId)) {
+        try {
+          const maps = await getMapsForWrite();
+          const dbOptionalFeatureId = maps.optionalFeatureByKey.get(optionalFeatureKey);
+          if (!dbOptionalFeatureId) {
+            throw new Error(`Optional feature "${optionalFeatureKey}" is missing from the database catalogue.`);
+          }
+
+          const result = await supabase.from("character_optional_features").upsert({
+            character_id: characterId,
+            optional_feature_id: dbOptionalFeatureId,
+            dm_granted: accessMode === "dm" && override,
+            source: accessMode === "dm" && override ? "DM Grant" : "Normal",
+          }, { onConflict: "character_id,optional_feature_id" });
+
+          if (result.error) throw result.error;
+        } catch (error) {
+          console.error("Could not save optional feature:", error);
+          setDatabaseStatus("error");
+        }
+      }
+
+      return true;
+    },
+
+    removeOptionalFeature: async (characterId, optionalFeatureKey) => {
+      setCharacters((current) => current.map((character) =>
+        character.id === characterId
+          ? { ...character, optionalFeatures: character.optionalFeatures.filter((key) => key !== optionalFeatureKey) }
+          : character,
+      ));
+
+      if (supabase && user && isUuid(characterId)) {
+        try {
+          const maps = await getMapsForWrite();
+          const dbOptionalFeatureId = maps.optionalFeatureByKey.get(optionalFeatureKey);
+          if (dbOptionalFeatureId) {
+            const result = await supabase
+              .from("character_optional_features")
+              .delete()
+              .eq("character_id", characterId)
+              .eq("optional_feature_id", dbOptionalFeatureId);
+            if (result.error) throw result.error;
+          }
+        } catch (error) {
+          console.error("Could not remove optional feature:", error);
+          setDatabaseStatus("error");
+        }
+      }
+    },
+
     removeFeature: async (characterId, featureId) => {
       setCharacters((current) => current.map((character) =>
         character.id === characterId
@@ -975,6 +1088,16 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     }] : [];
   });
 
+  const optionalFeatureRows = character.optionalFeatures.flatMap((optionalFeatureKey) => {
+    const optionalFeatureId = maps.optionalFeatureByKey.get(optionalFeatureKey);
+    return optionalFeatureId ? [{
+      character_id: dbId,
+      optional_feature_id: optionalFeatureId,
+      dm_granted: false,
+      source: "Migrated",
+    }] : [];
+  });
+
   const itemRows = character.inventory.flatMap((entry) => {
     const itemId = maps.itemByAppId.get(entry.itemId);
     return itemId ? [{
@@ -998,6 +1121,11 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
 
   if (itemRows.length) {
     const insert = await supabase.from("character_items").insert(itemRows);
+    if (insert.error) throw insert.error;
+  }
+
+  if (optionalFeatureRows.length) {
+    const insert = await supabase.from("character_optional_features").insert(optionalFeatureRows);
     if (insert.error) throw insert.error;
   }
 
