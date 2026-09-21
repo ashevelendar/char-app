@@ -315,12 +315,13 @@ function makeMaps(
   const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));  const raceNameById = new Map(raceRows.map((row: any) => [row.id, row.name]));
   const uniqueNames = (values: string[]) => [...new Set(values.filter(Boolean))];
 
-  const preferredRows = <T extends { name: string; source?: string | null; source_code?: string | null }>(rows: T[]) =>
-    [...rows].sort((a, b) => {
+  function preferredRows<T extends { name: string; source?: string | null; source_code?: string | null }>(rows: T[]) {
+    return [...rows].sort((a, b) => {
       const aPriority = (a.source_code ?? a.source ?? "") === "PHB" ? 0 : 1;
       const bPriority = (b.source_code ?? b.source ?? "") === "PHB" ? 0 : 1;
       return aPriority - bPriority || a.name.localeCompare(b.name);
     });
+  }
 
   const raceRules = Object.fromEntries(
     preferredRows(raceRows)
