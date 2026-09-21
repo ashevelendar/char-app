@@ -212,10 +212,12 @@ function extractAbilityBonuses(raw: unknown): Partial<AbilityScores> {
   if (!raw || typeof raw !== "object") return result;
   const source = raw as Record<string, unknown>;
   const ability = source.ability;
-  if (ability && typeof ability === "object" && !Array.isArray(ability)) {
+  const entries = Array.isArray(ability) ? ability : [ability];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     for (const key of ABILITY_KEYS) {
-      const value = (ability as Record<string, unknown>)[key];
-      if (typeof value === "number" && Number.isFinite(value)) result[key] = value;
+      const value = (entry as Record<string, unknown>)[key];
+      if (typeof value === "number" && Number.isFinite(value)) result[key] = (result[key] ?? 0) + value;
     }
   }
   return result;
@@ -329,7 +331,9 @@ function extractNaturalArmor(raw: unknown): { base: number; dexMax?: number | nu
     const base = Number(armor.ac ?? armor.base ?? armor.value);
     if (Number.isFinite(base)) return { base, dexMax: armor.dex === false ? 0 : null };
   }
-  return undefined;
+  const text = catalogueText(object.entries);
+  const match = text.match(/(?:your )?AC is (\d+) \+ your Dexterity modifier/i);
+  return match ? { base: Number(match[1]), dexMax: null } : undefined;
 }
 
 function calculateArmorClass(character: Pick<Character, "abilities" | "inventory" | "race">, itemCatalogue: Item[], raceRules: Record<string, RaceRules>): number {
