@@ -735,7 +735,11 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         notes: input.notes,
       };
 
-      const starterFeatures = getAvailableFeatures(baseCharacter, false).map((feature) => feature.id);
+      const starterFeatures = featureCatalogue.filter((feature) =>
+        feature.requiredLevel <= baseCharacter.level &&
+        feature.className === baseCharacter.className &&
+        (!feature.subclassName || feature.subclassName === baseCharacter.subclass)
+      ).map((feature) => feature.id);
       const character: Character = { ...baseCharacter, features: starterFeatures };
 
       setCharacters((current) => [...current, character]);
