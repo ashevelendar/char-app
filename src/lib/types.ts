@@ -39,6 +39,18 @@ export interface Feature {
   requiresFeatureId?: string;
 }
 
+
+export interface Feat {
+  id: string;
+  name: string;
+  description: string;
+  prerequisite?: unknown;
+  ability?: unknown;
+  source: string;
+  edition?: "2014" | "2024" | "custom";
+  contentKey?: string;
+}
+
 export interface Item {
   id: string;
   name: string;
