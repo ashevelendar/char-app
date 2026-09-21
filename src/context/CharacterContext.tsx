@@ -454,26 +454,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           ),
         );
 
-        if (nextCharacters.length === 0) {
-          const saved = window.localStorage.getItem(STORAGE_KEY);
-          const localCharacters = saved
-            ? (() => {
-                try {
-                  const parsed = JSON.parse(saved) as Character[];
-                  return Array.isArray(parsed) && parsed.length ? parsed.map(normalizeCharacter) : [defaultCharacter];
-                } catch {
-                  return [defaultCharacter];
-                }
-              })()
-            : [defaultCharacter];
-
-          nextCharacters = [];
-          for (const localCharacter of localCharacters) {
-            const migrated = await insertCharacterToDb(user!.id, localCharacter, maps);
-            nextCharacters.push(migrated);
-          }
-        }
-
         setCharacters(nextCharacters);
         setDatabaseStatus("connected");
       } catch (error) {
