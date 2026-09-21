@@ -270,7 +270,7 @@ function makeMaps(
         name: row.name,
         source: row.source ?? row.source_code ?? "",
         sourceType: subclassLink ? "subclass" : "class",
-        requiredLevel: subclassLink?.requiredLevel ?? classLink?.requiredLevel ?? Number(row.required_level) || 1,
+        requiredLevel: subclassLink?.requiredLevel ?? classLink?.requiredLevel ?? (Number(row.required_level) || 1),
         description: row.description ?? "",
         className: classLink?.className,
         subclassName: subclassLink?.subclassName,
@@ -394,6 +394,9 @@ async function loadContentMaps(): Promise<ContentMaps> {
     spellClassesResult,
     spellSubclassesResult,
     spellRacesResult,
+    classFeaturesResult,
+    subclassFeaturesResult,
+    featsResult,
   ];
 
   const failed = results.find((result) => result.error);
