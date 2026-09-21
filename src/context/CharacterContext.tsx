@@ -20,6 +20,8 @@ import {
   isSpellNormallyAvailable,
 } from "../lib/rules";
 import type {
+  AbilityKey,
+  AbilityScores,
   AccessMode,
   Character,
   ContentType,
@@ -38,6 +40,21 @@ const SETTINGS_KEY = "dnd-character-manager-settings";
 
 type DatabaseStatus = "loading" | "connected" | "error" | "local-only";
 
+type RaceRules = {
+  abilityBonuses: Partial<AbilityScores>;
+  description: string;
+  source: string;
+};
+
+type BackgroundRules = {
+  description: string;
+  skills: string[];
+  languages: string[];
+  tools: string[];
+  featureName: string;
+  featureDescription: string;
+};
+
 type Catalogue = {
   classes: string[];
   races: string[];
@@ -52,6 +69,8 @@ type ContentMaps = {
   backgroundByName: Map<string, string>;
   subclassByDbId: Map<string, string>;
   catalogue: Catalogue;
+  raceRules: Record<string, RaceRules>;
+  backgroundRules: Record<string, BackgroundRules>;
   spellCatalogue: Spell[];
   featureCatalogue: Feature[];
   featCatalogue: Feat[];
@@ -88,6 +107,8 @@ type CharacterContextValue = {
   revokeOverride: (characterId: string, type: ContentType, contentId: string) => Promise<void>;
   resetDemoData: () => Promise<void>;
   catalogue: Catalogue;
+  raceRules: Record<string, RaceRules>;
+  backgroundRules: Record<string, BackgroundRules>;
   spellCatalogue: Spell[];
   featureCatalogue: Feature[];
   featCatalogue: Feat[];
@@ -181,9 +202,69 @@ function catalogueText(value: unknown): string {
   return "";
 }
 
+const ABILITY_KEYS: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
+
+function extractAbilityBonuses(raw: unknown): Partial<AbilityScores> {
+  const result: Partial<AbilityScores> = {};
+  if (!raw || typeof raw !== "object") return result;
+  const source = raw as Record<string, unknown>;
+  const ability = source.ability;
+  if (ability && typeof ability === "object" && !Array.isArray(ability)) {
+    for (const key of ABILITY_KEYS) {
+      const value = (ability as Record<string, unknown>)[key];
+      if (typeof value === "number" && Number.isFinite(value)) result[key] = value;
+    }
+  }
+  return result;
+}
+
+function extractProficiencyNames(raw: unknown, field: string): string[] {
+  if (!raw || typeof raw !== "object") return [];
+  const value = (raw as Record<string, unknown>)[field];
+  if (!Array.isArray(value)) return [];
+  const names: string[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const object = entry as Record<string, unknown>;
+    for (const [key, enabled] of Object.entries(object)) {
+      if (key === "choose" || key === "any" || key.startsWith("any")) continue;
+      if (enabled === true) {
+        names.push(key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()));
+      }
+    }
+  }
+  return [...new Set(names)];
+}
+
+function extractBackgroundFeature(raw: unknown): { name: string; description: string } {
+  if (!raw || typeof raw !== "object") return { name: "", description: "" };
+  const entries = (raw as Record<string, unknown>).entries;
+  let found = { name: "", description: "" };
+  function visit(value: unknown) {
+    if (found.name) return;
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    const object = value as Record<string, unknown>;
+    if (typeof object.name === "string" && /^feature\s*:/i.test(object.name)) {
+      found = {
+        name: object.name.replace(/^feature\s*:\s*/i, "").trim(),
+        description: catalogueText(object.entries ?? object.entry ?? object.text),
+      };
+      return;
+    }
+    visit(object.entries);
+    visit(object.entry);
+  }
+  visit(entries);
+  return found;
+}
+
 function makeMaps(
   classesRows: Array<{ id: string; name: string }>,
-  raceRows: Array<{ id: string; name: string }>,
+  raceRows: Array<{ id: string; name: string; description?: string | null; source?: string | null; source_code?: string | null; raw_data?: unknown }>,
   subclassRows: Array<{
     id: string;
     name: string;
@@ -193,7 +274,7 @@ function makeMaps(
     source_code?: string | null;
     raw_data?: unknown;
   }>,
-  backgroundRows: Array<{ id: string; name: string }>,
+  backgroundRows: Array<{ id: string; name: string; description?: string | null; source?: string | null; source_code?: string | null; raw_data?: unknown }>,
   spellRows: Array<{
     id: string;
     name: string;
@@ -221,6 +302,34 @@ function makeMaps(
 ): ContentMaps {  const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
   const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));  const raceNameById = new Map(raceRows.map((row: any) => [row.id, row.name]));
   const uniqueNames = (values: string[]) => [...new Set(values.filter(Boolean))];
+
+  const raceRules = Object.fromEntries(
+    raceRows.map((row) => [
+      row.name,
+      {
+        abilityBonuses: extractAbilityBonuses(row.raw_data),
+        description: row.description ?? "",
+        source: row.source ?? row.source_code ?? "",
+      },
+    ]),
+  ) as Record<string, RaceRules>;
+
+  const backgroundRules = Object.fromEntries(
+    backgroundRows.map((row) => {
+      const feature = extractBackgroundFeature(row.raw_data);
+      return [
+        row.name,
+        {
+          description: row.description ?? "",
+          skills: extractProficiencyNames(row.raw_data, "skillProficiencies"),
+          languages: extractProficiencyNames(row.raw_data, "languageProficiencies"),
+          tools: extractProficiencyNames(row.raw_data, "toolProficiencies"),
+          featureName: feature.name,
+          featureDescription: feature.description,
+        },
+      ];
+    }),
+  ) as Record<string, BackgroundRules>;
 
   const spellClassesById = new Map<string, Set<string>>();
   for (const link of spellClassRows) {
@@ -349,6 +458,8 @@ function makeMaps(
     spellCatalogue,
     featureCatalogue,
     featCatalogue,
+    raceRules,
+    backgroundRules,
     spellByAppId: new Map(spells.flatMap((spell) => {
       const dbId = spellByName.get(spell.name.trim().toLowerCase());
       return dbId ? [[spell.id, dbId] as const] : [];
@@ -435,8 +546,8 @@ async function loadContentMaps(): Promise<ContentMaps> {
     subclassFeaturesResult,
     featsResult,
   ] = await Promise.all([    supabase.from("classes").select("id,name").is("owner_id", null),
-    supabase.from("races").select("id,name").is("owner_id", null),    supabase.from("subclasses").select("id,name,class_id,description,source,source_code,edition,raw_data").is("owner_id", null).eq("edition", "2014"),
-    supabase.from("backgrounds").select("id,name").is("owner_id", null),
+    supabase.from("races").select("id,name,description,source,source_code,raw_data").is("owner_id", null).eq("edition", "2014"),    supabase.from("subclasses").select("id,name,class_id,description,source,source_code,edition,raw_data").is("owner_id", null).eq("edition", "2014"),
+    supabase.from("backgrounds").select("id,name,description,source,source_code,raw_data").is("owner_id", null).eq("edition", "2014"),
     supabase.from("spells").select("id,name,level,school,casting_time,range,duration,description,higher_levels,source,source_code,edition,content_key").is("owner_id", null).eq("edition", "2014"),
     supabase.from("features").select("id,name,description,source,source_code,source_type,required_level,edition").is("owner_id", null).eq("edition", "2014"),
     supabase.from("items").select("id,name").is("owner_id", null),
@@ -764,6 +875,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     accessMode,
     databaseStatus,
     catalogue,
+    raceRules,
+    backgroundRules,
     spellCatalogue,
     featureCatalogue,
     featCatalogue,
