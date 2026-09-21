@@ -40,7 +40,7 @@ function fromArray(values: number[]): AbilityScores {
   return ABILITIES.reduce((result, key, index) => ({ ...result, [key]: values[index] ?? 10 }), {} as AbilityScores);
 }
 
-function applyBonuses(base: AbilityScores, bonuses: Partial<AbilityScores>): AbilityScores {
+export function applyAbilityBonuses(base: AbilityScores, bonuses: Partial<AbilityScores>): AbilityScores {
   return ABILITIES.reduce((result, key) => ({
     ...result,
     [key]: Math.min(20, Math.max(1, base[key] + (bonuses[key] ?? 0))),
@@ -64,7 +64,7 @@ export default function AbilityScoreBuilder({
 }) {
   const [rolls, setRolls] = useState<AbilityScores>(() => rollSet());
 
-  const totals = useMemo(() => applyBonuses(baseScores, raceBonuses), [baseScores, raceBonuses]);
+  const totals = useMemo(() => applyAbilityBonuses(baseScores, raceBonuses), [baseScores, raceBonuses]);
   const pointBuySpent = useMemo(
     () => ABILITIES.reduce((sum, key) => sum + (POINT_BUY_COST[baseScores[key]] ?? 0), 0),
     [baseScores],
