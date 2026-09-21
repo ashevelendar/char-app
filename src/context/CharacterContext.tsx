@@ -350,8 +350,11 @@ function calculateArmorClass(character: Pick<Character, "abilities" | "inventory
     const dexBonus = category.includes("heavy") ? 0 : category.includes("medium") ? Math.min(dex, 2) : dex;
     ac = armor.armorClass + dexBonus + (armor.magicBonus ?? 0) + (armor.bonusAc ?? 0);
   }
-  if (shield) ac += shield.shieldBonus ?? shield.armorClass ?? 2;
-  return ac;
+  if (shield) ac += (shield.shieldBonus ?? shield.armorClass ?? 2) + (shield.bonusAc ?? 0);
+  const generalAcBonus = equipped
+    .filter((item) => !item.isArmor && !item.isShield)
+    .reduce((sum, item) => sum + (item.bonusAc ?? 0), 0);
+  return ac + generalAcBonus;
 }
 
 function makeMaps(
