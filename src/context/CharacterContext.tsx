@@ -60,6 +60,7 @@ type CharacterContextValue = {
   setAccessMode: (mode: AccessMode) => void;
   createCharacter: (input: NewCharacterInput) => Promise<string>;
   updateCharacter: (id: string, patch: Partial<Character>) => Promise<void>;
+  deleteCharacter: (id: string) => Promise<void>;
   addInventoryItem: (characterId: string, itemId: string, quantity?: number, override?: boolean) => Promise<boolean>;
   removeInventoryItem: (characterId: string, itemId: string) => Promise<void>;
   changeInventoryQuantity: (characterId: string, itemId: string, delta: number) => Promise<void>;
@@ -606,6 +607,23 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error("Could not update character:", error);
+        setDatabaseStatus("error");
+      }
+    },
+
+    deleteCharacter: async (id) => {
+      setCharacters((current) => current.filter((character) => character.id !== id));
+      if (!supabase || !user || !isUuid(id)) return;
+
+      try {
+        const result = await supabase
+          .from("characters")
+          .delete()
+          .eq("id", id)
+          .eq("user_id", user.id);
+        if (result.error) throw result.error;
+      } catch (error) {
+        console.error("Could not delete character:", error);
         setDatabaseStatus("error");
       }
     },
