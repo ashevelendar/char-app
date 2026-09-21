@@ -8,6 +8,7 @@ import {
   getAvailableItems,
   getAvailableSpells,
   getExpectedMaxHp,
+  getHitDieSize,
   getProficiencyBonus,
   hasOverride,
   isFeatureNormallyAvailable,
