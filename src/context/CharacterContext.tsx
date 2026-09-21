@@ -74,7 +74,7 @@ function normalizeSpells(value: unknown): SpellEntry[] {
     if (typeof entry === "string") return [{ spellId: entry, prepared: false }];
     if (entry && typeof entry === "object" && "spellId" in entry && typeof entry.spellId === "string") {
       const candidate = entry as Partial<SpellEntry>;
-      return [{ spellId: candidate.spellId, prepared: Boolean(candidate.prepared) }];
+      return [{ spellId: candidate.spellId as string, prepared: Boolean(candidate.prepared) }];
     }
     return [];
   });
@@ -90,7 +90,7 @@ function normalizeInventory(value: unknown): InventoryEntry[] {
     if (entry && typeof entry === "object" && "itemId" in entry && typeof entry.itemId === "string") {
       const candidate = entry as Partial<InventoryEntry>;
       return [{
-        itemId: candidate.itemId,
+        itemId: candidate.itemId as string,
         quantity: typeof candidate.quantity === "number" && candidate.quantity > 0 ? candidate.quantity : 1,
         equipped: Boolean(candidate.equipped),
         notes: typeof candidate.notes === "string" ? candidate.notes : undefined,
@@ -616,7 +616,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           ? entry.inventory.map((item) => item.itemId === itemId ? { ...item, quantity: item.quantity + Math.max(1, quantity) } : item)
           : [...entry.inventory, { itemId, quantity: Math.max(1, quantity), equipped: false }];
         const accessOverrides = !allowed && override && accessMode === "dm" && !hasOverride(entry, "item", itemId)
-          ? [...entry.accessOverrides, { type: "item", contentId: itemId, reason: "Granted by DM" }]
+          ? [...entry.accessOverrides, { type: "item" as const, contentId: itemId, reason: "Granted by DM" }]
           : entry.accessOverrides;
         return { ...entry, inventory, accessOverrides };
       }));
@@ -757,7 +757,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setCharacters((current) => current.map((entry) => {
           if (entry.id !== characterId) return entry;
           const accessOverrides = !spellAllowed && override && accessMode === "dm" && !hasOverride(entry, "spell", spellId)
-            ? [...entry.accessOverrides, { type: "spell", contentId: spellId, reason: "Granted by DM" }]
+            ? [...entry.accessOverrides, { type: "spell" as const, contentId: spellId, reason: "Granted by DM" }]
             : entry.accessOverrides;
           return { ...entry, spells: [...entry.spells, { spellId, prepared }], accessOverrides };
         }));
@@ -849,7 +849,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setCharacters((current) => current.map((entry) => {
           if (entry.id !== characterId) return entry;
           const accessOverrides = !featureAllowed && override && accessMode === "dm" && !hasOverride(entry, "feature", featureId)
-            ? [...entry.accessOverrides, { type: "feature", contentId: featureId, reason: "Granted by DM" }]
+            ? [...entry.accessOverrides, { type: "feature" as const, contentId: featureId, reason: "Granted by DM" }]
             : entry.accessOverrides;
           return { ...entry, features: [...entry.features, featureId], accessOverrides };
         }));
