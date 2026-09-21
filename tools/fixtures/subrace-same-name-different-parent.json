@@ -1,0 +1,20 @@
+{
+  "subrace": [
+    {
+      "name": "Variant; Mark of Finding (ERLW)",
+      "source": "ERLW",
+      "raceName": "Human",
+      "raceSource": "PHB",
+      "page": 37,
+      "entries": ["Human Mark of Finding"]
+    },
+    {
+      "name": "Variant; Mark of Finding (ERLW)",
+      "source": "ERLW",
+      "raceName": "Half-Orc",
+      "raceSource": "PHB",
+      "page": 37,
+      "entries": ["Half-Orc Mark of Finding"]
+    }
+  ]
+}

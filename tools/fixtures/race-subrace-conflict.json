@@ -1,0 +1,24 @@
+{
+  "subrace": [
+    {
+      "name": "Conflict",
+      "source": "ERLW",
+      "raceName": "Variant",
+      "raceSource": "ERLW",
+      "page": 1,
+      "entries": [
+        "A"
+      ]
+    },
+    {
+      "name": "Conflict",
+      "source": "ERLW",
+      "raceName": "Variant",
+      "raceSource": "ERLW",
+      "page": 2,
+      "entries": [
+        "A"
+      ]
+    }
+  ]
+}

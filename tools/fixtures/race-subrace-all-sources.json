@@ -1,0 +1,40 @@
+{
+  "race": [
+    {
+      "name": "Dwarf",
+      "source": "PHB",
+      "page": 18,
+      "entries": ["Dwarf fixture"]
+    },
+    {
+      "name": "Aasimar",
+      "source": "VGM",
+      "page": 104,
+      "entries": ["Aasimar fixture"]
+    }
+  ],
+  "subrace": [
+    {
+      "name": "Hill",
+      "source": "PHB",
+      "raceName": "Dwarf",
+      "raceSource": "PHB",
+      "page": 20,
+      "entries": ["Hill Dwarf fixture"]
+    },
+    {
+      "name": "Protector",
+      "source": "VGM",
+      "raceName": "Aasimar",
+      "raceSource": "VGM",
+      "page": 104,
+      "entries": ["Protector Aasimar fixture"]
+    },
+    {
+      "source": "PHB",
+      "raceName": "Dragonborn",
+      "raceSource": "PHB",
+      "_versions": [{}]
+    }
+  ]
+}

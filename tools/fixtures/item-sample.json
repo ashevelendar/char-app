@@ -1,0 +1,19 @@
+{
+  "item": [
+    {
+      "name": "Test Longsword",
+      "source": "PHB",
+      "page": 149,
+      "type": "M",
+      "rarity": "none",
+      "weight": 3,
+      "value": 1500,
+      "entries": ["A test sword."],
+      "weaponCategory": "Martial",
+      "weapon": true,
+      "dmg1": "1d8",
+      "dmgType": "S",
+      "property": ["V"]
+    }
+  ]
+}

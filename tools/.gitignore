@@ -1,0 +1,5 @@
+# Local importer secret file
+.env.importer
+
+# Generated inspection/output files
+output/

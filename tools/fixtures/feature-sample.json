@@ -1,0 +1,26 @@
+{
+  "classFeature": [
+    {
+      "name": "Spellcasting",
+      "source": "PHB",
+      "page": 56,
+      "className": "Cleric",
+      "classSource": "PHB",
+      "level": 1,
+      "entries": ["You can cast cleric spells."]
+    }
+  ],
+  "subclassFeature": [
+    {
+      "name": "Bonus Proficiency",
+      "source": "PHB",
+      "page": 58,
+      "className": "Cleric",
+      "classSource": "PHB",
+      "subclassShortName": "Life",
+      "subclassSource": "PHB",
+      "level": 1,
+      "entries": ["You gain proficiency with heavy armor."]
+    }
+  ]
+}

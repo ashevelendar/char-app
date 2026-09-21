@@ -1,0 +1,32 @@
+{
+  "race": [
+    {
+      "name": "Variant",
+      "source": "ERLW"
+    }
+  ],
+  "subrace": [
+    {
+      "name": "Mark of Finding",
+      "source": "ERLW",
+      "raceName": "Variant",
+      "raceSource": "ERLW",
+      "page": 1,
+      "entries": [
+        "Same logical subrace"
+      ],
+      "_copy": 1
+    },
+    {
+      "name": "Mark of Finding",
+      "source": "ERLW",
+      "raceName": "Variant",
+      "raceSource": "ERLW",
+      "page": 1,
+      "entries": [
+        "Same logical subrace"
+      ],
+      "_copy": 2
+    }
+  ]
+}
