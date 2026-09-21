@@ -144,6 +144,16 @@ const SPELLS_KNOWN: Record<string, number[]> = {
   Warlock: [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15],
 };
 
+export function getAbilityScoreImprovementLevels(className: string) {
+  if (className === "Fighter") return [4, 6, 8, 12, 14, 16, 19];
+  if (className === "Rogue") return [4, 8, 10, 12, 16, 19];
+  return [4, 8, 12, 16, 19];
+}
+
+export function getNewAbilityScoreImprovementLevels(className: string, oldLevel: number, newLevel: number) {
+  return getAbilityScoreImprovementLevels(className).filter((level) => level > oldLevel && level <= newLevel);
+}
+
 export type SpellSlotSummary = {
   level: number;
   count: number;
