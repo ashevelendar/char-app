@@ -77,6 +77,11 @@ export default function AbilityScoreBuilder({
 
   function setScore(key: AbilityKey, value: number) {
     const safe = Math.max(1, Math.min(method === "pointBuy" ? 15 : 20, Math.trunc(value || 0)));
+    if (method === "pointBuy") {
+      const next = { ...baseScores, [key]: safe };
+      const spent = ABILITIES.reduce((sum, ability) => sum + (POINT_BUY_COST[next[ability]] ?? 0), 0);
+      if (spent > 27) return;
+    }
     onBaseScoresChange({ ...baseScores, [key]: safe });
   }
 
