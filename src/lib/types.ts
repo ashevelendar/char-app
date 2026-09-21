@@ -31,6 +31,7 @@ export interface Feature {
   sourceType: FeatureSourceType;
   requiredLevel: number;
   description: string;
+  uses?: { max: number; recovery: string };
   className?: string;
   subclassName?: string;
   raceName?: string;
@@ -150,8 +151,6 @@ export interface NewCharacterInput {
   languages?: string[];
   feats?: string[];
   resourceUses?: Record<string, number>;
-  languages?: string[];
-  feats?: string[];
 }
 
 export interface ClassDefinition {
