@@ -1099,7 +1099,15 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (error) {
-        console.error("Could not update character:", error);
+        const details = error && typeof error === "object"
+          ? {
+              message: "message" in error ? String(error.message ?? "") : "",
+              code: "code" in error ? String(error.code ?? "") : "",
+              details: "details" in error ? String(error.details ?? "") : "",
+              hint: "hint" in error ? String(error.hint ?? "") : "",
+            }
+          : { message: String(error ?? "") };
+        console.error("Could not update character:", details);
         setDatabaseStatus("error");
       }
     },
