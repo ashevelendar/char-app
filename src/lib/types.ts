@@ -73,6 +73,7 @@ export interface Item {
   weaponDamageVersatile?: string;
   weaponDamageType?: string;
   weaponProperties?: string[];
+  weaponCategory?: string;
   weaponRange?: string;
   magicBonus?: number;
   bonusAc?: number;
