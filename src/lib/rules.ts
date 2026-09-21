@@ -54,6 +54,11 @@ export function getExpectedMaxHp(className: string, level: number, constitution:
   return Math.max(1, hitDie + conMod + Math.max(0, safeLevel - 1) * (averageGain + conMod));
 }
 
+export function getExpectedHitDice(className: string, level: number) {
+  const safeLevel = Math.max(1, Math.min(20, level));
+  return `${safeLevel}d${getHitDieSize(className)}`;
+}
+
 
 const FULL_CASTER_SLOTS: number[][] = [
   [],
