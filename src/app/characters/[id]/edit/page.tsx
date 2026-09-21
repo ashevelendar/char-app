@@ -81,7 +81,14 @@ function CharacterEditor({ character, catalogue, featureCatalogue, featCatalogue
 
 <SectionCard title="Character notes"><textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={10} className="w-full rounded-xl border border-stone-700 bg-stone-950 px-4 py-3 text-sm leading-6 text-stone-100 outline-none focus:border-amber-400" placeholder="Backstory, reminders, campaign notes..." /></SectionCard><div className="flex justify-end"><button type="submit" className="rounded-xl bg-stone-100 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-300">Save Character</button></div></form></div>;
 }
-function formatPrerequisite(value: unknown) {\n  if (typeof value === "string") return value;\n  try { return JSON.stringify(value); } catch { return String(value); }\n}\nfunction splitList(value: string) { return value.split(",").map((entry) => entry.trim()).filter(Boolean); }
+function formatPrerequisite(value: unknown) {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}\nfunction splitList(value: string) { return value.split(",").map((entry) => entry.trim()).filter(Boolean); }
 function Field({ label, value, onChange, required = false }: { label: string; value: string; onChange: (value: string) => void; required?: boolean }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><input required={required} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm outline-none focus:border-amber-400" /></label>; }
 function NumberField({ label, value, onChange, min, max }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><input type="number" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm outline-none focus:border-amber-400" /></label>; }
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><select value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm outline-none focus:border-amber-400">{options.length ? options.map((option) => <option key={option}>{option}</option>) : <option value="">None</option>}</select></label>; }
