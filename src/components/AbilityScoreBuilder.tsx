@@ -85,6 +85,13 @@ export default function AbilityScoreBuilder({
     onBaseScoresChange({ ...baseScores, [key]: safe });
   }
 
+  function assignGeneratedScore(key: AbilityKey, value: number) {
+    const otherKey = ABILITIES.find((candidate) => candidate !== key && baseScores[candidate] === value);
+    const next = { ...baseScores, [key]: value };
+    if (otherKey) next[otherKey] = baseScores[key];
+    onBaseScoresChange(next);
+  }
+
   function setMethod(next: AbilityScoreMethod) {
     onMethodChange(next);
     if (next === "standard") onBaseScoresChange(fromArray(STANDARD_ARRAY));
@@ -140,15 +147,20 @@ export default function AbilityScoreBuilder({
                 <span className="text-xs text-stone-600">Mod {modifier(totals[key])}</span>
               </div>
               <div className="mt-3 flex items-center gap-2">
-                <input
-                  type="number"
-                  min={method === "pointBuy" ? 8 : 1}
-                  max={method === "pointBuy" ? 15 : 20}
-                  value={baseScores[key]}
-                  disabled={method === "standard" || method === "roll"}
-                  onChange={(event) => setScore(key, Number(event.target.value))}
-                  className="w-20 rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-lg font-semibold text-stone-100 outline-none focus:border-amber-400 disabled:opacity-60"
-                />
+{method === "standard" || method === "roll" ? (
+                  <select value={baseScores[key]} onChange={(event) => assignGeneratedScore(key, Number(event.target.value))} className="w-24 rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-lg font-semibold text-stone-100 outline-none focus:border-amber-400">
+                    {(method === "standard" ? STANDARD_ARRAY : Object.values(rolls)).map((value, index) => <option key={`${value}-${index}`} value={value}>{value}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    min={method === "pointBuy" ? 8 : 1}
+                    max={method === "pointBuy" ? 15 : 20}
+                    value={baseScores[key]}
+                    onChange={(event) => setScore(key, Number(event.target.value))}
+                    className="w-20 rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-lg font-semibold text-stone-100 outline-none focus:border-amber-400"
+                  />
+                )}
                 <span className="text-stone-600">base</span>
                 {bonus !== 0 && <span className="text-sm text-amber-300">{bonus > 0 ? `+${bonus}` : bonus} race</span>}
                 <span className="ml-auto text-2xl font-bold text-stone-100">{totals[key]}</span>
