@@ -74,6 +74,7 @@ type ContentMaps = {
   spellCatalogue: Spell[];
   featureCatalogue: Feature[];
   featCatalogue: Feat[];
+  itemCatalogue: Item[];
   spellByAppId: Map<string, string>;
   featureByAppId: Map<string, string>;
   itemByAppId: Map<string, string>;
@@ -112,6 +113,7 @@ type CharacterContextValue = {
   spellCatalogue: Spell[];
   featureCatalogue: Feature[];
   featCatalogue: Feat[];
+  itemCatalogue: Item[];
 };
 
 const CharacterContext = createContext<CharacterContextValue | undefined>(undefined);
@@ -274,6 +276,48 @@ function extractBackgroundFeature(raw: unknown): { name: string; description: st
   return found;
 }
 
+function extractFeatureUses(raw: unknown): { max: number; recovery: string } | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const object = raw as Record<string, unknown>;
+  const usage = object.uses ?? object.usage;
+  if (!usage || typeof usage !== "object") return undefined;
+  const value = usage as Record<string, unknown>;
+  const max = Number(value.max ?? value.amount ?? value.count);
+  if (!Number.isFinite(max) || max <= 0) return undefined;
+  const recovery = typeof value.recharge === "string" ? value.recharge : typeof value.recovery === "string" ? value.recovery : "rest";
+  return { max, recovery };
+}
+
+function extractItemRules(raw: unknown): Partial<Item> {
+  if (!raw || typeof raw !== "object") return {};
+  const object = raw as Record<string, unknown>;
+  const armorCategory = typeof object.armorCategory === "string" ? object.armorCategory : "";
+  const properties = Array.isArray(object.property)
+    ? object.property.map((entry) => typeof entry === "string" ? entry : entry && typeof entry === "object" && "name" in entry ? String((entry as Record<string, unknown>).name) : "").filter(Boolean)
+    : [];
+  const rawAc = Number(object.ac);
+  const isShield = Boolean(armorCategory && armorCategory.toLowerCase() === "shield");
+  const isWeapon = Boolean(object.dmg1 || object.weaponCategory || object.weapon);
+  const isArmor = Boolean(armorCategory || Number.isFinite(rawAc));
+  return {
+    armorClass: Number.isFinite(rawAc) ? rawAc : undefined,
+    armorDexMax: armorCategory.toLowerCase() === "medium" ? 2 : armorCategory.toLowerCase() === "heavy" || isShield ? 0 : null,
+    shieldBonus: isShield ? (Number.isFinite(rawAc) ? rawAc : 2) : undefined,
+    strengthRequirement: Number.isFinite(Number(object.strength)) ? Number(object.strength) : undefined,
+    stealthDisadvantage: Boolean(object.stealth),
+    weaponDamage: typeof object.dmg1 === "string" ? object.dmg1 : undefined,
+    weaponDamageVersatile: typeof object.dmg2 === "string" ? object.dmg2 : undefined,
+    weaponDamageType: typeof object.dmgType === "string" ? object.dmgType : undefined,
+    weaponProperties: properties,
+    weaponRange: object.range ? String(object.range) : undefined,
+    magicBonus: Number.isFinite(Number(object.bonusWeapon)) ? Number(object.bonusWeapon) : undefined,
+    bonusAc: Number.isFinite(Number(object.bonusAc)) ? Number(object.bonusAc) : undefined,
+    isWeapon,
+    isArmor,
+    isShield,
+  };
+}
+
 function makeMaps(
   classesRows: Array<{ id: string; name: string }>,
   raceRows: Array<{ id: string; name: string; description?: string | null; source?: string | null; source_code?: string | null; raw_data?: unknown }>,
@@ -305,8 +349,8 @@ function makeMaps(
   spellClassRows: Array<{ spell_id: string; class_id: string }>,
   spellSubclassRows: Array<{ spell_id: string; subclass_id: string }>,
   spellRaceRows: Array<{ spell_id: string; race_id: string }>,
-  featureRows: Array<{ id: string; name: string }>,
-  itemRows: Array<{ id: string; name: string }>,
+  featureRows: Array<{ id: string; name: string; description?: string | null; source?: string | null; source_code?: string | null; source_type?: string | null; required_level?: number | null; raw_data?: unknown }>,
+  itemRows: Array<{ id: string; name: string; category?: string | null; rarity?: string | null; description?: string | null; weight?: string | null; value?: string | null; requires_attunement?: boolean | null; minimum_level?: number | null; raw_data?: unknown }>,
   optionalFeatureRows: Array<{ id: string; content_key: string | null }>,
   classFeatureRows: Array<{ class_id: string; feature_id: string; required_level?: number | null }>,
   subclassFeatureRows: Array<{ subclass_id: string; feature_id: string; required_level?: number | null }>,
@@ -454,12 +498,28 @@ function makeMaps(
         sourceType: subclassLink ? "subclass" : "class",
         requiredLevel: subclassLink?.requiredLevel ?? classLink?.requiredLevel ?? (Number(row.required_level) || 1),
         description: row.description ?? "",
+        uses: extractFeatureUses(row.raw_data),
         className: classLink?.className ?? subclassLink?.className,
         subclassName: subclassLink?.subclassName,
       } satisfies Feature;
     })
     .filter((feature) => feature.name)
     .sort((a, b) => a.requiredLevel - b.requiredLevel || a.name.localeCompare(b.name));
+
+  const itemCatalogue: Item[] = itemRows
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      category: row.category ?? "Equipment",
+      rarity: row.rarity ?? "Common",
+      description: row.description ?? "",
+      weight: row.weight ?? undefined,
+      value: row.value ?? undefined,
+      requiresAttunement: Boolean(row.requires_attunement),
+      requiredCharacterLevel: row.minimum_level ?? undefined,
+      ...extractItemRules(row.raw_data),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const featCatalogue: Feat[] = featRows
     .map((row) => ({
@@ -480,8 +540,10 @@ function makeMaps(
     subclassByName: byName(subclassRows),
     backgroundByName: byName(backgroundRows),
     spellCatalogue,
+    itemCatalogue,
     featureCatalogue,
     featCatalogue,
+    itemCatalogue,
     raceRules,
     backgroundRules,
     spellByAppId: new Map(spells.flatMap((spell) => {
@@ -573,8 +635,8 @@ async function loadContentMaps(): Promise<ContentMaps> {
     supabase.from("races").select("id,name,description,source,source_code,raw_data").is("owner_id", null).eq("edition", "2014"),    supabase.from("subclasses").select("id,name,class_id,description,source,source_code,edition,raw_data").is("owner_id", null).eq("edition", "2014"),
     supabase.from("backgrounds").select("id,name,description,source,source_code,raw_data").is("owner_id", null).eq("edition", "2014"),
     supabase.from("spells").select("id,name,level,school,casting_time,range,duration,description,higher_levels,source,source_code,edition,content_key").is("owner_id", null).eq("edition", "2014"),
-    supabase.from("features").select("id,name,description,source,source_code,source_type,required_level,edition").is("owner_id", null).eq("edition", "2014"),
-    supabase.from("items").select("id,name").is("owner_id", null),
+    supabase.from("features").select("id,name,description,source,source_code,source_type,required_level,edition,raw_data").is("owner_id", null).eq("edition", "2014"),
+    supabase.from("items").select("id,name,category,rarity,description,weight,value,requires_attunement,minimum_level,raw_data").is("owner_id", null),
     supabase.from("optional_features").select("id,content_key").is("owner_id", null),
     supabase.from("spell_classes").select("spell_id,class_id"),
     supabase.from("spell_subclasses").select("spell_id,subclass_id"),
@@ -774,6 +836,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [raceRules, setRaceRules] = useState<Record<string, RaceRules>>({});
   const [backgroundRules, setBackgroundRules] = useState<Record<string, BackgroundRules>>({});
   const [spellCatalogue, setSpellCatalogue] = useState<Spell[]>([]);
+  const [itemCatalogue, setItemCatalogue] = useState<Item[]>([]);
   const [featureCatalogue, setFeatureCatalogue] = useState<Feature[]>([]);
   const [featCatalogue, setFeatCatalogue] = useState<Feat[]>([]);
 
@@ -784,6 +847,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       setRaceRules({});
       setBackgroundRules({});
       setSpellCatalogue([]);
+      setItemCatalogue([]);
       setFeatureCatalogue([]);
       setFeatCatalogue([]);      setHydrated(true);
       setDatabaseStatus(supabase ? "local-only" : "error");
@@ -1053,6 +1117,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         if (patch.proficiencyBonus !== undefined && !progressionChanged) dbPatch.proficiency_bonus = patch.proficiencyBonus;
         if (patch.notes !== undefined) dbPatch.notes = patch.notes;
         if (patch.feats !== undefined) dbPatch.feats = patch.feats;
+    if (patch.resourceUses !== undefined) dbPatch.resource_uses = patch.resourceUses;
         if (patch.race !== undefined) dbPatch.race_id = maps.raceByName.get(patch.race) ?? null;
         if (patch.className !== undefined) dbPatch.class_id = maps.classByName.get(patch.className) ?? null;
         if (patch.subclass !== undefined) dbPatch.subclass_id = maps.subclassByName.get(patch.subclass) ?? null;
@@ -1573,7 +1638,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       setCharacters([defaultCharacter]);
     },
-  }), [characters, hydrated, accessMode, databaseStatus, catalogue, raceRules, backgroundRules, spellCatalogue, featureCatalogue, featCatalogue, user]);
+  }), [characters, hydrated, accessMode, databaseStatus, catalogue, raceRules, backgroundRules, spellCatalogue, itemCatalogue, featureCatalogue, featCatalogue, user]);
 
   return <CharacterContext.Provider value={value}>{children}</CharacterContext.Provider>;
 
