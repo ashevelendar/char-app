@@ -147,7 +147,14 @@ function normalizeCharacter(value: Character): Character {
 function makeMaps(
   classesRows: Array<{ id: string; name: string }>,
   raceRows: Array<{ id: string; name: string }>,
-  subclassRows: Array<{ id: string; name: string; class_id?: string | null }>,
+  subclassRows: Array<{
+    id: string;
+    name: string;
+    class_id?: string | null;
+    description?: string | null;
+    source?: string | null;
+    source_code?: string | null;
+  }>,
   backgroundRows: Array<{ id: string; name: string }>,
   spellRows: Array<{
     id: string;
@@ -197,8 +204,7 @@ function makeMaps(
 
   const spellRacesById = new Map<string, Set<string>>();
   for (const link of spellRaceRows) {
-    const name = raceNameById.get(link.race_id);
-    if (!name) continue;
+    const name = raceNameById.get(link.race_id);    if (!name) continue;
     if (!spellRacesById.has(link.spell_id)) spellRacesById.set(link.spell_id, new Set());
     spellRacesById.get(link.spell_id)!.add(name);
   }
@@ -332,24 +338,23 @@ function makeMaps(
       subclasses: Array.from(
         new Map(
           subclassRows
-            .map((row: any) => ({
-              name: row.name,
-              className: classNameById.get(row.class_id ?? "") ?? "",
-              description:
-                (row as any).description ||
-                featureCatalogue.find(
-                  (feature) =>
-                    feature.sourceType === "subclass" &&
-                    feature.className === (classNameById.get(row.class_id ?? "") ?? "") &&
-                    feature.subclassName &&
-                    (feature.subclassName === row.name ||
-                      feature.subclassName === String(row.name).replace(/^Path of /, "") ||
-                      String(row.name).replace(/^Path of /, "") === feature.subclassName) &&
-                    feature.name === row.name,
-                )?.description ||
-                "",
-              source: (row as any).source ?? (row as any).source_code ?? "",
-            }))
+            .map((row) => {
+              const className = classNameById.get(row.class_id ?? "") ?? "";
+              const subclassFeature = featureCatalogue.find(
+                (feature) =>
+                  feature.sourceType === "subclass" &&
+                  feature.className === className &&
+                  feature.subclassName &&
+                  feature.name === row.name &&
+                  Boolean(feature.description?.trim()),
+              );
+              return {
+                name: row.name,
+                className,
+                description: row.description?.trim() || subclassFeature?.description?.trim() || "",
+                source: row.source ?? row.source_code ?? "",
+              };
+            })
             .filter((entry) => entry.name && entry.className)
             .map((entry) => [entry.className + "::" + entry.name, entry] as const),
         ).values(),
@@ -397,8 +402,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
   const results = [
     classesResult,
     racesResult,
-    subclassesResult,
-    backgroundsResult,
+    subclassesResult,    backgroundsResult,
     spellsResult,
     featuresResult,
     itemsResult,
@@ -597,8 +601,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       try {
         const maps = await loadContentMaps();
         setCatalogue(maps.catalogue);
-        setSpellCatalogue(maps.spellCatalogue);
-        setFeatureCatalogue(maps.featureCatalogue);
+        setSpellCatalogue(maps.spellCatalogue);        setFeatureCatalogue(maps.featureCatalogue);
         setFeatCatalogue(maps.featCatalogue);
 
         const profileResult = await supabase!
@@ -797,8 +800,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
         if (patch.level !== undefined) {
           const nextLevel = Math.max(1, Math.min(20, patch.level));
-          dbPatch.level = nextLevel;
-          dbPatch.proficiency_bonus = getProficiencyBonus(nextLevel);
+          dbPatch.level = nextLevel;          dbPatch.proficiency_bonus = getProficiencyBonus(nextLevel);
         }
 
         if (currentCharacter && progressionChanged) {
@@ -997,8 +999,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (supabase && user && isUuid(characterId)) {
         try {
           const maps = await getMapsForWrite();
-          const dbItemId = appIdToDbId(maps.itemByAppId, itemId);
-          if (!dbItemId) return;
+          const dbItemId = appIdToDbId(maps.itemByAppId, itemId);          if (!dbItemId) return;
 
           if (nextQuantity <= 0) {
             const result = await supabase.from("character_items").delete().eq("character_id", characterId).eq("item_id", dbItemId);
@@ -1197,8 +1198,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      return true;
-    },
+      return true;    },
 
     addOptionalFeature: async (characterId, optionalFeatureKey, override = false) => {
       const character = characters.find((entry) => entry.id === characterId);
@@ -1397,8 +1397,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     }] : [];
   });
 
-  const featureRows = character.features.flatMap((featureId) => {
-    const featureIdDb = maps.featureByAppId.get(featureId);
+  const featureRows = character.features.flatMap((featureId) => {    const featureIdDb = maps.featureByAppId.get(featureId);
     return featureIdDb ? [{
       character_id: dbId,
       feature_id: featureIdDb,
