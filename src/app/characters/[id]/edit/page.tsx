@@ -15,8 +15,6 @@ import {
   getProficiencyBonus,
 } from "../../../../lib/rules";
 
-const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
-const abilityLabels: Record<AbilityKey, string> = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
 
 export default function EditCharacterPage() {
   const params = useParams<{ id: string }>();
@@ -29,15 +27,18 @@ export default function EditCharacterPage() {
 
 function CharacterEditor({ character, catalogue, featureCatalogue, featCatalogue, onSave }: { character: Character; catalogue: ReturnType<typeof useCharacters>["catalogue"]; featureCatalogue: ReturnType<typeof useCharacters>["featureCatalogue"]; featCatalogue: ReturnType<typeof useCharacters>["featCatalogue"]; onSave: (patch: Partial<Character>) => void }) {
   const [form, setForm] = useState({ name: character.name, race: character.race, className: character.className, subclass: character.subclass, level: character.level, background: character.background, alignment: character.alignment, playerName: character.playerName, hp: character.hp, maxHp: character.maxHp, tempHp: character.tempHp, ac: character.ac, speed: character.speed, hitDice: character.hitDice, proficiencyBonus: character.proficiencyBonus, notes: character.notes });
-  const [baseAbilities, setBaseAbilities] = useState<AbilityScores>(() => ({
-    str: Math.max(1, character.abilities.str - (raceRules[character.race]?.abilityBonuses.str ?? 0)),
-    dex: Math.max(1, character.abilities.dex - (raceRules[character.race]?.abilityBonuses.dex ?? 0)),
-    con: Math.max(1, character.abilities.con - (raceRules[character.race]?.abilityBonuses.con ?? 0)),
-    int: Math.max(1, character.abilities.int - (raceRules[character.race]?.abilityBonuses.int ?? 0)),
-    wis: Math.max(1, character.abilities.wis - (raceRules[character.race]?.abilityBonuses.wis ?? 0)),
-    cha: Math.max(1, character.abilities.cha - (raceRules[character.race]?.abilityBonuses.cha ?? 0)),
-  }));
-  const [abilities, setAbilities] = useState<AbilityScores>(character.abilities);
+  const [baseAbilities, setBaseAbilities] = useState<AbilityScores>(() => {
+    const looksLikeLegacyDefault = Object.values(character.abilities).every((score) => score === 10);
+    if (looksLikeLegacyDefault) return { ...character.abilities };
+    return {
+      str: Math.max(1, character.abilities.str - (raceRules[character.race]?.abilityBonuses.str ?? 0)),
+      dex: Math.max(1, character.abilities.dex - (raceRules[character.race]?.abilityBonuses.dex ?? 0)),
+      con: Math.max(1, character.abilities.con - (raceRules[character.race]?.abilityBonuses.con ?? 0)),
+      int: Math.max(1, character.abilities.int - (raceRules[character.race]?.abilityBonuses.int ?? 0)),
+      wis: Math.max(1, character.abilities.wis - (raceRules[character.race]?.abilityBonuses.wis ?? 0)),
+      cha: Math.max(1, character.abilities.cha - (raceRules[character.race]?.abilityBonuses.cha ?? 0)),
+    };
+  });  const [abilities, setAbilities] = useState<AbilityScores>(character.abilities);
   const [abilityMethod, setAbilityMethod] = useState<AbilityScoreMethod>("manual");
   const [savingThrows, setSavingThrows] = useState<AbilityKey[]>(character.savingThrows);
   const [skills, setSkills] = useState(character.skills.join(", "));
