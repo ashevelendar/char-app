@@ -10,7 +10,6 @@ import type { AbilityScores } from "../../../lib/types";
 import { getExpectedHitDice, getExpectedMaxHp, getProficiencyBonus } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
-const labels: Record<keyof AbilityScores, string> = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
 
 export default function NewCharacterPage() {
   const router = useRouter();
