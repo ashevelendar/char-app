@@ -1708,7 +1708,7 @@ async function main() {
   const outputPath = argValue("--output", "");
 
   if (!["spells", "classes", "subclasses", "races", "subraces", "backgrounds", "features", "items", "feats", "optionalfeatures"].includes(entity)) {
-    die(`Phase 5 supports spells, classes, subclasses, races, subraces, backgrounds, features, items, and feats. Received entity: ${entity}`);
+    die(`Phase 5 supports spells, classes, subclasses, races, subraces, backgrounds, features, items, feats, and optionalfeatures. Received entity: ${entity}`);
   }
 
   if (!["2014", "2024", "custom"].includes(edition)) {
@@ -2054,6 +2054,23 @@ async function main() {
     console.log(`\nImport complete: ${featureRows.length} feature records.`);
     console.log(`Class feature links written: ${classLinks.length}`);
     console.log(`Subclass feature links written: ${subclassLinks.length}`);
+    return;
+  }
+
+  if (entity === "optionalfeatures") {
+    await upsertRows("optional_features", rows, "content_key");
+
+    for (const source of expandedSources) {
+      await recordImport({
+        edition,
+        source,
+        entityType: entity,
+        sourceFile: filesUsed.join(", "),
+        recordCount: uniqueTransformed.filter((item) => item.row.source === source).length,
+      });
+    }
+
+    console.log(`\nImport complete: ${rows.length} optional feature records.`);
     return;
   }
 
