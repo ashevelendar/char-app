@@ -17,10 +17,10 @@ export default function EditCharacterPage() {
   const { characters, updateCharacter, catalogue } = useCharacters();
   const character = characters.find((entry) => entry.id === params.id);
   if (!character) return <div className="mx-auto max-w-5xl px-4 py-12"><SectionCard title="Character not found"><Link href="/characters" className="text-amber-400">Back to Characters</Link></SectionCard></div>;
-  return <CharacterEditor character={character} onSave={(patch) => { updateCharacter(character.id, patch); router.push(`/characters/${character.id}`); }} />;
+  return <CharacterEditor character={character} catalogue={catalogue} onSave={(patch) => { updateCharacter(character.id, patch); router.push(`/characters/${character.id}`); }} />;
 }
 
-function CharacterEditor({ character, onSave }: { character: Character; onSave: (patch: Partial<Character>) => void }) {
+function CharacterEditor({ character, catalogue, onSave }: { character: Character; catalogue: ReturnType<typeof useCharacters>["catalogue"]; onSave: (patch: Partial<Character>) => void }) {
   const [form, setForm] = useState({ name: character.name, race: character.race, className: character.className, subclass: character.subclass, level: character.level, background: character.background, alignment: character.alignment, playerName: character.playerName, hp: character.hp, maxHp: character.maxHp, tempHp: character.tempHp, ac: character.ac, speed: character.speed, hitDice: character.hitDice, proficiencyBonus: character.proficiencyBonus, notes: character.notes });
   const [abilities, setAbilities] = useState<AbilityScores>(character.abilities);
   const [savingThrows, setSavingThrows] = useState<AbilityKey[]>(character.savingThrows);
