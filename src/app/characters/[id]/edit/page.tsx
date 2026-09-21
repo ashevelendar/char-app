@@ -7,7 +7,7 @@ import type { FormEvent } from "react";
 import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
-import type { AbilityScores, Character } from "../../../../lib/types";
+import type { AbilityKey, AbilityScores, Character } from "../../../../lib/types";
 import {
   getExpectedHitDice,
   getExpectedMaxHp,
