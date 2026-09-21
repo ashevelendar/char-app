@@ -287,7 +287,7 @@ function makeMaps(
       prerequisite: row.prerequisite,
       ability: row.ability,
       source: row.source ?? "",
-      edition: row.edition === "2024" || row.edition === "custom" ? row.edition : "2014",
+      edition: (row.edition === "2024" || row.edition === "custom" ? row.edition : "2014") as Feat["edition"],
       contentKey: row.content_key ?? undefined,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
