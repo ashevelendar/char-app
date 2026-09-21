@@ -160,6 +160,27 @@ function normalizeCharacter(value: Character): Character {
   };
 }
 
+function catalogueText(value: unknown): string {
+  if (typeof value === "string") {
+    return value
+      .replace(/\\{@[^\\s}]+\\s+([^}|}]+)(?:\\|[^}]*)?\\}/g, "$1")
+      .trim();
+  }
+  if (Array.isArray(value)) {
+    return value.map(catalogueText).filter(Boolean).join("\\n\\n");
+  }
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    for (const key of ["entries", "entry", "items", "text"]) {
+      if (key in object) {
+        const text = catalogueText(object[key]);
+        if (text) return text;
+      }
+    }
+  }
+  return "";
+}
+
 function makeMaps(
   classesRows: Array<{ id: string; name: string }>,
   raceRows: Array<{ id: string; name: string }>,
@@ -170,6 +191,7 @@ function makeMaps(
     description?: string | null;
     source?: string | null;
     source_code?: string | null;
+    raw_data?: unknown;
   }>,
   backgroundRows: Array<{ id: string; name: string }>,
   spellRows: Array<{
@@ -197,8 +219,7 @@ function makeMaps(
   subclassFeatureRows: Array<{ subclass_id: string; feature_id: string; required_level?: number | null }>,
   featRows: Array<{ id: string; name: string; description?: string | null; prerequisite?: unknown; ability?: unknown; source?: string | null; edition?: string | null; content_key?: string | null }>,
 ): ContentMaps {  const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
-  const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));
-  const raceNameById = new Map(raceRows.map((row: any) => [row.id, row.name]));
+  const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));  const raceNameById = new Map(raceRows.map((row: any) => [row.id, row.name]));
   const uniqueNames = (values: string[]) => [...new Set(values.filter(Boolean))];
 
   const spellClassesById = new Map<string, Set<string>>();
@@ -365,7 +386,16 @@ function makeMaps(
               return {
                 name: row.name,
                 className,
-                description: row.description?.trim() || subclassFeature?.description?.trim() || "",
+                description:
+                  row.description?.trim() ||
+                  catalogueText(
+                    row.raw_data &&
+                    typeof row.raw_data === "object"
+                      ? (row.raw_data as Record<string, unknown>).fluff
+                      : undefined,
+                  ) ||
+                  subclassFeature?.description?.trim() ||
+                  "",
                 source: row.source ?? row.source_code ?? "",
               };
             })
@@ -397,8 +427,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
     subclassFeaturesResult,
     featsResult,
   ] = await Promise.all([    supabase.from("classes").select("id,name").is("owner_id", null),
-    supabase.from("races").select("id,name").is("owner_id", null),
-    supabase.from("subclasses").select("id,name,class_id,description,source,source_code,edition").is("owner_id", null).eq("edition", "2014"),
+    supabase.from("races").select("id,name").is("owner_id", null),    supabase.from("subclasses").select("id,name,class_id,description,source,source_code,edition,raw_data").is("owner_id", null).eq("edition", "2014"),
     supabase.from("backgrounds").select("id,name").is("owner_id", null),
     supabase.from("spells").select("id,name,level,school,casting_time,range,duration,description,higher_levels,source,source_code,edition,content_key").is("owner_id", null).eq("edition", "2014"),
     supabase.from("features").select("id,name,description,source,source_code,source_type,required_level,edition").is("owner_id", null).eq("edition", "2014"),
@@ -597,8 +626,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       setCharacters([]);
       setCatalogue({ classes: [], races: [], subclasses: [], backgrounds: [] });      setSpellCatalogue([]);
       setFeatureCatalogue([]);
-      setFeatCatalogue([]);
-      setHydrated(true);
+      setFeatCatalogue([]);      setHydrated(true);
       setDatabaseStatus(supabase ? "local-only" : "error");
       return;
     }
@@ -798,7 +826,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       return character.id;
     },
-
     updateCharacter: async (id, patch) => {
       const currentCharacter = characters.find((entry) => entry.id === id);
       const progressionChanged =
@@ -997,8 +1024,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
 
           if (!allowed && override && accessMode === "dm") {
-            await upsertOverride(characterId, "item", dbItemId, "Granted by DM");
-          }
+            await upsertOverride(characterId, "item", dbItemId, "Granted by DM");          }
         } catch (error) {
           console.error("Could not save inventory item:", error);
           setDatabaseStatus("error");
@@ -1197,8 +1223,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           if (!dbSpellId) return;
           const result = await supabase.from("character_spells").update({ prepared: nextPrepared }).eq("character_id", characterId).eq("spell_id", dbSpellId);
           if (result.error) throw result.error;
-        } catch (error) {
-          console.error("Could not update prepared state:", error);
+        } catch (error) {          console.error("Could not update prepared state:", error);
           setDatabaseStatus("error");
         }
       }
@@ -1397,8 +1422,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
   if (!supabase) return character;
 
   const row = {
-    id: isUuid(character.id) ? character.id : crypto.randomUUID(),
-    user_id: userId,
+    id: isUuid(character.id) ? character.id : crypto.randomUUID(),    user_id: userId,
     name: character.name,
     race_id: maps.raceByName.get(character.race) ?? null,
     class_id: maps.classByName.get(character.className) ?? null,
