@@ -8,6 +8,7 @@ import {
   getAvailableItems,
   getAvailableSpells,
   getExpectedMaxHp,
+  getExpectedHitDice,
   getHitDieSize,
   getProficiencyBonus,
   getCantripsKnown,
@@ -335,7 +336,19 @@ function makeMaps(
             .map((row: any) => ({
               name: row.name,
               className: classNameById.get(row.class_id ?? "") ?? "",
-              description: (row as any).description ?? "",
+              description:
+                (row as any).description ||
+                featureCatalogue.find(
+                  (feature) =>
+                    feature.sourceType === "subclass" &&
+                    feature.className === (classNameById.get(row.class_id ?? "") ?? "") &&
+                    feature.subclassName &&
+                    (feature.subclassName === row.name ||
+                      feature.subclassName === String(row.name).replace(/^Path of /, "") ||
+                      String(row.name).replace(/^Path of /, "") === feature.subclassName) &&
+                    feature.name === row.name,
+                )?.description ||
+                "",
               source: (row as any).source ?? (row as any).source_code ?? "",
             }))
             .filter((entry) => entry.name && entry.className)
@@ -777,33 +790,42 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         const dbPatch: Record<string, unknown> = {};
 
         if (patch.name !== undefined) dbPatch.name = patch.name;
+        const currentCharacter = characters.find((entry) => entry.id === id);
+        const progressionChanged =
+          patch.level !== undefined ||
+          patch.className !== undefined ||
+          patch.abilities?.con !== undefined;
+
         if (patch.level !== undefined) {
-          const currentCharacter = characters.find((entry) => entry.id === id);
           const nextLevel = Math.max(1, Math.min(20, patch.level));
           dbPatch.level = nextLevel;
           dbPatch.proficiency_bonus = getProficiencyBonus(nextLevel);
+        }
 
-          if (currentCharacter) {
-            const nextMaxHp = getExpectedMaxHp(
-              patch.className ?? currentCharacter.className,
-              nextLevel,
-              patch.abilities?.con ?? currentCharacter.abilities.con,
-            );
-            const hpDelta = nextMaxHp - currentCharacter.maxHp;
-            dbPatch.max_hp = nextMaxHp;
-            dbPatch.current_hp = Math.max(0, Math.min(nextMaxHp, currentCharacter.hp + hpDelta));
-            dbPatch.hit_dice = `1d${getHitDieSize(patch.className ?? currentCharacter.className)}`;
-          }
+        if (currentCharacter && progressionChanged) {
+          const nextClassName = patch.className ?? currentCharacter.className;
+          const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
+          const nextConstitution = patch.abilities?.con ?? currentCharacter.abilities.con;
+          const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextConstitution);
+          const hpDelta = nextMaxHp - currentCharacter.maxHp;
+
+          dbPatch.max_hp = nextMaxHp;
+          dbPatch.current_hp = Math.max(
+            0,
+            Math.min(nextMaxHp, currentCharacter.hp + hpDelta),
+          );
+          dbPatch.hit_dice = getExpectedHitDice(nextClassName, nextLevel);
+          dbPatch.proficiency_bonus = getProficiencyBonus(nextLevel);
         }
         if (patch.alignment !== undefined) dbPatch.alignment = patch.alignment;
         if (patch.playerName !== undefined) dbPatch.player_name = patch.playerName;
-        if (patch.hp !== undefined) dbPatch.current_hp = patch.hp;
-        if (patch.maxHp !== undefined) dbPatch.max_hp = patch.maxHp;
+        if (patch.hp !== undefined && !progressionChanged) dbPatch.current_hp = patch.hp;
+        if (patch.maxHp !== undefined && !progressionChanged) dbPatch.max_hp = patch.maxHp;
         if (patch.tempHp !== undefined) dbPatch.temporary_hp = patch.tempHp;
         if (patch.ac !== undefined) dbPatch.armor_class = patch.ac;
         if (patch.speed !== undefined) dbPatch.speed = patch.speed;
-        if (patch.hitDice !== undefined) dbPatch.hit_dice = patch.hitDice;
-        if (patch.proficiencyBonus !== undefined) dbPatch.proficiency_bonus = patch.proficiencyBonus;
+        if (patch.hitDice !== undefined && !progressionChanged) dbPatch.hit_dice = patch.hitDice;
+        if (patch.proficiencyBonus !== undefined && !progressionChanged) dbPatch.proficiency_bonus = patch.proficiencyBonus;
         if (patch.notes !== undefined) dbPatch.notes = patch.notes;
         if (patch.feats !== undefined) dbPatch.feats = patch.feats;
         if (patch.race !== undefined) dbPatch.race_id = maps.raceByName.get(patch.race) ?? null;
