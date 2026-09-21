@@ -303,32 +303,43 @@ function makeMaps(
   const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));  const raceNameById = new Map(raceRows.map((row: any) => [row.id, row.name]));
   const uniqueNames = (values: string[]) => [...new Set(values.filter(Boolean))];
 
+  const preferredRows = <T extends { name: string; source?: string | null; source_code?: string | null }>(rows: T[]) =>
+    [...rows].sort((a, b) => {
+      const aPriority = (a.source_code ?? a.source ?? "") === "PHB" ? 0 : 1;
+      const bPriority = (b.source_code ?? b.source ?? "") === "PHB" ? 0 : 1;
+      return aPriority - bPriority || a.name.localeCompare(b.name);
+    });
+
   const raceRules = Object.fromEntries(
-    raceRows.map((row) => [
-      row.name,
-      {
-        abilityBonuses: extractAbilityBonuses(row.raw_data),
-        description: row.description ?? "",
-        source: row.source ?? row.source_code ?? "",
-      },
-    ]),
+    preferredRows(raceRows)
+      .filter((row, index, rows) => rows.findIndex((candidate) => candidate.name === row.name) === index)
+      .map((row) => [
+        row.name,
+        {
+          abilityBonuses: extractAbilityBonuses(row.raw_data),
+          description: row.description ?? "",
+          source: row.source ?? row.source_code ?? "",
+        },
+      ]),
   ) as Record<string, RaceRules>;
 
   const backgroundRules = Object.fromEntries(
-    backgroundRows.map((row) => {
-      const feature = extractBackgroundFeature(row.raw_data);
-      return [
-        row.name,
-        {
-          description: row.description ?? "",
-          skills: extractProficiencyNames(row.raw_data, "skillProficiencies"),
-          languages: extractProficiencyNames(row.raw_data, "languageProficiencies"),
-          tools: extractProficiencyNames(row.raw_data, "toolProficiencies"),
-          featureName: feature.name,
-          featureDescription: feature.description,
-        },
-      ];
-    }),
+    preferredRows(backgroundRows)
+      .filter((row, index, rows) => rows.findIndex((candidate) => candidate.name === row.name) === index)
+      .map((row) => {
+        const feature = extractBackgroundFeature(row.raw_data);
+        return [
+          row.name,
+          {
+            description: row.description ?? "",
+            skills: extractProficiencyNames(row.raw_data, "skillProficiencies"),
+            languages: extractProficiencyNames(row.raw_data, "languageProficiencies"),
+            tools: extractProficiencyNames(row.raw_data, "toolProficiencies"),
+            featureName: feature.name,
+            featureDescription: feature.description,
+          },
+        ];
+      }),
   ) as Record<string, BackgroundRules>;
 
   const spellClassesById = new Map<string, Set<string>>();
