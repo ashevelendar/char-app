@@ -9,7 +9,6 @@ import {
   getAvailableSpells,
   getExpectedMaxHp,
   getExpectedHitDice,
-  getHitDieSize,
   getProficiencyBonus,
   getCantripsKnown,
   getPreparedSpellCount,
