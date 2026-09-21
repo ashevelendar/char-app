@@ -543,7 +543,7 @@ function toCharacter(
     savingThrows: Array.isArray(row.saving_throws) ? row.saving_throws : [],
     skills: Array.isArray(row.skills) ? row.skills : [],
     languages: Array.isArray(row.languages) ? row.languages : [],
-    feats: [],
+    feats: Array.isArray(row.feats) ? row.feats : [],
     optionalFeatures: optionalFeaturesForCharacter,
     features: featuresForCharacter,
     spells: spellsForCharacter,
@@ -801,6 +801,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         if (patch.hitDice !== undefined) dbPatch.hit_dice = patch.hitDice;
         if (patch.proficiencyBonus !== undefined) dbPatch.proficiency_bonus = patch.proficiencyBonus;
         if (patch.notes !== undefined) dbPatch.notes = patch.notes;
+        if (patch.feats !== undefined) dbPatch.feats = patch.feats;
         if (patch.race !== undefined) dbPatch.race_id = maps.raceByName.get(patch.race) ?? null;
         if (patch.className !== undefined) dbPatch.class_id = maps.classByName.get(patch.className) ?? null;
         if (patch.subclass !== undefined) dbPatch.subclass_id = maps.subclassByName.get(patch.subclass) ?? null;
@@ -822,6 +823,29 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         if (Object.keys(dbPatch).length) {
           const result = await supabase.from("characters").update(dbPatch).eq("id", id).eq("user_id", user.id);
           if (result.error) throw result.error;
+        }
+
+        if (patch.features !== undefined) {
+          const dbFeatureIds = Array.from(new Set(
+            patch.features
+              .map((featureId) => maps.featureByDbId.get(featureId) ?? maps.featureByAppId.get(featureId))
+              .filter(Boolean),
+          )) as string[];
+
+          const deleteResult = await supabase.from("character_features").delete().eq("character_id", id);
+          if (deleteResult.error) throw deleteResult.error;
+
+          if (dbFeatureIds.length) {
+            const insertResult = await supabase.from("character_features").insert(
+              dbFeatureIds.map((featureId) => ({
+                character_id: id,
+                feature_id: featureId,
+                dm_granted: false,
+                source: "Normal",
+              })),
+            );
+            if (insertResult.error) throw insertResult.error;
+          }
         }
       } catch (error) {
         console.error("Could not update character:", error);
@@ -1109,7 +1133,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
     addFeature: async (characterId, featureId, override = false) => {
       const character = characters.find((entry) => entry.id === characterId);
-      const foundFeature = features.find((entry) => entry.id === featureId);
+      const foundFeature = featureCatalogue.find((entry) => entry.id === featureId) ?? features.find((entry) => entry.id === featureId);
       const featureAllowed = character && foundFeature ? isFeatureNormallyAvailable(character, foundFeature) : false;
       if (!character || (!featureAllowed && !(accessMode === "dm" && override))) return false;
 
@@ -1126,7 +1150,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (supabase && user && isUuid(characterId)) {
         try {
           const maps = await getMapsForWrite();
-          const dbFeatureId = appIdToDbId(maps.featureByAppId, featureId);
+          const dbFeatureId = maps.featureByDbId.get(featureId) ?? appIdToDbId(maps.featureByAppId, featureId);
           if (!dbFeatureId) throw new Error(`Feature "${featureId}" is missing from the database catalogue.`);
 
           const result = await supabase.from("character_features").upsert({
