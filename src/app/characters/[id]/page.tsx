@@ -31,12 +31,12 @@ export default function CharacterPage() {
     return spell ? { spell, entry } : null;
   }).filter((x): x is { spell: Spell; entry: (typeof character.spells)[number] } => Boolean(x)) : [], [character, librarySpells]);
   const charFeatures = useMemo(() => character ? character.features.map((id) => featureCatalogue.find((feature) => feature.id === id) ?? features.find((feature) => feature.id === id)).filter((feature): feature is Feature => Boolean(feature)) : [], [character, featureCatalogue]);
-  const charItems = useMemo(() => character ? character.inventory.map((entry) => { const item = itemCatalogue.find((candidate) => candidate.id === entry.itemId) ?? items.find((candidate) => candidate.id === entry.itemId); return item ? { item, entry } : null; }).filter((x): x is { item: (typeof items)[number]; entry: (typeof character.inventory)[number] } => Boolean(x)) : [], [character]);
+  const charItems = useMemo(() => character ? character.inventory.map((entry) => { const item = libraryItems.find((candidate) => candidate.id === entry.itemId); return item ? { item, entry } : null; }).filter((x): x is { item: Item; entry: (typeof character.inventory)[number] } => Boolean(x)) : [], [character]);
   if (!character) return <div className="mx-auto max-w-5xl px-4 py-12"><SectionCard title="Character not found"><Link href="/characters" className="text-amber-400">Back to Characters</Link></SectionCard></div>;
 
   const accessibleSpells = getAvailableSpells(character, true, librarySpells);
   const accessibleFeatures = featureCatalogue.length ? featureCatalogue.filter((feature) => isFeatureNormallyAvailable(character, feature) || hasOverride(character, "feature", feature.id)) : getAvailableFeatures(character);
-  const accessibleItems = getAvailableItems(character, true, itemCatalogue.length ? itemCatalogue : items);
+  const accessibleItems = getAvailableItems(character, true, libraryItems);
   const maxSpellLevel = getMaxSpellLevel(character);
   const castingMode = getSpellcastingMode(character);
   const spellSummary = getSpellcastingSummary(character);
@@ -48,7 +48,7 @@ export default function CharacterPage() {
   const preparedLevelledSpells = charSpells.filter(({ entry, spell }) => entry.prepared && spell.level > 0).length;
   const raceInfo = raceRules[character.race];
   const backgroundInfo = backgroundRules[character.background];
-  const dexMod = abilityModifier(character.abilities.dex);
+  const libraryItems = itemCatalogue.length ? itemCatalogue : items;
   const strMod = abilityModifier(character.abilities.str);
   const proficientSkill = (name: string) => character.skills.some((skill) => skill.toLowerCase() === name.toLowerCase());
   const skillDefinitions: Array<[string, AbilityKey]> = [
