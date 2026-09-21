@@ -7,6 +7,8 @@ import {
   getAvailableFeatures,
   getAvailableItems,
   getAvailableSpells,
+  getExpectedMaxHp,
+  getProficiencyBonus,
   hasOverride,
   isFeatureNormallyAvailable,
   isItemNormallyAvailable,
@@ -580,7 +582,24 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         const dbPatch: Record<string, unknown> = {};
 
         if (patch.name !== undefined) dbPatch.name = patch.name;
-        if (patch.level !== undefined) dbPatch.level = patch.level;
+        if (patch.level !== undefined) {
+          const currentCharacter = characters.find((entry) => entry.id === id);
+          const nextLevel = Math.max(1, Math.min(20, patch.level));
+          dbPatch.level = nextLevel;
+          dbPatch.proficiency_bonus = getProficiencyBonus(nextLevel);
+
+          if (currentCharacter) {
+            const nextMaxHp = getExpectedMaxHp(
+              patch.className ?? currentCharacter.className,
+              nextLevel,
+              patch.abilities?.con ?? currentCharacter.abilities.con,
+            );
+            const hpDelta = nextMaxHp - currentCharacter.maxHp;
+            dbPatch.max_hp = nextMaxHp;
+            dbPatch.current_hp = Math.max(0, Math.min(nextMaxHp, currentCharacter.hp + hpDelta));
+            dbPatch.hit_dice = `1d${getHitDieSize(patch.className ?? currentCharacter.className)}`;
+          }
+        }
         if (patch.alignment !== undefined) dbPatch.alignment = patch.alignment;
         if (patch.playerName !== undefined) dbPatch.player_name = patch.playerName;
         if (patch.hp !== undefined) dbPatch.current_hp = patch.hp;
