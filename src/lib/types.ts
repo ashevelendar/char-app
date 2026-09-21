@@ -118,6 +118,7 @@ export interface NewCharacterInput {
   proficiencyBonus: number;
   abilities: AbilityScores;
   notes: string;
+  feats?: string[];
 }
 
 export interface ClassDefinition {
