@@ -157,5 +157,6 @@ export const defaultCharacter: Character = {
     { itemId: "backpack", quantity: 1, equipped: false },
   ],
   accessOverrides: [],
+  resourceUses: {},
   notes: "Character notes will live here. This is currently local demo data, not a database.",
 };
