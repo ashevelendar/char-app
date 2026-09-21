@@ -822,9 +822,11 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         localPatch.proficiencyBonus = getProficiencyBonus(nextLevel);
       }
 
-      setCharacters((current) => current.map((character) =>
-        character.id === id ? { ...character, ...localPatch } : character
-      ));
+      setCharacters((current) =>
+        current.map((character) =>
+          character.id === id ? { ...character, ...localPatch } : character,
+        ),
+      );
 
       if (!supabase || !user || !isUuid(id)) return;
 
@@ -834,7 +836,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
         if (patch.name !== undefined) dbPatch.name = patch.name;
         if (progressionChanged && currentCharacter) {
-        if (progressionChanged && currentCharacter) {
           const nextClassName = patch.className ?? currentCharacter.className;
           const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
           const nextConstitution = patch.abilities?.con ?? currentCharacter.abilities.con;
@@ -843,10 +844,14 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
           dbPatch.level = nextLevel;
           dbPatch.max_hp = nextMaxHp;
-          dbPatch.current_hp = Math.max(0, Math.min(nextMaxHp, currentCharacter.hp + hpDelta));
+          dbPatch.current_hp = Math.max(
+            0,
+            Math.min(nextMaxHp, currentCharacter.hp + hpDelta),
+          );
           dbPatch.hit_dice = getExpectedHitDice(nextClassName, nextLevel);
           dbPatch.proficiency_bonus = getProficiencyBonus(nextLevel);
         }
+
         if (patch.alignment !== undefined) dbPatch.alignment = patch.alignment;
         if (patch.playerName !== undefined) dbPatch.player_name = patch.playerName;
         if (patch.hp !== undefined && !progressionChanged) dbPatch.current_hp = patch.hp;
@@ -877,29 +882,42 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         if (patch.languages !== undefined) dbPatch.languages = patch.languages;
 
         if (Object.keys(dbPatch).length) {
-          const result = await supabase.from("characters").update(dbPatch).eq("id", id).eq("user_id", user.id);
+          const result = await supabase
+            .from("characters")
+            .update(dbPatch)
+            .eq("id", id)
+            .eq("user_id", user.id);
+
           if (result.error) throw result.error;
         }
 
         if (patch.features !== undefined) {
-          const dbFeatureIds = Array.from(new Set(
-            patch.features
-              .map((featureId) => maps.featureByDbId.get(featureId) ?? maps.featureByAppId.get(featureId))
-              .filter(Boolean),
-          )) as string[];
+          const dbFeatureIds = Array.from(
+            new Set(
+              patch.features
+                .map((featureId) => maps.featureByDbId.get(featureId) ?? maps.featureByAppId.get(featureId))
+                .filter(Boolean),
+            ),
+          ) as string[];
 
-          const deleteResult = await supabase.from("character_features").delete().eq("character_id", id);
+          const deleteResult = await supabase
+            .from("character_features")
+            .delete()
+            .eq("character_id", id);
           if (deleteResult.error) throw deleteResult.error;
 
           if (dbFeatureIds.length) {
-            const insertResult = await supabase.from("character_features").insert(
-              dbFeatureIds.map((featureId) => ({
-                character_id: id,
-                feature_id: featureId,
-                dm_granted: false,
-                source: "Normal",
-              })),
-            );
+            const insertResult = await supabase
+              .from("character_features")
+              .insert(
+                dbFeatureIds.map((featureId) => ({
+                  character_id: id,
+                  feature_id: featureId,
+                  dm_granted: false,
+                  source: "Normal",
+                })),
+              );
+
             if (insertResult.error) throw insertResult.error;
           }
         }
@@ -908,6 +926,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setDatabaseStatus("error");
       }
     },
+
 
     deleteCharacter: async (id) => {
       setCharacters((current) => current.filter((character) => character.id !== id));
