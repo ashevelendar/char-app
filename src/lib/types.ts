@@ -130,6 +130,8 @@ export interface NewCharacterInput {
   proficiencyBonus: number;
   abilities: AbilityScores;
   notes: string;
+  skills?: string[];
+  languages?: string[];
   feats?: string[];
 }
 
