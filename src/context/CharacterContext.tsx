@@ -736,6 +736,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [databaseStatus, setDatabaseStatus] = useState<DatabaseStatus>("loading");
   const [catalogue, setCatalogue] = useState<Catalogue>({ classes: [], races: [], subclasses: [], backgrounds: [] });
+  const [raceRules, setRaceRules] = useState<Record<string, RaceRules>>({});
+  const [backgroundRules, setBackgroundRules] = useState<Record<string, BackgroundRules>>({});
   const [spellCatalogue, setSpellCatalogue] = useState<Spell[]>([]);
   const [featureCatalogue, setFeatureCatalogue] = useState<Feature[]>([]);
   const [featCatalogue, setFeatCatalogue] = useState<Feat[]>([]);
@@ -743,7 +745,10 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user || !supabase) {
       setCharacters([]);
-      setCatalogue({ classes: [], races: [], subclasses: [], backgrounds: [] });      setSpellCatalogue([]);
+      setCatalogue({ classes: [], races: [], subclasses: [], backgrounds: [] });
+      setRaceRules({});
+      setBackgroundRules({});
+      setSpellCatalogue([]);
       setFeatureCatalogue([]);
       setFeatCatalogue([]);      setHydrated(true);
       setDatabaseStatus(supabase ? "local-only" : "error");
@@ -758,6 +763,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       try {
         const maps = await loadContentMaps();
         setCatalogue(maps.catalogue);
+        setRaceRules(maps.raceRules);
+        setBackgroundRules(maps.backgroundRules);
         setSpellCatalogue(maps.spellCatalogue);        setFeatureCatalogue(maps.featureCatalogue);
         setFeatCatalogue(maps.featCatalogue);
 
@@ -905,8 +912,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         proficiencyBonus: getProficiencyBonus(level),
         tempHp: 0,
         savingThrows: [],
-        skills: [],
-        languages: [],
+        skills: input.skills ?? [],
+        languages: input.languages ?? [],
         feats: input.feats ?? [],
         optionalFeatures: [],
         features: [],
@@ -1523,7 +1530,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       setCharacters([defaultCharacter]);
     },
-  }), [characters, hydrated, accessMode, databaseStatus, catalogue, spellCatalogue, featureCatalogue, featCatalogue, user]);
+  }), [characters, hydrated, accessMode, databaseStatus, catalogue, raceRules, backgroundRules, spellCatalogue, featureCatalogue, featCatalogue, user]);
 
   return <CharacterContext.Provider value={value}>{children}</CharacterContext.Provider>;
 
