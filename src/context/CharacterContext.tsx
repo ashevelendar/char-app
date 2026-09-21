@@ -726,7 +726,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         savingThrows: [],
         skills: [],
         languages: [],
-        feats: [],
+        feats: input.feats ?? [],
         optionalFeatures: [],
         features: [],
         spells: [],
