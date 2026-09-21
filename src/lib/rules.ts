@@ -51,7 +51,8 @@ export function getExpectedMaxHp(className: string, level: number, constitution:
   const hitDie = getHitDieSize(className);
   const averageGain = Math.floor(hitDie / 2) + 1;
   const conMod = getAbilityModifier(constitution);
-  return Math.max(1, hitDie + conMod + Math.max(0, safeLevel - 1) * (averageGain + conMod));
+  const perLevelGain = Math.max(1, averageGain + conMod);
+  return Math.max(1, hitDie + conMod + Math.max(0, safeLevel - 1) * perLevelGain);
 }
 
 export function getExpectedHitDice(className: string, level: number) {
@@ -197,8 +198,7 @@ export function getPreparedSpellCount(character: Character) {
 }
 
 export function getWizardSpellbookProgression(level: number) {
-  const safeLevel = Math.max(1, Math.min(20, level));
-  return 6 + (safeLevel - 1) * 2;
+  const safeLevel = Math.max(1, Math.min(20, level));  return 6 + (safeLevel - 1) * 2;
 }
 
 export function getSpellSlotSummary(className: string, level: number): SpellSlotSummary[] {
