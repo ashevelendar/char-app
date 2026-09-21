@@ -1026,6 +1026,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     spellCatalogue,
     featureCatalogue,
     featCatalogue,
+    itemCatalogue,
 
     setAccessMode: (mode) => {
       setAccessModeState(mode);
