@@ -319,6 +319,19 @@ function extractItemRules(raw: unknown): Partial<Item> {
   };
 }
 
+function extractNaturalArmor(raw: unknown): { base: number; dexMax?: number | null } | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const object = raw as Record<string, unknown>;
+  const value = object.naturalArmor ?? object.naturalArmour;
+  if (typeof value === "number" && Number.isFinite(value)) return { base: value, dexMax: null };
+  if (value && typeof value === "object") {
+    const armor = value as Record<string, unknown>;
+    const base = Number(armor.ac ?? armor.base ?? armor.value);
+    if (Number.isFinite(base)) return { base, dexMax: armor.dex === false ? 0 : null };
+  }
+  return undefined;
+}
+
 function calculateArmorClass(character: Character, itemCatalogue: Item[], raceRules: Record<string, RaceRules>): number {
   const dex = Math.floor((character.abilities.dex - 10) / 2);
   const equipped = character.inventory.filter((entry) => entry.equipped).map((entry) => itemCatalogue.find((item) => item.id === entry.itemId)).filter((item): item is Item => Boolean(item));
