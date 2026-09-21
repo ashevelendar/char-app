@@ -227,11 +227,23 @@ function extractProficiencyNames(raw: unknown, field: string): string[] {
     if (!entry || typeof entry !== "object") continue;
     const object = entry as Record<string, unknown>;
     for (const [key, enabled] of Object.entries(object)) {
-      if (key === "choose" || key === "any" || key.startsWith("any")) continue;
+      if (key === "choose") {
+        if (enabled && typeof enabled === "object") {
+          const choice = enabled as Record<string, unknown>;
+          const count = Number(choice.count) || 1;
+          names.push("Choose " + count + " of your choice");
+        }
+        continue;
+      }
+      if (key === "any" || key.startsWith("any")) {
+        const count = Number(enabled);
+        names.push(Number.isFinite(count) && count > 0 ? String(count) + " of your choice" : "One of your choice");
+        continue;
+      }
       if (enabled === true) {
         names.push(key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()));
       }
-    }
+    }    }
   }
   return [...new Set(names)];
 }
