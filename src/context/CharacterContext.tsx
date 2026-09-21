@@ -10,6 +10,10 @@ import {
   getExpectedMaxHp,
   getHitDieSize,
   getProficiencyBonus,
+  getCantripsKnown,
+  getPreparedSpellCount,
+  getSpellsKnown,
+  getSpellcastingMode,
   hasOverride,
   isFeatureNormallyAvailable,
   isItemNormallyAvailable,
@@ -21,6 +25,7 @@ import type {
   ContentType,
   InventoryEntry,
   NewCharacterInput,
+  Spell,
   SpellEntry,
 } from "../lib/types";
 import { supabase } from "../lib/supabase";
@@ -45,6 +50,7 @@ type ContentMaps = {
   backgroundByName: Map<string, string>;
   subclassByDbId: Map<string, string>;
   catalogue: Catalogue;
+  spellCatalogue: Spell[];
   spellByAppId: Map<string, string>;
   featureByAppId: Map<string, string>;
   itemByAppId: Map<string, string>;
@@ -78,6 +84,7 @@ type CharacterContextValue = {
   revokeOverride: (characterId: string, type: ContentType, contentId: string) => Promise<void>;
   resetDemoData: () => Promise<void>;
   catalogue: Catalogue;
+  spellCatalogue: Spell[];
 };
 
 const CharacterContext = createContext<CharacterContextValue | undefined>(undefined);
@@ -134,26 +141,101 @@ function normalizeCharacter(value: Character): Character {
 function makeMaps(
   classesRows: Array<{ id: string; name: string }>,
   raceRows: Array<{ id: string; name: string }>,
-  subclassRows: Array<{ id: string; name: string }>,
+  subclassRows: Array<{ id: string; name: string; class_id?: string | null }>,
   backgroundRows: Array<{ id: string; name: string }>,
-  spellRows: Array<{ id: string; name: string }>,
+  spellRows: Array<{
+    id: string;
+    name: string;
+    level: number;
+    school: string;
+    casting_time: string;
+    range: string;
+    duration: string;
+    description: string;
+    higher_levels?: string | null;
+    source?: string | null;
+    source_code?: string | null;
+    edition?: string | null;
+    content_key?: string | null;
+  }>,
+  spellClassRows: Array<{ spell_id: string; class_id: string }>,
+  spellSubclassRows: Array<{ spell_id: string; subclass_id: string }>,
+  spellRaceRows: Array<{ spell_id: string; race_id: string }>,
   featureRows: Array<{ id: string; name: string }>,
   itemRows: Array<{ id: string; name: string }>,
   optionalFeatureRows: Array<{ id: string; content_key: string | null }>,
-): ContentMaps {
-  const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
+): ContentMaps {  const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
   const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));
+  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));
+  const raceNameById = new Map(raceRows.map((row: any) => [row.id, row.name]));
   const uniqueNames = (values: string[]) => [...new Set(values.filter(Boolean))];
-  const subclassesCatalogue = Array.from(
-    new Map(
-      subclassRows
-        .map((row: any) => ({
-          name: row.name,
-          className: classNameById.get(row.class_id ?? "") ?? "",
-        }))
-        .filter((entry) => entry.name && entry.className)
-        .map((entry) => [`${entry.className}::${entry.name}`, entry] as const),
-    ).values(),
+
+  const spellClassesById = new Map<string, Set<string>>();
+  for (const link of spellClassRows) {
+    const name = classNameById.get(link.class_id);
+    if (!name) continue;
+    if (!spellClassesById.has(link.spell_id)) spellClassesById.set(link.spell_id, new Set());
+    spellClassesById.get(link.spell_id)!.add(name);
+  }
+
+  const spellSubclassesById = new Map<string, Set<string>>();
+  for (const link of spellSubclassRows) {
+    const name = subclassNameById.get(link.subclass_id);
+    if (!name) continue;
+    if (!spellSubclassesById.has(link.spell_id)) spellSubclassesById.set(link.spell_id, new Set());
+    spellSubclassesById.get(link.spell_id)!.add(name);
+  }
+
+  const spellRacesById = new Map<string, Set<string>>();
+  for (const link of spellRaceRows) {
+    const name = raceNameById.get(link.race_id);
+    if (!name) continue;
+    if (!spellRacesById.has(link.spell_id)) spellRacesById.set(link.spell_id, new Set());
+    spellRacesById.get(link.spell_id)!.add(name);
+  }
+
+  const sourcePriority = (row: { source?: string | null; source_code?: string | null }) =>
+    (row.source_code ?? row.source ?? "") === "PHB" ? 0 : 1;
+
+  const canonicalSpellByKey = new Map<string, typeof spellRows[number]>();
+  for (const row of [...spellRows].sort((a, b) => {
+    const rank = sourcePriority(a) - sourcePriority(b);
+    return rank || (a.name + "|" + a.level + "|" + a.school + "|" + a.id).localeCompare(b.name + "|" + b.level + "|" + b.school + "|" + b.id);
+  })) {
+    const key = row.name.trim().toLowerCase() + "::" + row.level + "::" + row.school;
+    if (!canonicalSpellByKey.has(key)) canonicalSpellByKey.set(key, row);
+  }
+
+  const canonicalSpellRows = [...canonicalSpellByKey.values()];
+  const canonicalIdByDbId = new Map(
+    spellRows.map((row) => {
+      const key = row.name.trim().toLowerCase() + "::" + row.level + "::" + row.school;
+      return [row.id, canonicalSpellByKey.get(key)?.id ?? row.id] as const;
+    }),
+  );
+
+  const spellCatalogue: Spell[] = canonicalSpellRows
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      level: Math.max(0, Math.min(9, row.level)) as Spell["level"],
+      school: row.school ?? "",
+      castingTime: row.casting_time ?? "",
+      range: row.range ?? "",
+      duration: row.duration ?? "",
+      description: row.description ?? "",
+      higherLevels: row.higher_levels ?? undefined,
+      classes: [...(spellClassesById.get(row.id) ?? new Set<string>())],
+      subclasses: [...(spellSubclassesById.get(row.id) ?? new Set<string>())],
+      races: [...(spellRacesById.get(row.id) ?? new Set<string>())],
+      source: row.source ?? row.source_code ?? undefined,
+      edition: row.edition === "2024" || row.edition === "custom" ? row.edition : "2014",
+      contentKey: row.content_key ?? undefined,
+    }))
+    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+
+  const spellByName = new Map(
+    spellCatalogue.map((spell) => [spell.name.trim().toLowerCase(), spell.id] as const),
   );
 
   const reverseByName = (rows: Array<{ id: string; name: string }>, source: { id: string; name: string }[]) =>
@@ -164,8 +246,9 @@ function makeMaps(
     raceByName: byName(raceRows),
     subclassByName: byName(subclassRows),
     backgroundByName: byName(backgroundRows),
+    spellCatalogue,
     spellByAppId: new Map(spells.flatMap((spell) => {
-      const dbId = spellRows.find((row) => row.name === spell.name)?.id;
+      const dbId = spellByName.get(spell.name.trim().toLowerCase());
       return dbId ? [[spell.id, dbId] as const] : [];
     })),
     featureByAppId: new Map(features.flatMap((feature) => {
@@ -181,7 +264,7 @@ function makeMaps(
         row.content_key ? [[row.content_key, row.id] as const] : [],
       ),
     ),
-    spellByDbId: reverseByName(spellRows, spells),
+    spellByDbId: canonicalIdByDbId,
     featureByDbId: reverseByName(featureRows, features),
     itemByDbId: reverseByName(itemRows, items),
     optionalFeatureByDbId: new Map(
@@ -193,7 +276,17 @@ function makeMaps(
     catalogue: {
       classes: uniqueNames(classesRows.map((row) => row.name)),
       races: uniqueNames(raceRows.map((row) => row.name)),
-      subclasses: subclassesCatalogue,
+      subclasses: Array.from(
+        new Map(
+          subclassRows
+            .map((row: any) => ({
+              name: row.name,
+              className: classNameById.get(row.class_id ?? "") ?? "",
+            }))
+            .filter((entry) => entry.name && entry.className)
+            .map((entry) => [entry.className + "::" + entry.name, entry] as const),
+        ).values(),
+      ),
       backgrounds: uniqueNames(backgroundRows.map((row) => row.name)),
     },
   };
@@ -211,15 +304,21 @@ async function loadContentMaps(): Promise<ContentMaps> {
     featuresResult,
     itemsResult,
     optionalFeaturesResult,
+    spellClassesResult,
+    spellSubclassesResult,
+    spellRacesResult,
   ] = await Promise.all([
     supabase.from("classes").select("id,name").is("owner_id", null),
     supabase.from("races").select("id,name").is("owner_id", null),
     supabase.from("subclasses").select("id,name,class_id").is("owner_id", null),
     supabase.from("backgrounds").select("id,name").is("owner_id", null),
-    supabase.from("spells").select("id,name").is("owner_id", null),
+    supabase.from("spells").select("id,name,level,school,casting_time,range,duration,description,higher_levels,source,source_code,edition,content_key").is("owner_id", null).eq("edition", "2014"),
     supabase.from("features").select("id,name").is("owner_id", null),
     supabase.from("items").select("id,name").is("owner_id", null),
     supabase.from("optional_features").select("id,content_key").is("owner_id", null),
+    supabase.from("spell_classes").select("spell_id,class_id"),
+    supabase.from("spell_subclasses").select("spell_id,subclass_id"),
+    supabase.from("spell_races").select("spell_id,race_id"),
   ]);
 
   const results = [
@@ -231,6 +330,9 @@ async function loadContentMaps(): Promise<ContentMaps> {
     featuresResult,
     itemsResult,
     optionalFeaturesResult,
+    spellClassesResult,
+    spellSubclassesResult,
+    spellRacesResult,
   ];
 
   const failed = results.find((result) => result.error);
@@ -245,6 +347,9 @@ async function loadContentMaps(): Promise<ContentMaps> {
     features: featuresResult.data ?? [],
     items: itemsResult.data ?? [],
     optionalFeatures: optionalFeaturesResult.data ?? [],
+    spellClasses: spellClassesResult.data ?? [],
+    spellSubclasses: spellSubclassesResult.data ?? [],
+    spellRaces: spellRacesResult.data ?? [],
   };
 
   if (
@@ -254,7 +359,8 @@ async function loadContentMaps(): Promise<ContentMaps> {
     rows.backgrounds.length === 0 ||
     rows.spells.length === 0 ||
     rows.features.length === 0 ||
-    rows.items.length === 0
+    rows.items.length === 0 ||
+    rows.spells.length === 0
   ) {
     throw new Error("The Supabase content library is empty. Run supabase/002_seed_and_permissions.sql first.");
   }
@@ -268,6 +374,9 @@ async function loadContentMaps(): Promise<ContentMaps> {
     rows.features,
     rows.items,
     rows.optionalFeatures,
+    rows.spellClasses,
+    rows.spellSubclasses,
+    rows.spellRaces,
   );
 }
 
@@ -382,11 +491,13 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [databaseStatus, setDatabaseStatus] = useState<DatabaseStatus>("loading");
   const [catalogue, setCatalogue] = useState<Catalogue>({ classes: [], races: [], subclasses: [], backgrounds: [] });
+  const [spellCatalogue, setSpellCatalogue] = useState<Spell[]>([]);
 
   useEffect(() => {
     if (!user || !supabase) {
       setCharacters([]);
       setCatalogue({ classes: [], races: [], subclasses: [], backgrounds: [] });
+      setSpellCatalogue([]);
       setHydrated(true);
       setDatabaseStatus(supabase ? "local-only" : "error");
       return;
@@ -401,6 +512,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       try {
         const maps = await loadContentMaps();
         setCatalogue(maps.catalogue);
+        setSpellCatalogue(maps.spellCatalogue);
 
         const profileResult = await supabase!
           .from("profiles")
@@ -516,6 +628,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     accessMode,
     databaseStatus,
     catalogue,
+    spellCatalogue,
 
     setAccessMode: (mode) => {
       setAccessModeState(mode);
@@ -803,9 +916,29 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
     addSpell: async (characterId, spellId, prepared = false, override = false) => {
       const character = characters.find((entry) => entry.id === characterId);
-      const foundSpell = spells.find((entry) => entry.id === spellId);
+      const foundSpell = spellCatalogue.find((entry) => entry.id === spellId) ?? spells.find((entry) => entry.id === spellId);
       const spellAllowed = character && foundSpell ? isSpellNormallyAvailable(character, foundSpell) : false;
-      if (!character || (!spellAllowed && !(accessMode === "dm" && override))) return false;
+      if (!character || !foundSpell || (!spellAllowed && !(accessMode === "dm" && override))) return false;
+
+      if (spellAllowed && !override) {
+        const levelForEntry = (entry: SpellEntry) =>
+          spellCatalogue.find((spell) => spell.id === entry.spellId)?.level
+          ?? spells.find((spell) => spell.id === entry.spellId)?.level
+          ?? 1;
+        const currentCantrips = character.spells.filter((entry) => levelForEntry(entry) === 0).length;
+        const currentKnown = character.spells.filter((entry) => levelForEntry(entry) > 0).length;
+        const cantripLimit = getCantripsKnown(character.className, character.level);
+        const knownLimit = getSpellsKnown(character.className, character.level);
+
+        if (foundSpell.level === 0 && cantripLimit > 0 && currentCantrips >= cantripLimit) return false;
+        if (foundSpell.level > 0 && knownLimit !== null && currentKnown >= knownLimit) return false;
+      }
+
+      if (prepared && foundSpell.level > 0 && getSpellcastingMode(character) === "prepared") {
+        const preparedLimit = getPreparedSpellCount(character);
+        const preparedCount = character.spells.filter((entry) => entry.prepared).length;
+        if (preparedLimit !== null && preparedCount >= preparedLimit) return false;
+      }
 
       if (!character.spells.some((spell) => spell.spellId === spellId)) {
         setCharacters((current) => current.map((entry) => {
@@ -820,7 +953,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (supabase && user && isUuid(characterId)) {
         try {
           const maps = await getMapsForWrite();
-          const dbSpellId = appIdToDbId(maps.spellByAppId, spellId);
+          const dbSpellId = maps.spellByDbId.get(spellId) ?? appIdToDbId(maps.spellByAppId, spellId);
           if (!dbSpellId) throw new Error(`Spell "${spellId}" is missing from the database catalogue.`);
 
           const result = await supabase.from("character_spells").upsert({
@@ -855,7 +988,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (supabase && user && isUuid(characterId)) {
         try {
           const maps = await getMapsForWrite();
-          const dbSpellId = appIdToDbId(maps.spellByAppId, spellId);
+          const dbSpellId = maps.spellByDbId.get(spellId) ?? appIdToDbId(maps.spellByAppId, spellId);
           if (dbSpellId) {
             const result = await supabase.from("character_spells").delete().eq("character_id", characterId).eq("spell_id", dbSpellId);
             if (result.error) throw result.error;
@@ -873,6 +1006,10 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (!current) return;
 
       const nextPrepared = !current.prepared;
+      if (nextPrepared) {
+        const preparedLimit = getPreparedSpellCount(character);
+        if (preparedLimit !== null && character.spells.filter((entry) => entry.prepared).length >= preparedLimit) return;
+      }
       setCharacters((all) => all.map((entry) =>
         entry.id === characterId
           ? { ...entry, spells: entry.spells.map((spell) => spell.spellId === spellId ? { ...spell, prepared: nextPrepared } : spell) }
@@ -882,7 +1019,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (supabase && user && isUuid(characterId)) {
         try {
           const maps = await getMapsForWrite();
-          const dbSpellId = appIdToDbId(maps.spellByAppId, spellId);
+          const dbSpellId = maps.spellByDbId.get(spellId) ?? appIdToDbId(maps.spellByAppId, spellId);
           if (!dbSpellId) return;
           const result = await supabase.from("character_spells").update({ prepared: nextPrepared }).eq("character_id", characterId).eq("spell_id", dbSpellId);
           if (result.error) throw result.error;
@@ -1032,7 +1169,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         try {
           const maps = await getMapsForWrite();
           const dbContentId =
-            type === "spell" ? maps.spellByAppId.get(contentId) :
+            type === "spell" ? (maps.spellByDbId.get(contentId) ?? maps.spellByAppId.get(contentId)) :
             type === "feature" ? maps.featureByAppId.get(contentId) :
             type === "item" ? maps.itemByAppId.get(contentId) :
             undefined;
@@ -1069,7 +1206,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       setCharacters([defaultCharacter]);
     },
-  }), [characters, hydrated, accessMode, databaseStatus, catalogue, user]);
+  }), [characters, hydrated, accessMode, databaseStatus, catalogue, spellCatalogue, user]);
 
   return <CharacterContext.Provider value={value}>{children}</CharacterContext.Provider>;
 
@@ -1124,7 +1261,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
   const dbId = result.data.id as string;
 
   const spellRows = character.spells.flatMap((entry) => {
-    const spellId = maps.spellByAppId.get(entry.spellId);
+    const spellId = maps.spellByDbId.get(entry.spellId) ?? maps.spellByAppId.get(entry.spellId);
     return spellId ? [{
       character_id: dbId,
       spell_id: spellId,
