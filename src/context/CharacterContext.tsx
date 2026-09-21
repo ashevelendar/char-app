@@ -1362,10 +1362,13 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (!existing) return;
 
       const nextEquipped = !existing.equipped;
+      const nextCharacter = {
+        ...character,
+        inventory: character.inventory.map((item) => item.itemId === itemId ? { ...item, equipped: nextEquipped } : item),
+      };
+      const nextAc = calculateArmorClass(nextCharacter, itemCatalogue, raceRules);
       setCharacters((current) => current.map((entry) =>
-        entry.id === characterId
-          ? { ...entry, inventory: entry.inventory.map((item) => item.itemId === itemId ? { ...item, equipped: nextEquipped } : item) }
-          : entry,
+        entry.id === characterId ? { ...nextCharacter, ac: nextAc } : entry,
       ));
 
       if (supabase && user && isUuid(characterId)) {
