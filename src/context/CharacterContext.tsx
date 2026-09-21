@@ -296,10 +296,18 @@ function makeMaps(
     const className = classNameById.get(link.class_id);
     if (className) classFeatureById.set(link.feature_id, { className, requiredLevel: Number(link.required_level) || 1 });
   }
-  const subclassFeatureById = new Map<string, { subclassName: string; requiredLevel: number }>();
+  const subclassFeatureById = new Map<string, { subclassName: string; className: string; requiredLevel: number }>();
   for (const link of subclassFeatureRows) {
+    const subclassRow = subclassRows.find((row) => row.id === link.subclass_id);
     const subclassName = subclassNameById.get(link.subclass_id);
-    if (subclassName) subclassFeatureById.set(link.feature_id, { subclassName, requiredLevel: Number(link.required_level) || 1 });
+    const className = classNameById.get(subclassRow?.class_id ?? "");
+    if (subclassName && className) {
+      subclassFeatureById.set(link.feature_id, {
+        subclassName,
+        className,
+        requiredLevel: Number(link.required_level) || 1,
+      });
+    }
   }
 
   const featureCatalogue: Feature[] = featureRows
@@ -313,7 +321,7 @@ function makeMaps(
         sourceType: subclassLink ? "subclass" : "class",
         requiredLevel: subclassLink?.requiredLevel ?? classLink?.requiredLevel ?? (Number(row.required_level) || 1),
         description: row.description ?? "",
-        className: classLink?.className,
+        className: classLink?.className ?? subclassLink?.className,
         subclassName: subclassLink?.subclassName,
       } satisfies Feature;
     })
