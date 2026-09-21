@@ -93,6 +93,7 @@ export interface Character {
   spells: SpellEntry[];
   inventory: InventoryEntry[];
   feats: string[];
+  optionalFeatures: string[];
   accessOverrides: ContentOverride[];
   notes: string;
 }
