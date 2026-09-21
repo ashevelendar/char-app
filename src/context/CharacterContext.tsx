@@ -346,7 +346,7 @@ function calculateArmorClass(character: Pick<Character, "abilities" | "inventory
   const natural = raceRules[character.race]?.naturalArmor;
   let ac = natural ? natural.base + Math.min(dex, natural.dexMax ?? dex) : 10 + dex;
   if (armor?.armorClass) {
-    const category = armor.category.toLowerCase();
+    const category = (armor.armorCategory ?? armor.category).toLowerCase();
     const dexBonus = category.includes("heavy") ? 0 : category.includes("medium") ? Math.min(dex, 2) : dex;
     ac = armor.armorClass + dexBonus + (armor.magicBonus ?? 0) + (armor.bonusAc ?? 0);
   }
