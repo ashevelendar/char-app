@@ -44,6 +44,7 @@ type RaceRules = {
   abilityBonuses: Partial<AbilityScores>;
   description: string;
   source: string;
+  naturalArmor?: { base: number; dexMax?: number | null };
 };
 
 type BackgroundRules = {
@@ -318,6 +319,22 @@ function extractItemRules(raw: unknown): Partial<Item> {
   };
 }
 
+function calculateArmorClass(character: Character, itemCatalogue: Item[], raceRules: Record<string, RaceRules>): number {
+  const dex = Math.floor((character.abilities.dex - 10) / 2);
+  const equipped = character.inventory.filter((entry) => entry.equipped).map((entry) => itemCatalogue.find((item) => item.id === entry.itemId)).filter((item): item is Item => Boolean(item));
+  const armor = equipped.find((item) => item.isArmor && !item.isShield);
+  const shield = equipped.find((item) => item.isShield);
+  const natural = raceRules[character.race]?.naturalArmor;
+  let ac = natural ? natural.base + Math.min(dex, natural.dexMax ?? dex) : 10 + dex;
+  if (armor?.armorClass) {
+    const category = armor.category.toLowerCase();
+    const dexBonus = category.includes("heavy") ? 0 : category.includes("medium") ? Math.min(dex, 2) : dex;
+    ac = armor.armorClass + dexBonus + (armor.magicBonus ?? 0) + (armor.bonusAc ?? 0);
+  }
+  if (shield) ac += shield.shieldBonus ?? shield.armorClass ?? 2;
+  return ac;
+}
+
 function makeMaps(
   classesRows: Array<{ id: string; name: string }>,
   raceRows: Array<{ id: string; name: string; description?: string | null; source?: string | null; source_code?: string | null; raw_data?: unknown }>,
@@ -376,6 +393,7 @@ function makeMaps(
           abilityBonuses: extractAbilityBonuses(row.raw_data),
           description: row.description ?? "",
           source: row.source ?? row.source_code ?? "",
+          naturalArmor: extractNaturalArmor(row.raw_data),
         },
       ]),
   ) as Record<string, RaceRules>;
