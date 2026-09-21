@@ -65,6 +65,7 @@ export interface Item {
   requiredCharacterLevel?: number;
   requiredClass?: string;
   armorClass?: number;
+  armorCategory?: string;
   armorDexMax?: number | null;
   shieldBonus?: number;
   strengthRequirement?: number;
