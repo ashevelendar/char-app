@@ -197,8 +197,7 @@ function makeMaps(
   subclassFeatureRows: Array<{ subclass_id: string; feature_id: string; required_level?: number | null }>,
   featRows: Array<{ id: string; name: string; description?: string | null; prerequisite?: unknown; ability?: unknown; source?: string | null; edition?: string | null; content_key?: string | null }>,
 ): ContentMaps {  const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
-  const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));
-  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));
+  const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));
   const raceNameById = new Map(raceRows.map((row: any) => [row.id, row.name]));
   const uniqueNames = (values: string[]) => [...new Set(values.filter(Boolean))];
 
@@ -397,8 +396,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
     classFeaturesResult,
     subclassFeaturesResult,
     featsResult,
-  ] = await Promise.all([
-    supabase.from("classes").select("id,name").is("owner_id", null),
+  ] = await Promise.all([    supabase.from("classes").select("id,name").is("owner_id", null),
     supabase.from("races").select("id,name").is("owner_id", null),
     supabase.from("subclasses").select("id,name,class_id,description,source,source_code,edition").is("owner_id", null).eq("edition", "2014"),
     supabase.from("backgrounds").select("id,name").is("owner_id", null),
@@ -597,8 +595,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user || !supabase) {
       setCharacters([]);
-      setCatalogue({ classes: [], races: [], subclasses: [], backgrounds: [] });
-      setSpellCatalogue([]);
+      setCatalogue({ classes: [], races: [], subclasses: [], backgrounds: [] });      setSpellCatalogue([]);
       setFeatureCatalogue([]);
       setFeatCatalogue([]);
       setHydrated(true);
@@ -797,8 +794,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           console.error("Could not save new character:", error);
           setDatabaseStatus("error");
-        }
-      }
+        }      }
 
       return character.id;
     },
@@ -997,8 +993,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       setCharacters((current) => current.map((character) =>
         character.id === characterId
           ? { ...character, inventory: character.inventory.filter((entry) => entry.itemId !== itemId) }
-          : character,
-      ));
+          : character,      ));
 
       if (supabase && user && isUuid(characterId)) {
         try {
@@ -1197,8 +1192,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (!character || (!featureAllowed && !(accessMode === "dm" && override))) return false;
 
       if (!character.features.includes(featureId)) {
-        setCharacters((current) => current.map((entry) => {
-          if (entry.id !== characterId) return entry;
+        setCharacters((current) => current.map((entry) => {          if (entry.id !== characterId) return entry;
           const accessOverrides = !featureAllowed && override && accessMode === "dm" && !hasOverride(entry, "feature", featureId)
             ? [...entry.accessOverrides, { type: "feature" as const, contentId: featureId, reason: "Granted by DM" }]
             : entry.accessOverrides;
@@ -1397,8 +1391,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     current_hp: character.hp,
     max_hp: character.maxHp,
     temporary_hp: character.tempHp,
-    armor_class: character.ac,
-    speed: character.speed,
+    armor_class: character.ac,    speed: character.speed,
     hit_dice: character.hitDice,
     proficiency_bonus: character.proficiencyBonus,
     strength: character.abilities.str,
@@ -1411,6 +1404,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     skills: character.skills,
     languages: character.languages,
     notes: character.notes,
+    feats: character.feats,
   };
 
   const result = await supabase.from("characters").insert(row).select("id").single();
