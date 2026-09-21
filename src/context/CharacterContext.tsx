@@ -28,11 +28,20 @@ const SETTINGS_KEY = "dnd-character-manager-settings";
 
 type DatabaseStatus = "loading" | "connected" | "error" | "local-only";
 
+type Catalogue = {
+  classes: string[];
+  races: string[];
+  subclasses: Array<{ name: string; className: string }>;
+  backgrounds: string[];
+};
+
 type ContentMaps = {
   classByName: Map<string, string>;
   raceByName: Map<string, string>;
   subclassByName: Map<string, string>;
   backgroundByName: Map<string, string>;
+  subclassByDbId: Map<string, string>;
+  catalogue: Catalogue;
   spellByAppId: Map<string, string>;
   featureByAppId: Map<string, string>;
   itemByAppId: Map<string, string>;
@@ -64,6 +73,7 @@ type CharacterContextValue = {
   removeOptionalFeature: (characterId: string, optionalFeatureKey: string) => Promise<void>;
   revokeOverride: (characterId: string, type: ContentType, contentId: string) => Promise<void>;
   resetDemoData: () => Promise<void>;
+  catalogue: Catalogue;
 };
 
 const CharacterContext = createContext<CharacterContextValue | undefined>(undefined);
@@ -128,6 +138,12 @@ function makeMaps(
   optionalFeatureRows: Array<{ id: string; content_key: string | null }>,
 ): ContentMaps {
   const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
+  const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));
+  const subclassesCatalogue = subclassRows.map((row: any) => ({
+    name: row.name,
+    className: classNameById.get(row.class_id ?? "") ?? "",
+  }));
+
   const reverseByName = (rows: Array<{ id: string; name: string }>, source: { id: string; name: string }[]) =>
     new Map(rows.map((row) => [row.id, source.find((entry) => entry.name === row.name)?.id ?? ""]));
 
@@ -161,6 +177,13 @@ function makeMaps(
         row.content_key ? [[row.id, row.content_key] as const] : [],
       ),
     ),
+    subclassByDbId: new Map(subclassRows.map((row: any) => [row.id, row.name])),
+    catalogue: {
+      classes: classesRows.map((row) => row.name),
+      races: raceRows.map((row) => row.name),
+      subclasses: subclassesCatalogue,
+      backgrounds: backgroundRows.map((row) => row.name),
+    },
   };
 }
 
@@ -179,7 +202,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
   ] = await Promise.all([
     supabase.from("classes").select("id,name").is("owner_id", null),
     supabase.from("races").select("id,name").is("owner_id", null),
-    supabase.from("subclasses").select("id,name").is("owner_id", null),
+    supabase.from("subclasses").select("id,name,class_id").is("owner_id", null),
     supabase.from("backgrounds").select("id,name").is("owner_id", null),
     supabase.from("spells").select("id,name").is("owner_id", null),
     supabase.from("features").select("id,name").is("owner_id", null),
@@ -307,7 +330,7 @@ function toCharacter(
     name: row.name,
     race: relationName(row.race),
     className: relationName(row.class),
-    subclass: relationName(row.subclass),
+    subclass: maps.subclassByDbId.get(row.subclass_id) ?? relationName(row.subclass),
     background: relationName(row.background),
     level: row.level,
     alignment: row.alignment ?? "",
@@ -346,10 +369,12 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [accessMode, setAccessModeState] = useState<AccessMode>("player");
   const [hydrated, setHydrated] = useState(false);
   const [databaseStatus, setDatabaseStatus] = useState<DatabaseStatus>("loading");
+  const [catalogue, setCatalogue] = useState<Catalogue>({ classes: [], races: [], subclasses: [], backgrounds: [] });
 
   useEffect(() => {
     if (!user || !supabase) {
       setCharacters([]);
+      setCatalogue({ classes: [], races: [], subclasses: [], backgrounds: [] });
       setHydrated(true);
       setDatabaseStatus(supabase ? "local-only" : "error");
       return;
@@ -363,6 +388,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       try {
         const maps = await loadContentMaps();
+        setCatalogue(maps.catalogue);
 
         const profileResult = await supabase!
           .from("profiles")
@@ -459,11 +485,12 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           if (saved) {
             const parsed = JSON.parse(saved) as Character[];
             if (Array.isArray(parsed) && parsed.length) setCharacters(parsed.map(normalizeCharacter));
+            else setCharacters([]);
           } else {
-            setCharacters([defaultCharacter]);
+            setCharacters([]);
           }
         } catch {
-          setCharacters([defaultCharacter]);
+          setCharacters([]);
         }
       } finally {
         if (!cancelled) setHydrated(true);
@@ -496,6 +523,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     hydrated,
     accessMode,
     databaseStatus,
+    catalogue,
 
     setAccessMode: (mode) => {
       setAccessModeState(mode);
