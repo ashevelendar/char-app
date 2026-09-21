@@ -63,6 +63,21 @@ export interface Item {
   restricted?: boolean;
   requiredCharacterLevel?: number;
   requiredClass?: string;
+  armorClass?: number;
+  armorDexMax?: number | null;
+  shieldBonus?: number;
+  strengthRequirement?: number;
+  stealthDisadvantage?: boolean;
+  weaponDamage?: string;
+  weaponDamageVersatile?: string;
+  weaponDamageType?: string;
+  weaponProperties?: string[];
+  weaponRange?: string;
+  magicBonus?: number;
+  bonusAc?: number;
+  isWeapon?: boolean;
+  isArmor?: boolean;
+  isShield?: boolean;
 }
 
 export interface InventoryEntry {
@@ -110,6 +125,7 @@ export interface Character {
   feats: string[];
   optionalFeatures: string[];
   accessOverrides: ContentOverride[];
+  resourceUses: Record<string, number>;
   notes: string;
 }
 
@@ -131,6 +147,9 @@ export interface NewCharacterInput {
   abilities: AbilityScores;
   notes: string;
   skills?: string[];
+  languages?: string[];
+  feats?: string[];
+  resourceUses?: Record<string, number>;
   languages?: string[];
   feats?: string[];
 }
