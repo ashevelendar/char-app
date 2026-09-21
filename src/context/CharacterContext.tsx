@@ -817,6 +817,7 @@ function toCharacter(
     skills: Array.isArray(row.skills) ? row.skills : [],
     languages: Array.isArray(row.languages) ? row.languages : [],
     feats: Array.isArray(row.feats) ? row.feats : [],
+    resourceUses: row.resource_uses && typeof row.resource_uses === "object" ? row.resource_uses : {},
     optionalFeatures: optionalFeaturesForCharacter,
     features: featuresForCharacter,
     spells: spellsForCharacter,
@@ -885,7 +886,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             id,name,race_id,class_id,subclass_id,background_id,level,alignment,player_name,
             current_hp,max_hp,temporary_hp,armor_class,speed,hit_dice,proficiency_bonus,
             strength,dexterity,constitution,intelligence,wisdom,charisma,
-            saving_throws,skills,languages,notes,
+            saving_throws,skills,languages,notes,feats,resource_uses,
             race:races(name),class:classes(name),subclass:subclasses(name),background:backgrounds(name)
           `)
           .eq("user_id", user!.id)
@@ -1014,6 +1015,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         skills: input.skills ?? [],
         languages: input.languages ?? [],
         feats: input.feats ?? [],
+        resourceUses: input.resourceUses ?? {},
         optionalFeatures: [],
         features: [],
         spells: [],
@@ -1684,6 +1686,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     languages: character.languages,
     notes: character.notes,
     feats: character.feats,
+    resource_uses: character.resourceUses,
   };
 
   const result = await supabase.from("characters").insert(row).select("id").single();
