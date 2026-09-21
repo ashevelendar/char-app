@@ -25,6 +25,8 @@ import type {
   ContentType,
   InventoryEntry,
   NewCharacterInput,
+  Feat,
+  Feature,
   Spell,
   SpellEntry,
 } from "../lib/types";
@@ -39,7 +41,7 @@ type DatabaseStatus = "loading" | "connected" | "error" | "local-only";
 type Catalogue = {
   classes: string[];
   races: string[];
-  subclasses: Array<{ name: string; className: string }>;
+  subclasses: Array<{ name: string; className: string; description?: string; source?: string }>;
   backgrounds: string[];
 };
 
@@ -51,6 +53,8 @@ type ContentMaps = {
   subclassByDbId: Map<string, string>;
   catalogue: Catalogue;
   spellCatalogue: Spell[];
+  featureCatalogue: Feature[];
+  featCatalogue: Feat[];
   spellByAppId: Map<string, string>;
   featureByAppId: Map<string, string>;
   itemByAppId: Map<string, string>;
@@ -85,6 +89,8 @@ type CharacterContextValue = {
   resetDemoData: () => Promise<void>;
   catalogue: Catalogue;
   spellCatalogue: Spell[];
+  featureCatalogue: Feature[];
+  featCatalogue: Feat[];
 };
 
 const CharacterContext = createContext<CharacterContextValue | undefined>(undefined);
@@ -164,6 +170,9 @@ function makeMaps(
   featureRows: Array<{ id: string; name: string }>,
   itemRows: Array<{ id: string; name: string }>,
   optionalFeatureRows: Array<{ id: string; content_key: string | null }>,
+  classFeatureRows: Array<{ class_id: string; feature_id: string; required_level?: number | null }>,
+  subclassFeatureRows: Array<{ subclass_id: string; feature_id: string; required_level?: number | null }>,
+  featRows: Array<{ id: string; name: string; description?: string | null; prerequisite?: unknown; ability?: unknown; source?: string | null; edition?: string | null; content_key?: string | null }>,
 ): ContentMaps {  const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
   const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));
   const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));
@@ -239,7 +248,49 @@ function makeMaps(
   );
 
   const reverseByName = (rows: Array<{ id: string; name: string }>, source: { id: string; name: string }[]) =>
-    new Map(rows.map((row) => [row.id, source.find((entry) => entry.name === row.name)?.id ?? ""]));
+    new Map(rows.map((row) => [row.id, source.find((entry) => entry.name === row.name)?.id ?? row.id]));
+
+  const classFeatureById = new Map<string, { className: string; requiredLevel: number }>();
+  for (const link of classFeatureRows) {
+    const className = classNameById.get(link.class_id);
+    if (className) classFeatureById.set(link.feature_id, { className, requiredLevel: Number(link.required_level) || 1 });
+  }
+  const subclassFeatureById = new Map<string, { subclassName: string; requiredLevel: number }>();
+  for (const link of subclassFeatureRows) {
+    const subclassName = subclassNameById.get(link.subclass_id);
+    if (subclassName) subclassFeatureById.set(link.feature_id, { subclassName, requiredLevel: Number(link.required_level) || 1 });
+  }
+
+  const featureCatalogue: Feature[] = featureRows
+    .map((row: any) => {
+      const classLink = classFeatureById.get(row.id);
+      const subclassLink = subclassFeatureById.get(row.id);
+      return {
+        id: row.id,
+        name: row.name,
+        source: row.source ?? row.source_code ?? "",
+        sourceType: subclassLink ? "subclass" : "class",
+        requiredLevel: subclassLink?.requiredLevel ?? classLink?.requiredLevel ?? Number(row.required_level) || 1,
+        description: row.description ?? "",
+        className: classLink?.className,
+        subclassName: subclassLink?.subclassName,
+      } satisfies Feature;
+    })
+    .filter((feature) => feature.name)
+    .sort((a, b) => a.requiredLevel - b.requiredLevel || a.name.localeCompare(b.name));
+
+  const featCatalogue: Feat[] = featRows
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description ?? "",
+      prerequisite: row.prerequisite,
+      ability: row.ability,
+      source: row.source ?? "",
+      edition: row.edition === "2024" || row.edition === "custom" ? row.edition : "2014",
+      contentKey: row.content_key ?? undefined,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return {
     classByName: byName(classesRows),
@@ -247,6 +298,8 @@ function makeMaps(
     subclassByName: byName(subclassRows),
     backgroundByName: byName(backgroundRows),
     spellCatalogue,
+    featureCatalogue,
+    featCatalogue,
     spellByAppId: new Map(spells.flatMap((spell) => {
       const dbId = spellByName.get(spell.name.trim().toLowerCase());
       return dbId ? [[spell.id, dbId] as const] : [];
@@ -282,6 +335,8 @@ function makeMaps(
             .map((row: any) => ({
               name: row.name,
               className: classNameById.get(row.class_id ?? "") ?? "",
+              description: (row as any).description ?? "",
+              source: (row as any).source ?? (row as any).source_code ?? "",
             }))
             .filter((entry) => entry.name && entry.className)
             .map((entry) => [entry.className + "::" + entry.name, entry] as const),
@@ -307,18 +362,24 @@ async function loadContentMaps(): Promise<ContentMaps> {
     spellClassesResult,
     spellSubclassesResult,
     spellRacesResult,
+    classFeaturesResult,
+    subclassFeaturesResult,
+    featsResult,
   ] = await Promise.all([
     supabase.from("classes").select("id,name").is("owner_id", null),
     supabase.from("races").select("id,name").is("owner_id", null),
-    supabase.from("subclasses").select("id,name,class_id").is("owner_id", null),
+    supabase.from("subclasses").select("id,name,class_id,description,source,source_code,edition").is("owner_id", null).eq("edition", "2014"),
     supabase.from("backgrounds").select("id,name").is("owner_id", null),
     supabase.from("spells").select("id,name,level,school,casting_time,range,duration,description,higher_levels,source,source_code,edition,content_key").is("owner_id", null).eq("edition", "2014"),
-    supabase.from("features").select("id,name").is("owner_id", null),
+    supabase.from("features").select("id,name,description,source,source_code,source_type,required_level,edition").is("owner_id", null).eq("edition", "2014"),
     supabase.from("items").select("id,name").is("owner_id", null),
     supabase.from("optional_features").select("id,content_key").is("owner_id", null),
     supabase.from("spell_classes").select("spell_id,class_id"),
     supabase.from("spell_subclasses").select("spell_id,subclass_id"),
     supabase.from("spell_races").select("spell_id,race_id"),
+    supabase.from("class_features").select("class_id,feature_id,required_level"),
+    supabase.from("subclass_features").select("subclass_id,feature_id,required_level"),
+    supabase.from("feats").select("id,name,description,prerequisite,ability,source,source_code,edition,content_key").eq("edition", "2014").is("owner_id", null),
   ]);
 
   const results = [
@@ -350,6 +411,9 @@ async function loadContentMaps(): Promise<ContentMaps> {
     spellClasses: spellClassesResult.data ?? [],
     spellSubclasses: spellSubclassesResult.data ?? [],
     spellRaces: spellRacesResult.data ?? [],
+    classFeatures: classFeaturesResult.data ?? [],
+    subclassFeatures: subclassFeaturesResult.data ?? [],
+    feats: featsResult.data ?? [],
   };
 
   if (
@@ -376,6 +440,9 @@ async function loadContentMaps(): Promise<ContentMaps> {
     rows.features,
     rows.items,
     rows.optionalFeatures,
+    rows.classFeatures,
+    rows.subclassFeatures,
+    rows.feats,
   );
 }
 
@@ -491,12 +558,16 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [databaseStatus, setDatabaseStatus] = useState<DatabaseStatus>("loading");
   const [catalogue, setCatalogue] = useState<Catalogue>({ classes: [], races: [], subclasses: [], backgrounds: [] });
   const [spellCatalogue, setSpellCatalogue] = useState<Spell[]>([]);
+  const [featureCatalogue, setFeatureCatalogue] = useState<Feature[]>([]);
+  const [featCatalogue, setFeatCatalogue] = useState<Feat[]>([]);
 
   useEffect(() => {
     if (!user || !supabase) {
       setCharacters([]);
       setCatalogue({ classes: [], races: [], subclasses: [], backgrounds: [] });
       setSpellCatalogue([]);
+      setFeatureCatalogue([]);
+      setFeatCatalogue([]);
       setHydrated(true);
       setDatabaseStatus(supabase ? "local-only" : "error");
       return;
@@ -512,6 +583,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         const maps = await loadContentMaps();
         setCatalogue(maps.catalogue);
         setSpellCatalogue(maps.spellCatalogue);
+        setFeatureCatalogue(maps.featureCatalogue);
+        setFeatCatalogue(maps.featCatalogue);
 
         const profileResult = await supabase!
           .from("profiles")
@@ -628,6 +701,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     databaseStatus,
     catalogue,
     spellCatalogue,
+    featureCatalogue,
+    featCatalogue,
 
     setAccessMode: (mode) => {
       setAccessModeState(mode);
@@ -1205,7 +1280,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       setCharacters([defaultCharacter]);
     },
-  }), [characters, hydrated, accessMode, databaseStatus, catalogue, spellCatalogue, user]);
+  }), [characters, hydrated, accessMode, databaseStatus, catalogue, spellCatalogue, featureCatalogue, featCatalogue, user]);
 
   return <CharacterContext.Provider value={value}>{children}</CharacterContext.Provider>;
 
