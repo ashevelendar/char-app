@@ -1043,7 +1043,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       setCharacters([defaultCharacter]);
     },
-  }), [characters, hydrated, accessMode, databaseStatus, user]);
+  }), [characters, hydrated, accessMode, databaseStatus, catalogue, user]);
 
   return <CharacterContext.Provider value={value}>{children}</CharacterContext.Provider>;
 
