@@ -243,7 +243,7 @@ function extractProficiencyNames(raw: unknown, field: string): string[] {
       if (enabled === true) {
         names.push(key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()));
       }
-    }    }
+    }
   }
   return [...new Set(names)];
 }
