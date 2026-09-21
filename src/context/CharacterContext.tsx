@@ -304,6 +304,7 @@ function extractItemRules(raw: unknown): Partial<Item> {
   const isArmor = Boolean(armorCategory || Number.isFinite(rawAc));
   return {
     armorClass: Number.isFinite(rawAc) ? rawAc : undefined,
+    armorCategory: armorCategory || undefined,
     armorDexMax: armorCategory.toLowerCase() === "medium" ? 2 : armorCategory.toLowerCase() === "heavy" || isShield ? 0 : null,
     shieldBonus: isShield ? (Number.isFinite(rawAc) ? rawAc : 2) : undefined,
     strengthRequirement: Number.isFinite(Number(object.strength)) ? Number(object.strength) : undefined,
