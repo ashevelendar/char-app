@@ -19,6 +19,9 @@ export interface Spell {
   subclasses?: string[];
   races?: string[];
   requiredCharacterLevel?: number;
+  source?: string;
+  edition?: "2014" | "2024" | "custom";
+  contentKey?: string;
 }
 
 export interface Feature {
