@@ -302,8 +302,8 @@ export function getAvailableFeatures(character: Character, includeOverrides = tr
   return features.filter((feature) => isFeatureNormallyAvailable(character, feature) || (includeOverrides && hasOverride(character, "feature", feature.id)));
 }
 
-export function getAvailableItems(character: Character, includeOverrides = true) {
-  return items.filter((item) => isItemNormallyAvailable(character, item) || (includeOverrides && hasOverride(character, "item", item.id)));
+export function getAvailableItems(character: Character, includeOverrides = true, sourceItems: Item[] = items) {
+  return sourceItems.filter((item) => isItemNormallyAvailable(character, item) || (includeOverrides && hasOverride(character, "item", item.id)));
 }
 
 export function getSubclassOptionsForClass(className: string) {
