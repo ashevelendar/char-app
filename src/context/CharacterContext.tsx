@@ -312,6 +312,7 @@ function extractItemRules(raw: unknown): Partial<Item> {
     weaponDamageVersatile: typeof object.dmg2 === "string" ? object.dmg2 : undefined,
     weaponDamageType: typeof object.dmgType === "string" ? object.dmgType : undefined,
     weaponProperties: properties,
+    weaponCategory: typeof object.weaponCategory === "string" ? object.weaponCategory : undefined,
     weaponRange: object.range ? String(object.range) : undefined,
     magicBonus: Number.isFinite(Number(object.bonusWeapon)) ? Number(object.bonusWeapon) : undefined,
     bonusAc: Number.isFinite(Number(object.bonusAc)) ? Number(object.bonusAc) : undefined,
