@@ -1268,6 +1268,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     featureCatalogue,
     featCatalogue,
     itemCatalogue,
+    optionalFeatureCatalogue,
+    classRules,
+    subclassOptionalFeatureProgression,
 
     setAccessMode: (mode) => {
       setAccessModeState(mode);
@@ -1979,7 +1982,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       setCharacters([defaultCharacter]);
     },
-  }), [characters, hydrated, accessMode, databaseStatus, catalogue, raceRules, backgroundRules, spellCatalogue, itemCatalogue, featureCatalogue, featCatalogue, user]);
+  }), [characters, hydrated, accessMode, databaseStatus, catalogue, raceRules, backgroundRules, spellCatalogue, itemCatalogue, featureCatalogue, featCatalogue, optionalFeatureCatalogue, classRules, subclassOptionalFeatureProgression, user]);
 
   return <CharacterContext.Provider value={value}>{children}</CharacterContext.Provider>;
 
