@@ -257,6 +257,12 @@ export default function NewCharacterPage() {
   }, [asiLevels]);
 
   useEffect(() => {
+    setAsiAbilityChoices((current) => asiLevels.map((_, index) => current[index] ?? { mode: "two" as const, first: "str" as AbilityKey, second: "dex" as AbilityKey }));
+    setExpertiseSelections((current) => current.slice(0, expertiseLevels.length * 2));
+    setMagicalSecretSelections((current) => current.slice(0, magicalSecretFeatures.length * 2));
+  }, [asiLevels, expertiseLevels, magicalSecretFeatures]);
+
+  useEffect(() => {
     const nextFeats = asiChoices.filter(Boolean);
     setForm((current) => current.feats.length === nextFeats.length && current.feats.every((value, index) => value === nextFeats[index])
       ? current
