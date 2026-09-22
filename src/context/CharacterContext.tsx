@@ -223,11 +223,19 @@ function normalizeCharacter(value: Character): Character {
   };
 }
 
+function cleanDisplayText(value: string) {
+  return value
+    .replace(/\.html\\b/gi, "")
+    .replace(/\{@[^\s}]+\s+([^}|}]+)(?:\|[^}]*)?\}/g, "$1")
+    .replace(/\{@[^}]*\}/g, "")
+    .replace(/[{}]/g, "")
+    .replace(/\\s+([,.;:])/g, "$1")
+    .trim();
+}
+
 function catalogueText(value: unknown): string {
   if (typeof value === "string") {
-    return value
-      .replace(/\{@[^\s}]+\s+([^}|}]+)(?:\|[^}]*)?\}/g, "$1")
-      .trim();
+    return cleanDisplayText(value);
   }
   if (Array.isArray(value)) {
     return value.map(catalogueText).filter(Boolean).join("\n\n");
@@ -807,7 +815,7 @@ function makeMaps(
         source: row.source ?? row.source_code ?? "",
         sourceType: subclassLink ? "subclass" : "class",
         requiredLevel: subclassLink?.requiredLevel ?? classLink?.requiredLevel ?? (Number(row.required_level) || 1),
-        description: row.description ?? "",
+        description: cleanDisplayText(row.description ?? ""),
         uses: extractFeatureUses(row.raw_data),
         className: classLink?.className ?? subclassLink?.className,
         subclassName: subclassLink?.subclassName,
@@ -892,7 +900,7 @@ function makeMaps(
     .map((row) => ({
       id: row.id,
       name: row.name,
-      description: row.description ?? "",
+      description: cleanDisplayText(row.description ?? ""),
       featureTypes: Array.isArray(row.feature_types) ? row.feature_types.map(String) : [],
       source: row.source ?? "",
       contentKey: row.content_key ?? undefined,
@@ -915,7 +923,7 @@ function makeMaps(
     .map((row) => ({
       id: row.id,
       name: row.name,
-      description: row.description ?? "",
+      description: cleanDisplayText(row.description ?? ""),
       prerequisite: row.prerequisite,
       ability: row.ability,
       source: row.source ?? "",
