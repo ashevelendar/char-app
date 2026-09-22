@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Badge, PageHeader, SectionCard } from "../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../context/CharacterContext";
-import type { AbilityScores } from "../../../lib/types";
+import type { AbilityKey, AbilityScores } from "../../../lib/types";
 import { getExpectedHitDice, getExpectedMaxHp, getProficiencyBonus } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
@@ -46,7 +46,7 @@ export default function NewCharacterPage() {
     skills: [] as string[],
     tools: [] as string[],
     languages: [] as string[],
-    savingThrows: [] as ("str" | "dex" | "con" | "int" | "wis" | "cha")[],
+    savingThrows: [] as AbilityKey[],
     optionalFeatures: [] as string[],
   });
 
