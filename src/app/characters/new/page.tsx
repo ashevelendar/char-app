@@ -99,7 +99,7 @@ export default function NewCharacterPage() {
       ...(selectedBackgroundRules?.languages ?? []),
       ...backgroundLanguageSelections.filter(Boolean),
     ])],
-    [selectedClassRules, selectedBackgroundRules, backgroundLanguageSelections],
+    [selectedRaceRules, selectedClassRules, selectedBackgroundRules, raceLanguageSelections, classLanguageSelections, backgroundLanguageSelections],
   );
 
   const optionalChoiceGroups = useMemo(() => {
@@ -220,6 +220,7 @@ export default function NewCharacterPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Character name" value={form.name} required onChange={(value) => setForm((current) => ({ ...current, name: value }))} />
                   <Field label="Player name" value={form.playerName} onChange={(value) => setForm((current) => ({ ...current, playerName: value }))} />
+                  <NumberField label="Level" value={form.level} min={1} max={20} onChange={(value) => setForm((current) => ({ ...current, level: value }))} />
                   <Select label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
                     const next = catalogue.subclasses.filter((entry) => entry.className === value);
                     setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "" }));
