@@ -900,6 +900,25 @@ function makeMaps(
             }));
           })
         : [];
+      const spellbookTableGroup = Array.isArray(raw.classTableGroups)
+        ? raw.classTableGroups.find((group) => {
+            if (!group || typeof group !== "object") return false;
+            const labels = (group as Record<string, unknown>).colLabels;
+            return Array.isArray(labels) && labels.some((label) => String(label).toLowerCase().includes("spellbook"));
+          }) as Record<string, unknown> | undefined
+        : undefined;
+      const spellbookLabels = Array.isArray(spellbookTableGroup?.colLabels)
+        ? spellbookTableGroup.colLabels.map(String)
+        : [];
+      const spellbookColumn = spellbookLabels.findIndex((label) => label.toLowerCase().includes("spellbook"));
+      const spellbookProgression = Array.isArray(spellbookTableGroup?.rows) && spellbookColumn >= 0
+        ? (spellbookTableGroup.rows as unknown[]).map((row) => {
+            if (!Array.isArray(row)) return 0;
+            const match = String(row[spellbookColumn] ?? "").match(/\\d+/);
+            return match ? Number(match[0]) : 0;
+          })
+        : [];
+
       const spellSlotGroup = Array.isArray(raw.classTableGroups)
         ? raw.classTableGroups.find((group) =>
             group &&
@@ -955,6 +974,7 @@ function makeMaps(
           ? raw.spellsKnownProgression.map((value) => Number(value) || 0)
           : [],
         preparedSpells: typeof raw.preparedSpells === "string" ? raw.preparedSpells : null,
+        spellbookProgression,
         spellSlots,
         pactSlotProgression,
         subclassUnlockLevel: Number.isFinite(subclassUnlockLevel) ? subclassUnlockLevel : undefined,
