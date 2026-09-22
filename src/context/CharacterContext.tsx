@@ -1446,6 +1446,34 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           if (result.error) throw result.error;
         }
 
+        if (patch.optionalFeatures !== undefined) {
+          const dbOptionalFeatureIds = Array.from(new Set(
+            patch.optionalFeatures
+              .map((optionalFeatureId) => maps.optionalFeatureByDbId.has(optionalFeatureId)
+                ? optionalFeatureId
+                : maps.optionalFeatureByKey.get(optionalFeatureId))
+              .filter(Boolean),
+          )) as string[];
+
+          const deleteResult = await supabase
+            .from("character_optional_features")
+            .delete()
+            .eq("character_id", id);
+          if (deleteResult.error) throw deleteResult.error;
+
+          if (dbOptionalFeatureIds.length) {
+            const insertResult = await supabase
+              .from("character_optional_features")
+              .insert(dbOptionalFeatureIds.map((optionalFeatureId) => ({
+                character_id: id,
+                optional_feature_id: optionalFeatureId,
+                dm_granted: false,
+                source: "Normal",
+              })));
+            if (insertResult.error) throw insertResult.error;
+          }
+        }
+
         if (patch.features !== undefined) {
           const dbFeatureIds = Array.from(
             new Set(
