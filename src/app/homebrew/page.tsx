@@ -1,80 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge, PageHeader, SectionCard } from "../../components/AppShell";
 import { supabase } from "../../lib/supabase";
+import { useCharacters } from "../../context/CharacterContext";
 
 type HomebrewType = "spell" | "feature" | "feat" | "item" | "race" | "subrace" | "class" | "subclass" | "background" | "other";
 type Edition = "2014" | "2024" | "custom";
-type Homebrew = { id: string; name: string; content_type: HomebrewType; description: string; source: string; edition: Edition; class_name: string | null; subclass_name: string | null; race_name: string | null; background_name: string | null; required_level: number | null; is_published: boolean; };
+type HomebrewType = "spell" | "feature" | "feat" | "item" | "race" | "subrace" | "class" | "subclass" | "background" | "other";
+type Edition = "2014" | "2024" | "custom";
+use client";
 
-const types: HomebrewType[] = ["spell", "feature", "feat", "item", "race", "subrace", "class", "subclass", "background", "other"];
+import { useMemo, useState } from "react";
+import { Badge, PageHeader, SectionCard } from "../../components/AppShell";
+import { supabase } from "../../lib/supabase";
+import { useCharacters } from "../../context/CharacterContext";
 
-export default function HomebrewPage() {
-  const [rows, setRows] = useState<Homebrew[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [name, setName] = useState("");
-  const [type, setType] = useState<HomebrewType>("feature");
-  const [edition, setEdition] = useState<Edition>("custom");
-  const [source, setSource] = useState("Homebrew");
-  const [description, setDescription] = useState("");
-  const [requiredLevel, setRequiredLevel] = useState("");
-  const [className, setClassName] = useState("");
-  const [subclassName, setSubclassName] = useState("");
-  const [raceName, setRaceName] = useState("");
-  const [backgroundName, setBackgroundName] = useState("");
-  const [published, setPublished] = useState(false);
-
-  async function load() {
-    if (!supabase) { setLoading(false); setError("Supabase is not configured."); return; }
-    const { data, error: queryError } = await supabase.from("homebrew_content").select("id,name,content_type,description,source,edition,class_name,subclass_name,race_name,background_name,required_level,is_published").order("name");
-    if (queryError) setError(queryError.message); else setRows((data ?? []) as Homebrew[]);
-    setLoading(false);
-  }
-  useEffect(() => { void load(); }, []);
-
-  async function createHomebrew() {
-    if (!supabase || !name.trim()) return;
-    setError("");
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData.user) { setError("You must be signed in to create homebrew."); return; }
-    const { error: insertError } = await supabase.from("homebrew_content").insert({ owner_id: authData.user.id, name: name.trim(), content_type: type, description: description.trim(), source: source.trim() || "Homebrew", edition, required_level: requiredLevel ? Number(requiredLevel) : null, class_name: className.trim() || null, subclass_name: subclassName.trim() || null, race_name: raceName.trim() || null, background_name: backgroundName.trim() || null, is_published: published });
-    if (insertError) { setError(insertError.message); return; }
-    setName(""); setDescription(""); setRequiredLevel(""); setClassName(""); setSubclassName(""); setRaceName(""); setBackgroundName("");
-    await load();
-  }
-
-  const filtered = useMemo(() => { const needle = search.trim().toLowerCase(); if (!needle) return rows; return rows.filter((row) => [row.name, row.description, row.source, row.content_type, row.class_name ?? "", row.subclass_name ?? "", row.race_name ?? "", row.background_name ?? ""].join(" ").toLowerCase().includes(needle)); }, [rows, search]);
-
-  return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-    <PageHeader eyebrow="Content Library" title="Homebrew Library" description="Create and reuse your own spells, features, feats, items, species, classes and other campaign content without modifying the imported catalogue." />
-    <div className="grid gap-6 lg:grid-cols-[1.05fr_1fr]">
-      <SectionCard title="Create homebrew" description="Homebrew is owned by your account and stored separately from imported rules content.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" value={name} onChange={setName} className="sm:col-span-2" />
-          <Select label="Type" value={type} options={types} onChange={(value) => setType(value as HomebrewType)} />
-          <Select label="Edition" value={edition} options={["2014", "2024", "custom"]} onChange={(value) => setEdition(value as Edition)} />
-          <Field label="Source" value={source} onChange={setSource} />
-          <Field label="Required level" value={requiredLevel} onChange={setRequiredLevel} type="number" />
-          <Field label="Class" value={className} onChange={setClassName} />
-          <Field label="Subclass" value={subclassName} onChange={setSubclassName} />
-          <Field label="Race / Species" value={raceName} onChange={setRaceName} />
-          <Field label="Background" value={backgroundName} onChange={setBackgroundName} />
-        </div>
-        <label className="mt-4 block"><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Description</span><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={8} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-3 text-sm leading-6" placeholder="Rules text, prerequisites, interactions, notes..." /></label>
-        <label className="mt-4 flex items-center gap-2 text-sm text-stone-400"><input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} /> Publish this homebrew</label>
-        {error && <p className="mt-4 rounded-xl border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">{error}</p>}
-        <button onClick={() => void createHomebrew()} disabled={!name.trim()} className="mt-5 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-stone-950 disabled:opacity-40">Create Homebrew</button>
-      </SectionCard>
-      <SectionCard title="Library" description={loading ? "Loading..." : `${filtered.length} matching record${filtered.length === 1 ? "" : "s"}`}>
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search homebrew..." className="w-full rounded-xl border border-stone-800 bg-stone-950 px-4 py-3 text-sm" />
-        <div className="mt-4 space-y-3">{filtered.map((row) => <article key={row.id} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-4"><div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold text-stone-100">{row.name}</h2><p className="mt-1 text-xs uppercase tracking-wider text-stone-600">{row.content_type} • {row.source} • {row.edition}</p></div><Badge tone={row.is_published ? "good" : "neutral"}>{row.is_published ? "Published" : "Private"}</Badge></div>{row.description && <p className="mt-3 whitespace-pre-line text-sm leading-6 text-stone-400">{row.description}</p>}<div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-500">{row.required_level && <span>Level {row.required_level}+</span>}{row.class_name && <span>Class: {row.class_name}</span>}{row.subclass_name && <span>Subclass: {row.subclass_name}</span>}{row.race_name && <span>Race: {row.race_name}</span>}{row.background_name && <span>Background: {row.background_name}</span>}</div></article>)}{!loading && !filtered.length && <p className="py-8 text-center text-sm text-stone-600">No homebrew records yet.</p>}</div>
-      </SectionCard>
-    </div>
-  </div>;
+type HomebrewType = "spell" | "feature" | "feat" | "item" | "race" | "subrace" | "class" | "subclass" | "background" | "other";
+type Edition = "2014" | "2024" | "custom";
+type HomebrewType = "spell" | "feature" | "feat" | "item" | "race" | "subrace" | "class" | "subclass" | "background" | "other";
+type Edition = "2014" | "2024" | "custom";
 }
-
-function Field({ label, value, onChange, type = "text", className = "" }: { label: string; value: string; onChange: (value: string) => void; type?: string; className?: string }) { return <label className={className}><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><input type={type} min={type === "number" ? 1 : undefined} max={type === "number" ? 20 : undefined} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm" /></label>; }
-function Select({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><select value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">{options.map((option) => <option key={option}>{option}</option>)}</select></label>; }
