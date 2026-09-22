@@ -85,6 +85,7 @@ export default function NewCharacterPage() {
 
   const selectedLanguages = useMemo(
     () => [...new Set([
+      ...(selectedRaceRules?.languages.fixed ?? []),
       ...(selectedClassRules?.languages.fixed ?? []),
       ...(selectedBackgroundRules?.languages ?? []),
       ...backgroundLanguageSelections.filter(Boolean),
