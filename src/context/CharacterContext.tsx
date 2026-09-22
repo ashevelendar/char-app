@@ -339,7 +339,7 @@ function extractProficiencyRules(raw: unknown, field: string): ProficiencyRules 
       choices.push({ count: Math.max(1, Number(choice.count) || 1), options: [...new Set(from)] });
     }
     for (const [key, enabled] of Object.entries(object)) {
-      if (key === "choose" || key === "any") continue;
+      if (key === "choose" || key === "any" || key.startsWith("any")) continue;
       if (enabled === true) fixed.push(displayProficiencyName(key));
     }
   }
@@ -2172,7 +2172,9 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
   });
 
   const optionalFeatureRows = character.optionalFeatures.flatMap((optionalFeatureKey) => {
-    const optionalFeatureId = maps.optionalFeatureByKey.get(optionalFeatureKey);
+    const optionalFeatureId = isUuid(optionalFeatureKey) && maps.optionalFeatureByDbId.has(optionalFeatureKey)
+      ? optionalFeatureKey
+      : maps.optionalFeatureByKey.get(optionalFeatureKey);
     return optionalFeatureId ? [{
       character_id: dbId,
       optional_feature_id: optionalFeatureId,
