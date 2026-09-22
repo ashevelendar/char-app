@@ -220,9 +220,18 @@ function CharacterEditor({
   const [backgroundLanguageSelections, setBackgroundLanguageSelections] = useState<string[]>([]);
   const [classLanguageSelections, setClassLanguageSelections] = useState<string[]>([]);
   const [raceLanguageSelections, setRaceLanguageSelections] = useState<string[]>([]);
-  const [subraceSkillSelections, setSubraceSkillSelections] = useState<string[]>([]);
-  const [subraceToolSelections, setSubraceToolSelections] = useState<string[]>([]);
-  const [subraceLanguageSelections, setSubraceLanguageSelections] = useState<string[]>([]);
+  const [subraceSkillSelections, setSubraceSkillSelections] = useState<string[]>(() => {
+    const subrace = catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race);
+    return character.skills.filter((skill) => subrace?.skills?.choices.some((choice) => choice.options.includes(skill)));
+  });
+  const [subraceToolSelections, setSubraceToolSelections] = useState<string[]>(() => {
+    const subrace = catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race);
+    return character.tools.filter((tool) => subrace?.tools?.choices.some((choice) => choice.options.includes(tool)));
+  });
+  const [subraceLanguageSelections, setSubraceLanguageSelections] = useState<string[]>(() => {
+    const subrace = catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race);
+    return character.languages.filter((language) => subrace?.languages?.choices.some((choice) => choice.options.includes(language)));
+  });
   const [equipmentSelections, setEquipmentSelections] = useState<InventoryEntry[]>(character.inventory);
   const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
   const [startingItemChoices, setStartingItemChoices] = useState<Record<string, string>>({});
@@ -262,16 +271,6 @@ function CharacterEditor({
     setBackgroundLanguageSelections(character.languages.filter((language) => (selectedBackgroundRules?.languageChoices ?? []).some((choice) => choice.options.includes(language))));
     setRaceLanguageSelections(character.languages.filter((language) => (raceRules[character.race]?.languages.choices ?? []).some((choice) => choice.options.includes(language))));
   }, [form.className, character.skills, selectedClassRules]);
-
-  useEffect(() => {
-    const subrace = catalogue.subraces.find((entry) => entry.name === form.subrace && entry.parentRace === form.race);
-    const fixedSkills = new Set(subrace?.skills?.fixed ?? []);
-    const fixedTools = new Set(subrace?.tools?.fixed ?? []);
-    const fixedLanguages = new Set(subrace?.languages?.fixed ?? []);
-    setSubraceSkillSelections(character.skills.filter((skill) => subrace?.skills?.choices.some((choice) => choice.options.includes(skill)) && !fixedSkills.has(skill)));
-    setSubraceToolSelections(character.tools.filter((tool) => subrace?.tools?.choices.some((choice) => choice.options.includes(tool)) && !fixedTools.has(tool)));
-    setSubraceLanguageSelections(character.languages.filter((language) => subrace?.languages?.choices.some((choice) => choice.options.includes(language)) && !fixedLanguages.has(language)));
-  }, [form.race, form.subrace, catalogue.subraces, character.skills, character.tools, character.languages]);
 
   useEffect(() => {
     if (!catalogue.classes.length) return;
