@@ -107,7 +107,7 @@ test("full caster spell progression reaches 3rd-level spells at wizard 5", () =>
   const wizardClass = {
     id: "test-wizard",
     name: "Wizard",
-    spellSlots: [[], [2], [3], [4, 2], [4, 3], [4, 3, 2]],
+    spellSlots: [[2], [3], [4, 2], [4, 3], [4, 3, 2]],
   };
   const classCatalogue = { Wizard: wizardClass };
   assert.equal(rules.getMaxSpellLevel(wizard, classCatalogue), 3);
