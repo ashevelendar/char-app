@@ -748,7 +748,7 @@ export function getItemRestrictionReason(character: Character, item: Item) {
 
 export function getItemWeight(item: Item) {
   if (!item.weight) return 0;
-  const match = String(item.weight).match(/(\\d+(?:\\.\\d+)?)\\s*lb/i);
+  const match = String(item.weight).match(/(\d+(?:\.\d+)?)\s*lb/i);
   return match ? Number(match[1]) : 0;
 }
 
