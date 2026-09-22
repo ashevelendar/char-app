@@ -7,8 +7,8 @@ import type { FormEvent } from "react";
 import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry } from "../../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getNewAbilityScoreImprovementLevels, getProficiencyBonus, isFeatAvailable } from "../../../../lib/rules";
+import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, SpellEntry } from "../../../../lib/types";
+import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getWizardSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
@@ -54,6 +54,7 @@ export default function EditCharacterPage() {
     subclassOptionalFeatureProgression,
     optionalFeatureCatalogue,
     itemCatalogue,
+    spellCatalogue,
   } = useCharacters();
   const character = characters.find((entry) => entry.id === params.id);
 
@@ -73,6 +74,7 @@ export default function EditCharacterPage() {
       subclassOptionalFeatureProgression={subclassOptionalFeatureProgression}
       optionalFeatureCatalogue={optionalFeatureCatalogue}
       itemCatalogue={itemCatalogue}
+      spellCatalogue={spellCatalogue}
       onSave={async (patch) => { await updateCharacter(character.id, patch); router.push(`/characters/${character.id}`); }}
     />
   );
@@ -89,6 +91,7 @@ function CharacterEditor({
   subclassOptionalFeatureProgression,
   optionalFeatureCatalogue,
   itemCatalogue,
+  spellCatalogue,
   onSave,
 }: {
   character: Character;
@@ -101,6 +104,7 @@ function CharacterEditor({
   subclassOptionalFeatureProgression: ReturnType<typeof useCharacters>["subclassOptionalFeatureProgression"];
   optionalFeatureCatalogue: ReturnType<typeof useCharacters>["optionalFeatureCatalogue"];
   itemCatalogue: ReturnType<typeof useCharacters>["itemCatalogue"];
+  spellCatalogue: ReturnType<typeof useCharacters>["spellCatalogue"];
   onSave: (patch: Partial<Character>) => void | Promise<void>;
 }) {
   const [form, setForm] = useState({
@@ -137,6 +141,13 @@ function CharacterEditor({
   const [tools, setTools] = useState<string[]>(character.tools);
   const [languages, setLanguages] = useState<string[]>(character.languages);
   const [asiChoices, setAsiChoices] = useState<string[]>(character.feats ?? []);
+  const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>>([]);
+  const [expertiseSelections, setExpertiseSelections] = useState<string[]>(() => {
+    const match = character.notes.match(/^Expertise:\s*(.+)$/m);
+    return match?.[1]?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
+  });
+  const [magicalSecretSelections, setMagicalSecretSelections] = useState<string[]>([]);
+  const [selectedSpells, setSelectedSpells] = useState<SpellEntry[]>(character.spells ?? []);
   const [optionalFeatures, setOptionalFeatures] = useState<string[]>(character.optionalFeatures ?? []);
   const [classSkillSelections, setClassSkillSelections] = useState<string[]>([]);
   const [backgroundSkillSelections, setBackgroundSkillSelections] = useState<string[]>([]);
@@ -230,6 +241,74 @@ function CharacterEditor({
 
   const asiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level);
   const allAsiLevels = getAbilityScoreImprovementLevelsUpTo(form.className, form.level);
+  const newAsiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level);
+
+  const progressionAbilities = useMemo(() => {
+    const next = { ...abilities };
+    newAsiLevels.forEach((_, index) => {
+      const choice = asiAbilityChoices[index];
+      if (!choice?.first) return;
+      if (choice.mode === "two") {
+        next[choice.first] = Math.min(20, next[choice.first] + 2);
+      } else if (choice.second && choice.second !== choice.first) {
+        next[choice.first] = Math.min(20, next[choice.first] + 1);
+        next[choice.second] = Math.min(20, next[choice.second] + 1);
+      }
+    });
+    return next;
+  }, [abilities, newAsiLevels, asiAbilityChoices]);
+
+  const expertiseLevels = useMemo(
+    () => featureCatalogue
+      .filter((feature) => feature.name.toLowerCase() === "expertise" && feature.className === form.className && feature.requiredLevel <= form.level)
+      .sort((a, b) => a.requiredLevel - b.requiredLevel)
+      .map((feature) => feature.requiredLevel),
+    [featureCatalogue, form.className, form.level],
+  );
+
+  const magicalSecretFeatures = useMemo(
+    () => featureCatalogue
+      .filter((feature) => feature.name.toLowerCase().includes("magical secrets") && feature.className === form.className && feature.requiredLevel <= form.level)
+      .sort((a, b) => a.requiredLevel - b.requiredLevel),
+    [featureCatalogue, form.className, form.level],
+  );
+
+  const spellCharacter = useMemo(() => ({
+    ...character,
+    level: form.level,
+    abilities: progressionAbilities,
+    race: form.race,
+    subrace: form.subrace,
+    className: form.className,
+    subclass: form.subclass,
+    background: form.background,
+    feats: asiChoices.filter(Boolean),
+    skills: selectedSkills,
+    tools: selectedTools,
+    languages: selectedLanguages,
+  }), [character, form.level, progressionAbilities, form.race, form.subrace, form.className, form.subclass, form.background, asiChoices, selectedSkills, selectedTools, selectedLanguages]);
+
+  const availableSpells = useMemo(
+    () => spellCatalogue.filter((spell) => isSpellNormallyAvailable(spellCharacter, spell)),
+    [spellCatalogue, spellCharacter],
+  );
+  const magicalSecretSpellOptions = useMemo(() => {
+    const maxLevel = getMaxSpellLevel(spellCharacter);
+    return spellCatalogue.filter((spell) => spell.level <= maxLevel);
+  }, [spellCatalogue, spellCharacter]);
+
+  const cantripsKnown = getCantripsKnown(form.className, form.level);
+  const spellsKnown = getSpellsKnown(form.className, form.level);
+  const preparedSpellLimit = getPreparedSpellCount(spellCharacter);
+  const wizardSpellbookLimit = form.className === "Wizard" ? getWizardSpellbookProgression(form.level) : null;
+  const knownSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : spellsKnown ?? preparedSpellLimit;
+  const magicalSecretCount = magicalSecretFeatures.length * 2;
+  const normalSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : knownSpellLimit === null ? null : Math.max(0, knownSpellLimit - magicalSecretCount);
+
+  const effectiveSelectedSpells = useMemo(
+    () => selectedSpells.filter((entry) => spellCatalogue.some((spell) => spell.id === entry.spellId)),
+    [selectedSpells, spellCatalogue],
+  );
 
   useEffect(() => {
     setAsiChoices((current) => {
@@ -335,9 +414,21 @@ function CharacterEditor({
       languages: selectedLanguages,
       inventory: equipmentMode === "equipment" ? equipmentSelections : [],
       currency,
+      abilities: progressionAbilities,
       feats: asiChoices.filter(Boolean),
+      spells: [
+        ...effectiveSelectedSpells,
+        ...magicalSecretSelections
+          .filter(Boolean)
+          .filter((id) => !selectedSpells.some((entry) => entry.spellId === id))
+          .map((spellId) => ({ spellId, prepared: true })),
+      ],
       optionalFeatures,
       features: Array.from(new Set([...(character.features ?? []), ...unlockedFeatureIds])),
+      notes: [
+        form.notes,
+        expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
+      ].filter(Boolean).join("\n\n"),
     });
   }
 
@@ -396,6 +487,40 @@ function CharacterEditor({
               <SectionCard title="Class Options" description="All optional features available at the character's current level are selectable here, including options gained at earlier levels.">
                 {optionalChoiceGroups.length ? optionalChoiceGroups.map((group) => <OptionalFeatureGroup key={group.id} title={group.title} count={group.count} featureTypes={group.featureTypes} catalogue={optionalFeatureCatalogue} selected={optionalFeatures} onChange={setOptionalFeatures} />) : <p className="text-sm text-stone-500">No selectable class options were found for this level.</p>}
               </SectionCard>
+              {(cantripsKnown > 0 || knownSpellLimit !== null) && (
+                <SpellSelectionSection
+                  className={form.className}
+                  level={form.level}
+                  availableSpells={availableSpells}
+                  cantripsKnown={cantripsKnown}
+                  spellLimit={normalSpellLimit}
+                  selectedSpells={effectiveSelectedSpells}
+                  onChange={setSelectedSpells}
+                />
+              )}
+              {expertiseLevels.length > 0 && (
+                <ExpertiseSelectionSection levels={expertiseLevels} selected={expertiseSelections} onChange={setExpertiseSelections} skills={selectedSkills} />
+              )}
+              {magicalSecretFeatures.length > 0 && (
+                <MagicalSecretsSection
+                  features={magicalSecretFeatures}
+                  spells={magicalSecretSpellOptions}
+                  excluded={effectiveSelectedSpells.map((entry) => entry.spellId)}
+                  selected={magicalSecretSelections}
+                  onChange={setMagicalSecretSelections}
+                />
+              )}
+              {newAsiLevels.length > 0 && (
+                <AsiSelectionSection
+                  levels={newAsiLevels}
+                  choices={[]}
+                  onChoicesChange={() => undefined}
+                  abilityChoices={asiAbilityChoices}
+                  onAbilityChoicesChange={setAsiAbilityChoices}
+                  availableFeats={[]}
+                  featCatalogue={[]}
+                />
+              )}
             </>
           )}
 
@@ -573,22 +698,24 @@ function CharacterEditor({
               </SectionCard>
 
               {allAsiLevels.length > 0 && (
-                <SectionCard title="Ability Score Improvements / Feats" description="At each class Ability Score Improvement level, choose the normal ability score improvement or replace it with a feat you qualify for.">
+                <SectionCard title="Ability Score Improvements / Feats" description="Existing feat choices are preserved. When you level up, any newly reached ASI levels can be allocated above in Class.">
                   <div className="space-y-4">
                     {allAsiLevels.map((asiLevel, index) => {
                       const selectedFeatId = asiChoices[index] ?? "";
-                      const choices = featCatalogue.filter((feat) => !asiChoices.includes(feat.id) || feat.id === selectedFeatId).filter((feat) => isFeatAvailable({
-                        level: form.level,
-                        abilities,
-                        race: form.race,
-                        subrace: form.subrace,
-                        className: form.className,
-                        background: form.background,
-                        feats: asiChoices.filter(Boolean),
-                        skills: selectedSkills,
-                        tools: selectedTools,
-                        languages: selectedLanguages,
-                      }, feat));
+                      const choices = featCatalogue
+                        .filter((feat) => !asiChoices.includes(feat.id) || feat.id === selectedFeatId)
+                        .filter((feat) => isFeatAvailable({
+                          level: form.level,
+                          abilities: progressionAbilities,
+                          race: form.race,
+                          subrace: form.subrace,
+                          className: form.className,
+                          background: form.background,
+                          feats: asiChoices.filter(Boolean),
+                          skills: selectedSkills,
+                          tools: selectedTools,
+                          languages: selectedLanguages,
+                        }, feat));
                       const selectedFeat = featCatalogue.find((feat) => feat.id === selectedFeatId);
                       return (
                         <div key={asiLevel} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
@@ -602,7 +729,6 @@ function CharacterEditor({
                             {choices.map((feat) => <option key={feat.id} value={feat.id}>{feat.name}</option>)}
                           </select>
                           {selectedFeat && <article className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4"><div className="flex items-center gap-2"><h3 className="font-semibold text-amber-300">{selectedFeat.name}</h3>{selectedFeat.source && <Badge>{selectedFeat.source}</Badge>}</div><p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-300">{selectedFeat.description}</p></article>}
-                          {!choices.length && <p className="mt-3 text-sm text-stone-500">No eligible feats are available for this slot.</p>}
                         </div>
                       );
                     })}
@@ -702,3 +828,140 @@ function InfoBox({ title, badge, text }: { title: string; badge?: string; text: 
 function Field({ label, value, onChange, required = false }: { label: string; value: string; onChange: (value: string) => void; required?: boolean }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><input required={required} value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm outline-none focus:border-amber-400" /></label>; }
 function NumberField({ label, value, onChange, min, max }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><input type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm outline-none focus:border-amber-400" /></label>; }
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm outline-none focus:border-amber-400">{options.length ? options.map((option) => <option key={option}>{option}</option>) : <option value="">None</option>}</select></label>; }
+function AsiSelectionSection({ levels, abilityChoices, onAbilityChoicesChange }: {
+  levels: number[];
+  choices: string[];
+  onChoicesChange: (value: string[]) => void;
+  abilityChoices: Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>;
+  onAbilityChoicesChange: (value: Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>) => void;
+  availableFeats: Array<{ id: string; name: string; description: string; source: string }>;
+  featCatalogue: Array<{ id: string; name: string; description: string; source: string }>;
+}) {
+  const abilityNames: Array<[AbilityKey, string]> = [["str","Strength"],["dex","Dexterity"],["con","Constitution"],["int","Intelligence"],["wis","Wisdom"],["cha","Charisma"]];
+  return <SectionCard title="New Ability Score Improvements" description="These ASIs were reached by increasing this character's level. Choose +2 to one ability, or +1 to two different abilities. Scores cannot exceed 20.">
+    <div className="space-y-5">
+      {levels.map((level, index) => {
+        const choice = abilityChoices[index];
+        const mode = choice?.mode ?? "two";
+        const first = choice?.first ?? "";
+        const second = choice?.second ?? "";
+        return <div key={level} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
+          <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">Level {level}</h3><Badge>ASI</Badge></div>
+          <select value={mode} onChange={(event) => {
+            const next = [...abilityChoices];
+            next[index] = { mode: event.target.value as "two" | "one", first: choice?.first, second: choice?.second };
+            onAbilityChoicesChange(next);
+          }} className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+            <option value="two">+2 to one ability score</option>
+            <option value="one">+1 to two different ability scores</option>
+          </select>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <select value={first} onChange={(event) => {
+              const next = [...abilityChoices];
+              next[index] = { mode, first: event.target.value ? event.target.value as AbilityKey : undefined, second: choice?.second };
+              onAbilityChoicesChange(next);
+            }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+              <option value="">Choose an ability...</option>
+              {abilityNames.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+            </select>
+            {mode === "one" && <select value={second} onChange={(event) => {
+              const next = [...abilityChoices];
+              next[index] = { mode, first: choice?.first, second: event.target.value ? event.target.value as AbilityKey : undefined };
+              onAbilityChoicesChange(next);
+            }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+              <option value="">Choose an ability...</option>
+              {abilityNames.filter(([key]) => key !== choice?.first).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+            </select>}
+          </div>
+        </div>;
+      })}
+    </div>
+  </SectionCard>;
+}
+
+function ExpertiseSelectionSection({ levels, selected, onChange, skills }: { levels: number[]; selected: string[]; onChange: (value: string[]) => void; skills: string[] }) {
+  let offset = 0;
+  return <SectionCard title="Expertise" description="Choose the skill proficiencies that gain Expertise. Existing expertise stored in notes is loaded when possible.">
+    <div className="space-y-4">
+      {levels.map((level) => {
+        const slots = [0, 1].map(() => offset++);
+        return <div key={level} className="rounded-xl border border-stone-800 p-4">
+          <div className="mb-3 font-semibold">Level {level} Expertise</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {slots.map((slot) => <select key={slot} value={selected[slot] ?? ""} onChange={(event) => {
+              const next = [...selected]; next[slot] = event.target.value; onChange(next);
+            }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+              <option value="">Choose a skill...</option>
+              {skills.filter((skill) => !selected.some((value, index) => index !== slot && value === skill)).map((skill) => <option key={skill}>{skill}</option>)}
+            </select>)}
+          </div>
+        </div>;
+      })}
+    </div>
+  </SectionCard>;
+}
+
+function MagicalSecretsSection({ features, spells, excluded, selected, onChange }: { features: Array<{ id: string; name: string; requiredLevel: number }>; spells: Array<{ id: string; name: string; level: number; description: string }>; excluded: string[]; selected: string[]; onChange: (value: string[]) => void }) {
+  let offset = 0;
+  return <SectionCard title="Magical Secrets" description="Choose two spells for each Magical Secrets feature. The choices are added to the character's spell list when saved.">
+    <div className="space-y-4">
+      {features.map((feature) => {
+        const slots = [0, 1].map(() => offset++);
+        return <div key={feature.id} className="rounded-xl border border-stone-800 p-4">
+          <div className="mb-3 font-semibold">Level {feature.requiredLevel} · {feature.name}</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {slots.map((slot) => <select key={slot} value={selected[slot] ?? ""} onChange={(event) => {
+              const next = [...selected]; next[slot] = event.target.value; onChange(next);
+            }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+              <option value="">Choose a spell...</option>
+              {spells.filter((spell) => !excluded.includes(spell.id) && !selected.some((value, index) => index !== slot && value === spell.id)).map((spell) => <option key={spell.id} value={spell.id}>{spell.name} (Level {spell.level})</option>)}
+            </select>)}
+          </div>
+        </div>;
+      })}
+    </div>
+  </SectionCard>;
+}
+
+function SpellSelectionSection({ className, level, availableSpells, cantripsKnown, spellLimit, selectedSpells, onChange }: { className: string; level: number; availableSpells: Array<{ id: string; name: string; level: number; school: string; description: string }>; cantripsKnown: number; spellLimit: number | null; selectedSpells: SpellEntry[]; onChange: (value: SpellEntry[]) => void }) {
+  if (!cantripsKnown && spellLimit === null) return null;
+  const selectedCantrips = selectedSpells.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0);
+  const selectedLeveled = selectedSpells.filter((entry) => {
+    const spell = availableSpells.find((candidate) => candidate.id === entry.spellId);
+    return Boolean(spell && spell.level > 0);
+  });
+  const isWizard = className === "Wizard";
+  const label = isWizard ? "Spellbook" : spellLimit === null ? "Prepared spells" : "Spells known";
+  const remainingCantrips = Math.max(0, cantripsKnown - selectedCantrips.length);
+  const remainingLeveled = spellLimit === null ? 0 : Math.max(0, spellLimit - selectedLeveled.length);
+  function toggle(spellId: string) {
+    if (selectedSpells.some((entry) => entry.spellId === spellId)) {
+      onChange(selectedSpells.filter((entry) => entry.spellId !== spellId));
+      return;
+    }
+    const spell = availableSpells.find((entry) => entry.id === spellId);
+    if (!spell) return;
+    const count = spell.level === 0 ? selectedCantrips.length : selectedLeveled.length;
+    const limit = spell.level === 0 ? cantripsKnown : spellLimit;
+    if (limit !== null && count >= limit) return;
+    onChange([...selectedSpells, { spellId, prepared: spell.level === 0 || !isWizard }]);
+  }
+  return <SectionCard title="Spells" description={isWizard ? "Edit the spells in the Wizard spellbook." : "Edit the character's known or prepared spells."}>
+    <div className="grid gap-5 lg:grid-cols-2">
+      <SpellPicker title={"Cantrips (" + selectedCantrips.length + "/" + cantripsKnown + ")"} spells={availableSpells.filter((spell) => spell.level === 0)} selected={selectedSpells} remaining={remainingCantrips} onToggle={toggle} />
+      {spellLimit !== null && <SpellPicker title={label + " (" + selectedLeveled.length + "/" + spellLimit + ")"} spells={availableSpells.filter((spell) => spell.level > 0)} selected={selectedSpells} remaining={remainingLeveled} onToggle={toggle} />}
+    </div>
+  </SectionCard>;
+}
+
+function SpellPicker({ title, spells, selected, remaining, onToggle }: { title: string; spells: Array<{ id: string; name: string; level: number; school: string; description: string }>; selected: SpellEntry[]; remaining: number; onToggle: (id: string) => void }) {
+  return <div className="rounded-2xl border border-stone-800 bg-stone-950/60 p-4">
+    <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{title}</h3>{remaining > 0 && <Badge>{remaining} remaining</Badge>}</div>
+    <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+      {spells.map((spell) => {
+        const checked = selected.some((entry) => entry.spellId === spell.id);
+        return <label key={spell.id} className="block cursor-pointer rounded-xl border border-stone-800 p-3 hover:bg-stone-900"><div className="flex items-start gap-3"><input type="checkbox" checked={checked} onChange={() => onToggle(spell.id)} disabled={!checked && remaining <= 0} className="mt-1" /><div><div className="font-medium">{spell.name} <span className="text-xs text-stone-500">Level {spell.level}</span></div><p className="mt-1 text-xs leading-5 text-stone-500">{spell.description}</p></div></div></label>;
+      })}
+    </div>
+  </div>;
+}
