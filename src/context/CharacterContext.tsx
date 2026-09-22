@@ -943,8 +943,10 @@ function makeMaps(
         .reduce((minimum, feature) => Math.min(minimum, feature.requiredLevel), Number.POSITIVE_INFINITY);
 
       return [row.name, {
-        hitDie: Number.isFinite(Number(row.hit_die)) ? Number(row.hit_die) : null,
-        spellcastingAbility: typeof row.spellcasting_ability === "string" ? row.spellcasting_ability : null,
+        hitDie: raw.hd && typeof raw.hd === "object" && Number.isFinite(Number((raw.hd as Record<string, unknown>).faces))
+          ? Number((raw.hd as Record<string, unknown>).faces)
+          : null,
+        spellcastingAbility: typeof raw.spellcastingAbility === "string" ? raw.spellcastingAbility : null,
         casterProgression: typeof raw.casterProgression === "string" ? raw.casterProgression : null,
         cantripProgression: Array.isArray(raw.cantripProgression)
           ? raw.cantripProgression.map((value) => Number(value) || 0)
