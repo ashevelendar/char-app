@@ -328,6 +328,26 @@ export function getSpellsKnown(className: string, level: number, classCatalogue?
   return fallback[safeLevel] ?? 0;
 }
 
+function getSpellcastingAbilityModifier(character: Character, rule?: ClassRuleData) {
+  const ability = rule?.spellcastingAbility?.toLowerCase().replace(/[^a-z]/g, "");
+  const abilityKey: Record<string, keyof Character["abilities"]> = {
+    str: "str",
+    strength: "str",
+    dex: "dex",
+    dexterity: "dex",
+    con: "con",
+    constitution: "con",
+    int: "int",
+    intelligence: "int",
+    wis: "wis",
+    wisdom: "wis",
+    cha: "cha",
+    charisma: "cha",
+  };
+  const key = ability ? abilityKey[ability] : undefined;
+  return key ? getAbilityModifier(character.abilities[key]) : null;
+}
+
 export function getPreparedSpellCount(character: Character, classCatalogue?: RuleClassCatalogue) {
   const level = Math.max(1, Math.min(20, character.level));
   const rule = getDynamicClassRule(character.className, classCatalogue);
@@ -341,10 +361,12 @@ export function getPreparedSpellCount(character: Character, classCatalogue?: Rul
       wis_mod: getAbilityModifier(character.abilities.wis),
       cha_mod: getAbilityModifier(character.abilities.cha),
     };
-    const expression = formula
+    let expression = formula
       .replaceAll("<$level$>", String(level))
       .replace(/<\$([a-z]+_mod)\$>/g, (_, token: string) => String(abilityModifierByToken[token] ?? 0))
-      .replace(/floor\(([^)]+)\)/gi, "$1");
+      .replace(/floor\(([^)]+)\)/gi, "$1")
+      .replace(/max\(\s*([^,]+)\s*,\s*([^)]+)\)/gi, "$1")
+      .replace(/min\(\s*([^,]+)\s*,\s*([^)]+)\)/gi, "$1");
     if (/^[0-9+*/().\s-]+$/.test(expression)) {
       const terms = expression.split("+").map((term) => term.trim()).filter(Boolean);
       const value = terms.reduce((sum, term) => {
@@ -356,20 +378,18 @@ export function getPreparedSpellCount(character: Character, classCatalogue?: Rul
     }
   }
 
-  if (!["Cleric", "Druid", "Paladin", "Artificer", "Wizard"].includes(character.className)) return null;
+  const abilityModifier = getSpellcastingAbilityModifier(character, rule);
+  if (abilityModifier === null) return null;
 
-  const abilityModifier =
-    character.className === "Cleric" || character.className === "Druid"
-      ? getAbilityModifier(character.abilities.wis)
-      : character.className === "Paladin"
-        ? getAbilityModifier(character.abilities.cha)
-        : getAbilityModifier(character.abilities.int);
+  if (rule?.casterProgression === "half") {
+    return Math.max(1, Math.floor(level / 2) + abilityModifier);
+  }
 
-  const base = character.className === "Paladin" || character.className === "Artificer"
-    ? Math.floor(level / 2)
-    : level;
+  if (rule?.casterProgression === "full" || rule?.casterProgression === "artificer") {
+    return Math.max(1, level + abilityModifier);
+  }
 
-  return Math.max(1, base + abilityModifier);
+  return null;
 }
 
 export function getWizardSpellbookProgression(level: number) {
