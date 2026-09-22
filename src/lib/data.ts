@@ -143,6 +143,15 @@ export const defaultCharacter: Character = {
   optionalFeatures: [],
   homebrew: [],
   features: ["druidic", "wild-shape", "dragon-affinity", "draconic-speech", "dragon-form", "lizardfolk-bite", "lizardfolk-hold-breath"],
+  featureProvenance: [
+    { featureId: "druidic", source: "automatic" },
+    { featureId: "wild-shape", source: "automatic" },
+    { featureId: "dragon-affinity", source: "automatic" },
+    { featureId: "draconic-speech", source: "automatic" },
+    { featureId: "dragon-form", source: "automatic" },
+    { featureId: "lizardfolk-bite", source: "automatic" },
+    { featureId: "lizardfolk-hold-breath", source: "automatic" },
+  ],
   spells: [
     { spellId: "guidance", prepared: true },
     { spellId: "produce-flame", prepared: true },
