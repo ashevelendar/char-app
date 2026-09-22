@@ -168,7 +168,9 @@ function normalizeRuleText(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-type FeatPrerequisiteCharacter = Pick<Character, "level" | "abilities" | "race" | "subrace" | "className" | "background" | "feats" | "skills" | "tools" | "languages">;\n\nfunction featPrerequisiteMet(prerequisite: unknown, character: FeatPrerequisiteCharacter): boolean {
+type FeatPrerequisiteCharacter = Pick<Character, "level" | "abilities" | "race" | "subrace" | "className" | "background" | "feats" | "skills" | "tools" | "languages">;
+
+function featPrerequisiteMet(prerequisite: unknown, character: FeatPrerequisiteCharacter): boolean {
   if (!prerequisite) return true;
   if (Array.isArray(prerequisite)) return prerequisite.every((entry) => featPrerequisiteMet(entry, character));
   if (typeof prerequisite !== "object") return true;
