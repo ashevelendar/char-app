@@ -7,7 +7,7 @@ import type { FormEvent } from "react";
 import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, SpellEntry } from "../../../../lib/types";
+import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, Spell, SpellEntry } from "../../../../lib/types";
 import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getCarryingCapacity, getClassDefinition, validateAsiHistory, validateExpertiseHistory, validateMagicalSecretsHistory, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getInventoryWeight, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, getAvailableItems, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
@@ -35,6 +35,11 @@ function getOptionalChoiceGroups(classEntries: OptionalChoiceEntry[], subclassEn
   return [...merged.values()];
 }
 
+
+function resolveSpellReference(reference: string, spellCatalogue: SpellEntry[] | Array<{ id: string; name: string }>) {
+  const normalized = reference.trim().toLowerCase();
+  return spellCatalogue.find((spell) => "name" in spell && spell.name.trim().toLowerCase() === normalized)?.id ?? "";
+}
 
 const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
 const abilityLabels: Record<AbilityKey, string> = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
@@ -247,6 +252,9 @@ function CharacterEditor({
       .filter((entry) => entry.source !== "magical-secrets" && !magicalSecretSelections.includes(entry.spellId))
       .map((entry) => ({ ...entry, source: entry.source ?? "legacy" })),
   );
+  const [backgroundSpellSelections, setBackgroundSpellSelections] = useState<string[]>(() =>
+    (character.spells ?? []).filter((entry) => entry.source === "background").map((entry) => entry.spellId),
+  );
 
   function updateMagicalSecretHistory(level: number, spellIds: string[]) {
     setMagicalSecretHistory((current) => {
@@ -290,6 +298,34 @@ function CharacterEditor({
   const selectedSubrace = catalogue.subraces.find((entry) => entry.name === form.subrace && entry.parentRace === form.race);
   const selectedBackgroundRules = backgroundRules[form.background];
   const selectedClassRules = classRules[form.className];
+
+  const backgroundSpellOptions = useMemo(() => {
+    if (!selectedBackgroundRules) return [];
+    return selectedBackgroundRules.spells.choices.flatMap((choice) =>
+      choice.options
+        .map((reference) => spellCatalogue.find((spell) => spell.name.trim().toLowerCase() === reference.trim().toLowerCase()))
+        .filter((spell): spell is Spell => Boolean(spell)),
+    );
+  }, [selectedBackgroundRules, spellCatalogue]);
+
+  const backgroundFixedSpellIds = useMemo(() => {
+    if (!selectedBackgroundRules) return [];
+    return selectedBackgroundRules.spells.fixed
+      .map((reference) => spellCatalogue.find((spell) => spell.name.trim().toLowerCase() === reference.trim().toLowerCase())?.id ?? "")
+      .filter(Boolean);
+  }, [selectedBackgroundRules, spellCatalogue]);
+
+  useEffect(() => {
+    const allowedChoiceIds = new Set(backgroundSpellOptions.map((spell) => spell.id));
+    const preservedChoices = backgroundSpellSelections.filter((spellId) => allowedChoiceIds.has(spellId));
+    const nextBackgroundIds = [...new Set([...backgroundFixedSpellIds, ...preservedChoices])];
+    setBackgroundSpellSelections(preservedChoices);
+    setSelectedSpells((current) => {
+      const withoutBackground = current.filter((entry) => entry.source !== "background");
+      const additions = nextBackgroundIds.map((spellId) => ({ spellId, prepared: false, source: "background" as const }));
+      return [...withoutBackground, ...additions.filter((entry) => !withoutBackground.some((existing) => existing.spellId === entry.spellId))];
+    });
+  }, [form.background, backgroundFixedSpellIds, backgroundSpellOptions]);
 
   useEffect(() => {
     const nextMaxHp = getExpectedMaxHp(form.className, form.level, abilities.con, classRules);
@@ -695,7 +731,7 @@ function CharacterEditor({
         abilities: progressionAbilities,
         feats: asiChoices.filter(Boolean),
         spells: [
-          ...effectiveSelectedSpells.map((entry) => ({ ...entry, source: entry.source === "dm" ? "dm" as const : "normal" as const })),
+          ...effectiveSelectedSpells,
           ...magicalSecretSelections
             .filter(Boolean)
             .map((spellId) => ({ spellId, prepared: true, source: "magical-secrets" as const })),
@@ -730,7 +766,10 @@ function CharacterEditor({
     }
     if (currentStep === "background") {
       const choices = selectedBackgroundRules;
+      const requiredBackgroundSpellChoices = choices?.spells.choices.reduce((total, choice) => total + choice.count, 0) ?? 0;
+      const selectedBackgroundChoiceCount = backgroundSpellSelections.filter((spellId) => backgroundSpellOptions.some((spell) => spell.id === spellId)).length;
       return Boolean(form.background) &&
+        selectedBackgroundChoiceCount === requiredBackgroundSpellChoices &&
         (!choices || choices.skillChoices.reduce((total, choice) => total + choice.count, 0) === backgroundSkillSelections.filter(Boolean).length) &&
         (!choices || choices.toolChoices.reduce((total, choice) => total + choice.count, 0) === backgroundToolSelections.filter(Boolean).length) &&
         (!choices || choices.languageChoices.reduce((total, choice) => total + choice.count, 0) === backgroundLanguageSelections.filter(Boolean).length);
@@ -864,6 +903,7 @@ function CharacterEditor({
                   setBackgroundSkillSelections([]);
                   setBackgroundToolSelections([]);
                   setBackgroundLanguageSelections([]);
+                  setBackgroundSpellSelections([]);
                   setStartingEquipmentSelections((current) => {
                     const nextSelections = { ...current };
                     Object.keys(nextSelections).filter((key) => key.startsWith("background-")).forEach((key) => delete nextSelections[key]);
@@ -900,8 +940,6 @@ function CharacterEditor({
               <SectionCard title="Species" description="Change the race or subrace and review the associated traits.">
                 <RacePicker races={catalogue.races.map((name) => ({ name, source: raceRules[name]?.source ?? "", description: raceRules[name]?.description ?? "" }))} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} />
               </SectionCard>
-              {raceRules[form.race] && <InfoBox title={form.race} badge={raceRules[form.race].source} text={raceRules[form.race].description || "No species description is available."} />}
-              {selectedSubrace && <InfoBox title={selectedSubrace.name} badge={selectedSubrace.source} text={selectedSubrace.description || "No subrace description is available."} />}
               <SectionCard title="Species traits">
                 <div className="space-y-3">
                   {featureCatalogue.filter((feature) => feature.sourceType === "race" && feature.raceName === form.race && feature.requiredLevel <= form.level).map((feature) => (
@@ -1128,11 +1166,33 @@ function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }
   onSelect: (race: string, subrace?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(selectedRace);
-  const sourceOrder = ["PHB", ...Array.from(new Set(races.map((race) => race.source || "Other").filter((source) => source !== "PHB"))).sort((a, b) => a.localeCompare(b))];
-  const grouped = sourceOrder.map((source) => ({
-    source,
-    races: races.filter((race) => (race.source || "Other") === source).sort((a, b) => a.name.localeCompare(b.name)),
-  })).filter((group) => group.races.length > 0);
+
+  useEffect(() => {
+    setExpanded(selectedRace);
+  }, [selectedRace]);
+  const normalizeSource = (source: string) => {
+    const value = source.trim();
+    if (!value) return "Other";
+    if (/^(?:PHB|Player.?s Handbook)$/i.test(value)) return "PHB";
+    if (/^(?:TCE|Tasha.?s Cauldron of Everything)$/i.test(value)) return "TCE";
+    if (/^(?:XGE|Xanathar.?s Guide to Everything)$/i.test(value)) return "XGE";
+    return value;
+  };
+  const groupedMap = new Map<string, typeof races>();
+  for (const race of races) {
+    const source = normalizeSource(race.source);
+    if (!groupedMap.has(source)) groupedMap.set(source, []);
+    groupedMap.get(source)!.push(race);
+  }
+  const grouped = [...groupedMap.entries()]
+    .sort(([a], [b]) => {
+      if (a === "PHB") return -1;
+      if (b === "PHB") return 1;
+      if (a === "TCE") return b === "PHB" ? -1 : a.localeCompare(b);
+      if (b === "TCE") return 1;
+      return a.localeCompare(b);
+    })
+    .map(([source, entries]) => ({ source, races: entries.sort((a, b) => a.name.localeCompare(b.name)) }));
 
   return <div>
     <div className="text-xs font-semibold uppercase tracking-wider text-stone-500">Race</div>
