@@ -289,7 +289,7 @@ function CharacterEditor({
   }), [character, form.level, progressionAbilities, form.race, form.subrace, form.className, form.subclass, form.background, asiChoices, selectedSkills, selectedTools, selectedLanguages]);
 
   const availableSpells = useMemo(
-    () => spellCatalogue.filter((spell) => isSpellNormallyAvailable(spellCharacter, spell)),
+    () => spellCatalogue.filter((spell) => isSpellNormallyAvailable(spellCharacter, spell, classRules)),
     [spellCatalogue, spellCharacter],
   );
   const magicalSecretSpellOptions = useMemo(() => {
