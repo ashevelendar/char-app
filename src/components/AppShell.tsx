@@ -12,6 +12,7 @@ const navItems = [
   { href: "/spells", label: "Spells", icon: "✦" },
   { href: "/inventory", label: "Inventory", icon: "▣" },
   { href: "/features", label: "Features", icon: "◆" },
+  { href: "/homebrew", label: "Homebrew", icon: "✚" },
   { href: "/rules", label: "Rules", icon: "◈" },
 ];
 
