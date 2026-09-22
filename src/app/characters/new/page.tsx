@@ -7,13 +7,54 @@ import { Badge, PageHeader, SectionCard } from "../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../context/CharacterContext";
 import { defaultCharacter } from "../../../lib/data";
-import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, SpellEntry } from "../../../lib/types";
+import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, Item, SpellEntry } from "../../../lib/types";
 import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getWizardSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
 const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
+
+type RequirementKey = "identity" | "subclass" | "classSkills" | "classLanguages" | "backgroundSkills" | "backgroundTools" | "backgroundLanguages" | "raceLanguages" | "asi" | "expertise" | "magicalSecrets" | "optionalFeatures" | "spells" | "equipment";
+
+function isOrdinaryStartingItem(item: Item) {
+  const rarity = item.rarity.trim().toLowerCase();
+  const description = item.description.toLowerCase();
+  const nonOrdinaryRarities = new Set(["uncommon", "rare", "very rare", "legendary", "artifact"]);
+  if (nonOrdinaryRarities.has(rarity)) return false;
+  if (item.requiresAttunement || item.restricted || item.magicBonus) return false;
+  if (/\b(?:magic|magical|cursed|attunement|requires attunement)\b/.test(description)) return false;
+  return true;
+}
+
+function normalizeStartingItemName(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .replace(/^(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*(?:x|×)?\s*/i, "")
+    .replace(/[.,]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function startingItemNameVariants(value: string) {
+  const normalized = normalizeStartingItemName(value);
+  return new Set([
+    normalized,
+    normalized.replace(/s$/, ""),
+    normalized.replace(/es$/, "e"),
+    normalized.replace(/ies$/, "y"),
+  ]);
+}
+
+function findOrdinaryStartingItem(items: Item[], entryName: string) {
+  const wanted = startingItemNameVariants(entryName);
+  return items.find((item) => {
+    if (!isOrdinaryStartingItem(item)) return false;
+    const candidate = startingItemNameVariants(item.name);
+    return [...wanted].some((variant) => candidate.has(variant));
+  });
+}
 
 function getOptionalChoiceGroups(classEntries: OptionalChoiceEntry[], subclassEntries: OptionalChoiceEntry[], level: number) {
   const consolidate = (entries: OptionalChoiceEntry[]) => {
@@ -290,6 +331,7 @@ export default function NewCharacterPage() {
   function equipmentChoiceOptions(choiceType: string) {
     const type = choiceType.toLowerCase();
     return itemCatalogue.filter((item) => {
+      if (!isOrdinaryStartingItem(item)) return false;
       if (type === "weaponmartial") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("martial"));
       if (type === "weaponsimple") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("simple"));
       if (type === "armorlight") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("light"));
@@ -315,11 +357,9 @@ export default function NewCharacterPage() {
         const chosen = entry.choiceType ? itemCatalogue.find((item) => item.id === choiceId) : undefined;
         if (entry.choiceType && !chosen) return [];
         if (entry.special) return [];
-        const item = chosen ?? itemCatalogue.find((candidate) => {
-          const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\s+/i, "").replace(/[.,]/g, "").trim();
-          const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
-          return name === normalized || name.includes(normalized) || normalized.includes(name);
-        });
+        const item = chosen && isOrdinaryStartingItem(chosen)
+          ? chosen
+          : findOrdinaryStartingItem(itemCatalogue, entry.name);
         return item ? [{ itemId: item.id, quantity: Math.max(1, entry.quantity), equipped: false, notes: marker + optionIndex }] : [];
       });
       const merged = [...withoutGroup];
@@ -428,6 +468,48 @@ export default function NewCharacterPage() {
 
   const canCreate = Object.values(creationRequirements).every(Boolean);
 
+  const requirementLabels: Record<RequirementKey, string> = {
+    identity: "Character name, class, race and background",
+    subclass: "Subclass",
+    classSkills: "Class skill choices",
+    classLanguages: "Class language choices",
+    backgroundSkills: "Background skill choices",
+    backgroundTools: "Background tool choices",
+    backgroundLanguages: "Background language choices",
+    raceLanguages: "Species language choices",
+    asi: "Ability Score Improvements / Feats",
+    expertise: "Expertise choices",
+    magicalSecrets: "Magical Secrets choices",
+    optionalFeatures: "Optional class features",
+    spells: "Required spells",
+    equipment: "Starting equipment or starting gold",
+  };
+
+  const missingRequirements = (keys: RequirementKey[] = Object.keys(creationRequirements) as RequirementKey[]) =>
+    keys.filter((key) => !creationRequirements[key]).map((key) => requirementLabels[key]);
+
+  const stepRequirements: Record<BuilderStep, RequirementKey[]> = {
+    class: ["identity", "subclass", "classSkills", "classLanguages", "asi", "expertise", "magicalSecrets", "optionalFeatures", "spells"],
+    background: ["identity", "backgroundSkills", "backgroundTools", "backgroundLanguages"],
+    species: ["identity", "raceLanguages"],
+    abilities: ["identity"],
+    equipment: ["equipment"],
+    "whats-next": Object.keys(creationRequirements) as RequirementKey[],
+  };
+
+  const currentStepMissing = missingRequirements(stepRequirements[step]);
+
+  function goToStep(nextStep: BuilderStep) {
+    if (nextStep === step) return;
+    const missing = missingRequirements(stepRequirements[step]);
+    if (missing.length) {
+      setCreationError("Complete the current step before moving on: " + missing.join("; ") + ".");
+      return;
+    }
+    setCreationError("");
+    setStep(nextStep);
+  }
+
   function submit() {
     if (!canCreate) return;
     setCreationError("");
@@ -464,7 +546,7 @@ export default function NewCharacterPage() {
 
   return (
     <div className="min-h-[calc(100vh-120px)] bg-stone-950">
-      <BuilderStepNav step={step} onStepChange={setStep} />
+      <BuilderStepNav step={step} onStepChange={goToStep} missingRequirements={currentStepMissing} />
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <PageHeader
@@ -775,6 +857,14 @@ export default function NewCharacterPage() {
                 </div>
               </SectionCard>
 
+              {!canCreate && (
+                <SectionCard title="Missing required details" description="Complete these items before the character can be created.">
+                  <ul className="list-disc space-y-2 pl-5 text-sm text-amber-300">
+                    {missingRequirements().map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </SectionCard>
+              )}
+
               {creationError && <div className="rounded-xl border border-red-900/60 bg-red-950/20 px-4 py-3 text-sm text-red-300">{creationError}</div>}
 
               <SectionCard title="Notes">
@@ -788,7 +878,7 @@ export default function NewCharacterPage() {
           )}
         </div>
 
-        <BuilderFooter step={step} onStepChange={setStep} canCreate={canCreate} />
+        <BuilderFooter step={step} onStepChange={goToStep} canCreate={canCreate} missingRequirements={missingRequirements()} />
       </div>
     </div>
   );
@@ -805,7 +895,7 @@ const STEP_META: Record<BuilderStep, { number: number; title: string; descriptio
   "whats-next": { number: 6, title: "What's Next", description: "Finish your character, review the build and create the character sheet." },
 };
 
-function BuilderStepNav({ step, onStepChange }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void }) {
+function BuilderStepNav({ step, onStepChange, missingRequirements }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void; missingRequirements: string[] }) {
   return (
     <div className="border-b border-stone-800 bg-stone-950/95">
       <div className="mx-auto max-w-5xl overflow-x-auto px-4 sm:px-6 lg:px-8">
@@ -827,12 +917,17 @@ function BuilderStepNav({ step, onStepChange }: { step: BuilderStep; onStepChang
             );
           })}
         </nav>
+        {missingRequirements.length > 0 && (
+          <p className="border-t border-stone-800 px-1 py-2 text-xs text-amber-400">
+            Complete this step before moving on: {missingRequirements.join("; ")}.
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
-function BuilderFooter({ step, onStepChange, canCreate }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void; canCreate: boolean }) {
+function BuilderFooter({ step, onStepChange, canCreate, missingRequirements }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void; canCreate: boolean; missingRequirements: string[] }) {
   const index = BUILDER_STEPS.indexOf(step);
   const previous = index > 0 ? BUILDER_STEPS[index - 1] : null;
   const next = index < BUILDER_STEPS.length - 1 ? BUILDER_STEPS[index + 1] : null;
