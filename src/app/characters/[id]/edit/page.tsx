@@ -8,7 +8,7 @@ import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell"
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry } from "../../../../lib/types";
-import { getExpectedHitDice, getExpectedMaxHp, getNewAbilityScoreImprovementLevels, getProficiencyBonus } from "../../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getExpectedHitDice, getExpectedMaxHp, getNewAbilityScoreImprovementLevels, getProficiencyBonus, isFeatAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
@@ -136,7 +136,7 @@ function CharacterEditor({
   const [skills, setSkills] = useState<string[]>(character.skills);
   const [tools, setTools] = useState<string[]>(character.tools);
   const [languages, setLanguages] = useState<string[]>(character.languages);
-  const [feats, setFeats] = useState<string[]>(character.feats ?? []);
+  const [asiChoices, setAsiChoices] = useState<string[]>(character.feats ?? []);
   const [optionalFeatures, setOptionalFeatures] = useState<string[]>(character.optionalFeatures ?? []);
   const [classSkillSelections, setClassSkillSelections] = useState<string[]>([]);
   const [backgroundSkillSelections, setBackgroundSkillSelections] = useState<string[]>([]);
@@ -227,6 +227,39 @@ function CharacterEditor({
   );
 
   const asiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level);
+  const allAsiLevels = getAbilityScoreImprovementLevelsUpTo(form.className, form.level);
+
+  useEffect(() => {
+    setAsiChoices((current) => {
+      const next = allAsiLevels.map((_, index) => current[index] ?? "");
+      return current.length === next.length && current.every((value, index) => value === next[index]) ? current : next;
+    });
+  }, [allAsiLevels]);
+
+  useEffect(() => {
+    setAsiChoices((current) => {
+      const prerequisiteCharacter = {
+        level: form.level,
+        abilities,
+        race: form.race,
+        subrace: form.subrace,
+        className: form.className,
+        background: form.background,
+        feats: current.filter(Boolean),
+        skills: selectedSkills,
+        tools: selectedTools,
+        languages: selectedLanguages,
+      };
+      const next = current.slice(0, allAsiLevels.length).map((featId) => {
+        if (!featId) return "";
+        const feat = featCatalogue.find((entry) => entry.id === featId);
+        return feat && isFeatAvailable(prerequisiteCharacter, feat) ? featId : "";
+      });
+      return current.every((value, index) => value === next[index]) && current.length === next.length ? current : next;
+    });
+  }, [allAsiLevels, form.level, form.abilities, form.race, form.subrace, form.className, form.background, abilities, selectedSkills, selectedTools, selectedLanguages, featCatalogue]);
+
+
 
   function selectRace(race: string, subrace = "") {
     const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
@@ -300,7 +333,7 @@ function CharacterEditor({
       languages: selectedLanguages,
       inventory: equipmentMode === "equipment" ? equipmentSelections : [],
       currency,
-      feats,
+      feats: asiChoices.filter(Boolean),
       optionalFeatures,
       features: Array.from(new Set([...(character.features ?? []), ...unlockedFeatureIds])),
     });
@@ -536,13 +569,43 @@ function CharacterEditor({
                 </div>
               </SectionCard>
 
-              <SectionCard title="Feats">
-                {feats.length > 0 ? <div className="space-y-3">{feats.map((id) => { const feat = featCatalogue.find((entry) => entry.id === id); return feat ? <article key={id} className="rounded-xl border border-amber-900/50 bg-amber-950/20 p-4"><div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-amber-300">{feat.name}</h3><p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-300">{feat.description}</p></div><button type="button" onClick={() => setFeats((current) => current.filter((entry) => entry !== id))} className="rounded-lg border border-red-900/60 px-3 py-1.5 text-xs text-red-400">Remove</button></div></article> : null; })}</div> : <p className="text-sm text-stone-500">No feats selected.</p>}
-                <select className="mt-4 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100" defaultValue="" onChange={(event) => { if (event.target.value) { setFeats((current) => [...current, event.target.value]); event.target.value = ""; } }}>
-                  <option value="">Add a feat...</option>
-                  {featCatalogue.filter((feat) => !feats.includes(feat.id)).map((feat) => <option key={feat.id} value={feat.id}>{feat.name}</option>)}
-                </select>
-              </SectionCard>
+              {allAsiLevels.length > 0 && (
+                <SectionCard title="Ability Score Improvements / Feats" description="At each class Ability Score Improvement level, choose the normal ability score improvement or replace it with a feat you qualify for.">
+                  <div className="space-y-4">
+                    {allAsiLevels.map((asiLevel, index) => {
+                      const selectedFeatId = asiChoices[index] ?? "";
+                      const choices = featCatalogue.filter((feat) => !asiChoices.includes(feat.id) || feat.id === selectedFeatId).filter((feat) => isFeatAvailable({
+                        level: form.level,
+                        abilities,
+                        race: form.race,
+                        subrace: form.subrace,
+                        className: form.className,
+                        background: form.background,
+                        feats: asiChoices.filter(Boolean),
+                        skills: selectedSkills,
+                        tools: selectedTools,
+                        languages: selectedLanguages,
+                      }, feat));
+                      const selectedFeat = featCatalogue.find((feat) => feat.id === selectedFeatId);
+                      return (
+                        <div key={asiLevel} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
+                          <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">Level {asiLevel}</h3><Badge>ASI / Feat</Badge></div>
+                          <select value={selectedFeatId} onChange={(event) => setAsiChoices((current) => {
+                            const next = [...current];
+                            next[index] = event.target.value;
+                            return next;
+                          })} className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100">
+                            <option value="">Ability Score Improvement</option>
+                            {choices.map((feat) => <option key={feat.id} value={feat.id}>{feat.name}</option>)}
+                          </select>
+                          {selectedFeat && <article className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4"><div className="flex items-center gap-2"><h3 className="font-semibold text-amber-300">{selectedFeat.name}</h3>{selectedFeat.source && <Badge>{selectedFeat.source}</Badge>}</div><p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-300">{selectedFeat.description}</p></article>}
+                          {!choices.length && <p className="mt-3 text-sm text-stone-500">No eligible feats are available for this slot.</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </SectionCard>
+              )}
 
               <SectionCard title="Review">
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
