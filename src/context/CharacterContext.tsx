@@ -68,6 +68,7 @@ type RaceRules = {
   languages: ProficiencyRules;
   skills: ProficiencyRules;
   tools: ProficiencyRules;
+  speed?: number;
 };
 
 type BackgroundRules = {
@@ -682,6 +683,17 @@ function makeMaps(
         },
       ]),
   ) as Record<string, RaceRules>;
+
+  const getSpeedValue = (raw: unknown) => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const speed = (raw as Record<string, unknown>).speed;
+    if (typeof speed === "number" && Number.isFinite(speed)) return speed;
+    if (speed && typeof speed === "object") {
+      const walk = Number((speed as Record<string, unknown>).walk);
+      if (Number.isFinite(walk) && walk > 0) return walk;
+    }
+    return undefined;
+  };
 
   const backgroundRules = Object.fromEntries(
     preferredRows(backgroundRows)
