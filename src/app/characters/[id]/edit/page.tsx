@@ -7,7 +7,7 @@ import type { FormEvent } from "react";
 import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, ExpertiseHistoryEntry, InventoryEntry, SpellEntry } from "../../../../lib/types";
+import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, SpellEntry } from "../../../../lib/types";
 import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
@@ -57,9 +57,25 @@ function getAsiHistoryBonusTotal(entries: AsiHistoryEntry[]): AbilityScores {
 function stripManagedNotes(notes: string) {
   return notes
     .split("\n")
-    .filter((line) => !/^(?:Expertise:|Expertise History:|ASI History:|Feat Ability Choices:)/.test(line.trim()))
+    .filter((line) => !/^(?:Expertise:|Expertise History:|Magical Secrets History:|ASI History:|Feat Ability Choices:)/.test(line.trim()))
     .join("\n")
     .trim();
+}
+
+function parseMagicalSecretsHistory(notes: string): MagicalSecretsHistoryEntry[] {
+  const match = notes.match(/^Magical Secrets History:\s*(.+)$/m);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[1]) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is MagicalSecretsHistoryEntry => {
+      if (!entry || typeof entry !== "object") return false;
+      const value = entry as Record<string, unknown>;
+      return typeof value.level === "number" && Array.isArray(value.spellIds) && value.spellIds.every((id) => typeof id === "string");
+    }).sort((a, b) => a.level - b.level);
+  } catch {
+    return [];
+  }
 }
 
 function parseExpertiseHistory(notes: string): ExpertiseHistoryEntry[] {
@@ -223,7 +239,17 @@ function CharacterEditor({
   const [languages, setLanguages] = useState<string[]>(character.languages);
   const [asiHistory, setAsiHistory] = useState<AsiHistoryEntry[]>(initialAsiHistory);
   const [featAbilityChoices, setFeatAbilityChoices] = useState<Record<string, AbilityKey>>(initialFeatAbilityChoices);
-  const [magicalSecretSelections, setMagicalSecretSelections] = useState<string[]>([]);
+  const magicalSecretHistoryFromNotes = useMemo(() => parseMagicalSecretsHistory(character.notes), [character.notes]);
+  const [magicalSecretHistory, setMagicalSecretHistory] = useState<MagicalSecretsHistoryEntry[]>(magicalSecretHistoryFromNotes);
+  const magicalSecretSelections = magicalSecretHistory.flatMap((entry) => entry.spellIds);
+
+  function updateMagicalSecretHistory(level: number, spellIds: string[]) {
+    setMagicalSecretHistory((current) => {
+      const filtered = current.filter((entry) => entry.level !== level);
+      const unique = [...new Set(spellIds.filter(Boolean))];
+      return unique.length ? [...filtered, { level, spellIds: unique }].sort((a, b) => a.level - b.level) : filtered;
+    });
+  }
   const [selectedSpells, setSelectedSpells] = useState<SpellEntry[]>(character.spells ?? []);
   const [optionalFeatures, setOptionalFeatures] = useState<string[]>(character.optionalFeatures ?? []);
   const [classSkillSelections, setClassSkillSelections] = useState<string[]>([]);
@@ -609,6 +635,7 @@ function CharacterEditor({
           form.notes,
           expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
           expertiseHistory.length ? "Expertise History: " + JSON.stringify(expertiseHistory) : "",
+          magicalSecretHistory.length ? "Magical Secrets History: " + JSON.stringify(magicalSecretHistory) : "",
           asiHistory.length ? "ASI History: " + JSON.stringify(asiHistory) : "",
           Object.keys(featAbilityChoices).length ? "Feat Ability Choices: " + JSON.stringify(featAbilityChoices) : "",
         ].filter(Boolean).join("\n\n"),
@@ -731,8 +758,8 @@ function CharacterEditor({
                   features={magicalSecretFeatures}
                   spells={magicalSecretSpellOptions}
                   excluded={effectiveSelectedSpells.map((entry) => entry.spellId)}
-                  selected={magicalSecretSelections}
-                  onChange={setMagicalSecretSelections}
+                  history={magicalSecretHistory}
+                  onChange={updateMagicalSecretHistory}
                 />
               )}
               {allAsiLevels.length > 0 && (
@@ -1274,21 +1301,30 @@ function ExpertiseSelectionSection({ levels, history, onChange, skills }: { leve
   </SectionCard>;
 }
 
-function MagicalSecretsSection({ features, spells, excluded, selected, onChange }: { features: Array<{ id: string; name: string; requiredLevel: number }>; spells: Array<{ id: string; name: string; level: number; description: string }>; excluded: string[]; selected: string[]; onChange: (value: string[]) => void }) {
-  let offset = 0;
-  return <SectionCard title="Magical Secrets" description="Choose two spells for each Magical Secrets feature. The choices are added to the character's spell list when saved.">
+function MagicalSecretsSection({ features, spells, history, onChange }: { features: Array<{ id: string; name: string; requiredLevel: number }>; spells: Array<{ id: string; name: string; level: number; description: string }>; history: MagicalSecretsHistoryEntry[]; onChange: (level: number, spellIds: string[]) => void }) {
+  const selected = history.flatMap((entry) => entry.spellIds);
+  return <SectionCard title="Magical Secrets" description="Choose two spells for each Magical Secrets feature. Each choice is stored against the level that granted it, so later changes do not shift earlier selections.">
     <div className="space-y-4">
       {features.map((feature) => {
-        const slots = [0, 1].map(() => offset++);
+        const values = history.find((entry) => entry.level === feature.requiredLevel)?.spellIds ?? [];
         return <div key={feature.id} className="rounded-xl border border-stone-800 p-4">
           <div className="mb-3 font-semibold">Level {feature.requiredLevel} · {feature.name}</div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {slots.map((slot) => <select key={slot} value={selected[slot] ?? ""} onChange={(event) => {
-              const next = [...selected]; next[slot] = event.target.value; onChange(next);
+            {[0, 1].map((slot) => <select key={slot} value={values[slot] ?? ""} onChange={(event) => {
+              const next = [...values];
+              if (event.target.value) next[slot] = event.target.value;
+              else next.splice(slot, 1);
+              onChange(feature.requiredLevel, next);
             }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
               <option value="">Choose a spell...</option>
-              {spells.filter((spell) => !excluded.includes(spell.id) && !selected.some((value, index) => index !== slot && value === spell.id)).map((spell) => <option key={spell.id} value={spell.id}>{spell.name} (Level {spell.level})</option>)}
+              {spells.filter((spell) => !selected.includes(spell.id) || values.includes(spell.id)).map((spell) => <option key={spell.id} value={spell.id}>{spell.name} (Level {spell.level})</option>)}
             </select>)}
+          </div>
+          <div className="mt-3 space-y-2">
+            {values.map((spellId) => {
+              const spell = spells.find((candidate) => candidate.id === spellId);
+              return spell ? <article key={spellId} className="rounded-xl border border-stone-800 bg-stone-950/50 p-3"><div className="font-medium">{spell.name}</div><p className="mt-1 text-xs leading-5 text-stone-500">{spell.description}</p></article> : null;
+            })}
           </div>
         </div>;
       })}
