@@ -7,7 +7,7 @@ import type { FormEvent } from "react";
 import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, Spell, SpellEntry } from "../../../../lib/types";
+import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, SpellEntry } from "../../../../lib/types";
 import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getCarryingCapacity, getClassDefinition, validateAsiHistory, validateExpertiseHistory, validateMagicalSecretsHistory, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getInventoryWeight, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, getAvailableItems, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
@@ -35,11 +35,6 @@ function getOptionalChoiceGroups(classEntries: OptionalChoiceEntry[], subclassEn
   return [...merged.values()];
 }
 
-
-function resolveSpellReference(reference: string, spellCatalogue: SpellEntry[] | Array<{ id: string; name: string }>) {
-  const normalized = reference.trim().toLowerCase();
-  return spellCatalogue.find((spell) => "name" in spell && spell.name.trim().toLowerCase() === normalized)?.id ?? "";
-}
 
 const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
 const abilityLabels: Record<AbilityKey, string> = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
@@ -299,14 +294,20 @@ function CharacterEditor({
   const selectedBackgroundRules = backgroundRules[form.background];
   const selectedClassRules = classRules[form.className];
 
-  const backgroundSpellOptions = useMemo(() => {
+  const backgroundSpellChoiceGroups = useMemo(() => {
     if (!selectedBackgroundRules) return [];
-    return selectedBackgroundRules.spells.choices.flatMap((choice) =>
-      choice.options
+    return selectedBackgroundRules.spells.choices.map((choice) => ({
+      count: choice.count,
+      options: choice.options
         .map((reference) => spellCatalogue.find((spell) => spell.name.trim().toLowerCase() === reference.trim().toLowerCase()))
-        .filter((spell): spell is Spell => Boolean(spell)),
-    );
+        .filter((spell): spell is SpellEntry & { name: string } => Boolean(spell)),
+    }));
   }, [selectedBackgroundRules, spellCatalogue]);
+
+  const backgroundSpellOptions = useMemo(
+    () => backgroundSpellChoiceGroups.flatMap((group) => group.options),
+    [backgroundSpellChoiceGroups],
+  );
 
   const backgroundFixedSpellIds = useMemo(() => {
     if (!selectedBackgroundRules) return [];
@@ -326,6 +327,24 @@ function CharacterEditor({
       return [...withoutBackground, ...additions.filter((entry) => !withoutBackground.some((existing) => existing.spellId === entry.spellId))];
     });
   }, [form.background, backgroundFixedSpellIds, backgroundSpellOptions]);
+
+  function selectBackgroundSpell(slot: number, spellId: string) {
+    setBackgroundSpellSelections((current) => {
+      const next = [...current];
+      next[slot] = spellId;
+      const selectedIds = next.filter(Boolean);
+      setSelectedSpells((currentSpells) => {
+        const withoutBackground = currentSpells.filter((entry) => entry.source !== "background");
+        const additions = [...new Set([...backgroundFixedSpellIds, ...selectedIds])].map((id) => ({
+          spellId: id,
+          prepared: false,
+          source: "background" as const,
+        }));
+        return [...withoutBackground, ...additions];
+      });
+      return next;
+    });
+  }
 
   useEffect(() => {
     const nextMaxHp = getExpectedMaxHp(form.className, form.level, abilities.con, classRules);
