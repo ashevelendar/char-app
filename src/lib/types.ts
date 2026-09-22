@@ -138,9 +138,12 @@ export interface InventoryEntry {
   notes?: string;
 }
 
+export type SpellGrantSource = "normal" | "magical-secrets" | "dm" | "legacy";
+
 export interface SpellEntry {
   spellId: string;
   prepared: boolean;
+  source?: SpellGrantSource;
 }
 
 export interface ContentOverride {
