@@ -7,7 +7,7 @@ import type { FormEvent } from "react";
 import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, Character, InventoryEntry } from "../../../../lib/types";
+import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry } from "../../../../lib/types";
 import { getExpectedHitDice, getExpectedMaxHp, getNewAbilityScoreImprovementLevels, getProficiencyBonus } from "../../../../lib/rules";
 
 const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
@@ -227,7 +227,8 @@ function CharacterEditor({
       skills: selectedSkills,
       tools: selectedTools,
       languages: selectedLanguages,
-      inventory: equipmentSelections,
+      inventory: equipmentMode === "equipment" ? equipmentSelections : [],
+      currency,
       feats,
       optionalFeatures,
       features: Array.from(new Set([...(character.features ?? []), ...unlockedFeatureIds])),
@@ -346,7 +347,12 @@ function CharacterEditor({
 
           {step === "equipment" && (
             <>
-              <SectionCard title="Starting Equipment" description="Use the same starting-equipment choices available in the builder. Changing a choice updates only items previously marked as coming from that choice.">
+              <SectionCard title="Starting Equipment" description="Use the same starting-equipment choices available in the builder.">
+                <div className="mb-5 flex items-center justify-center gap-1 rounded-xl border border-stone-800 bg-stone-950/70 p-1">
+                  <button type="button" onClick={() => setEquipmentMode("equipment")} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold ${equipmentMode === "equipment" ? "bg-stone-100 text-stone-950" : "text-stone-500 hover:text-stone-300"}`}>Equipment</button>
+                  <button type="button" onClick={() => setEquipmentMode("gold")} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold ${equipmentMode === "gold" ? "bg-stone-100 text-stone-950" : "text-stone-500 hover:text-stone-300"}`}>Gold</button>
+                </div>
+                {equipmentMode === "gold" && <div className="mb-5 grid gap-3 sm:grid-cols-5">{(["cp","sp","ep","gp","pp"] as const).map((coin) => <NumberField key={coin} label={coin.toUpperCase()} value={currency[coin]} min={0} onChange={(value) => setCurrency((current) => ({ ...current, [coin]: value }))} />)}</div>
                 <div className="space-y-4">
                   {[
                     ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `class-${index}`, heading: "Class equipment" })),
@@ -390,7 +396,7 @@ function CharacterEditor({
                 </div>
               </SectionCard>
 
-              <SectionCard title={`Current Inventory (${equipmentSelections.length})`} description="Manage the inventory that will be saved with this character.">
+              {equipmentMode === "equipment" && <SectionCard title={`Current Inventory (${equipmentSelections.length})`} description="Manage the inventory that will be saved with this character.">
                 <div className="space-y-2">
                   {equipmentSelections.length === 0 ? <p className="text-sm text-stone-500">Nothing carried.</p> : equipmentSelections.map((entry) => {
                     const item = itemCatalogue.find((candidate) => candidate.id === entry.itemId);
@@ -406,7 +412,7 @@ function CharacterEditor({
                     </div> : null;
                   })}
                 </div>
-              </SectionCard>
+              </SectionCard>}
 
               <SectionCard title="Add Items" description="Search the imported 2014 catalogue and add anything else.">
                 <div className="mb-4 flex gap-3"><input value={equipmentSearch} onChange={(event) => setEquipmentSearch(event.target.value)} placeholder="Search equipment..." className="flex-1 rounded-xl border border-stone-700 bg-stone-950 px-4 py-2.5 text-sm text-stone-100 outline-none focus:border-amber-400" /><Badge>{itemCatalogue.length} items</Badge></div>
@@ -414,6 +420,10 @@ function CharacterEditor({
                   {itemCatalogue.filter((item) => `${item.name} ${item.category}`.toLowerCase().includes(equipmentSearch.toLowerCase())).slice(0, 40).map((item) => <div key={item.id} className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/60 p-3"><div><div className="font-medium">{item.name}</div><div className="text-xs text-stone-600">{item.category}</div></div><button type="button" onClick={() => setEquipmentSelections((current) => current.some((entry) => entry.itemId === item.id) ? current : [...current, { itemId: item.id, quantity: 1, equipped: false }])} className="rounded-lg border border-stone-700 px-3 py-1.5 text-sm">Add</button></div>)}
                 </div>
               </SectionCard>
+              <SectionCard title="Currency" description="Currency is saved with the character.">
+                <div className="grid gap-3 sm:grid-cols-5">{(["cp","sp","ep","gp","pp"] as const).map((coin) => <NumberField key={coin} label={coin.toUpperCase()} value={currency[coin]} min={0} onChange={(value) => setCurrency((current) => ({ ...current, [coin]: value }))} />)}</div>
+              </SectionCard>
+
             </>
           )}
 
@@ -454,7 +464,8 @@ function CharacterEditor({
                   <ProficiencySummary title="Abilities" values={Object.entries(abilities).map(([key, value]) => `${key.toUpperCase()} ${value}`)} />
                   <ProficiencySummary title="Skills" values={selectedSkills} />
                   <ProficiencySummary title="Languages" values={selectedLanguages} />
-                  <ProficiencySummary title="Equipment" values={equipmentSelections.map((entry) => itemCatalogue.find((item) => item.id === entry.itemId)?.name ?? entry.itemId)} />
+                  <ProficiencySummary title="Equipment" values={equipmentMode === "equipment" ? equipmentSelections.map((entry) => itemCatalogue.find((item) => item.id === entry.itemId)?.name ?? entry.itemId) : []} />
+                  <ProficiencySummary title="Currency" values={Object.entries(currency).map(([coin, value]) => `${coin.toUpperCase()} ${value}`)} />
                 </div>
               </SectionCard>
 
