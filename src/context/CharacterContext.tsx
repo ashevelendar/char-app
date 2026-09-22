@@ -672,13 +672,13 @@ async function loadContentMaps(): Promise<ContentMaps> {
     spellsResult,
     featuresResult,
     itemsResult,
-    optionalFeaturesResult,
+    safeOptionalFeaturesResult,
     spellClassesResult,
     spellSubclassesResult,
     spellRacesResult,
     classFeaturesResult,
     subclassFeaturesResult,
-    featsResult,
+    safeFeatsResult,
   ] = await Promise.all([    supabase.from("classes").select("id,name").is("owner_id", null),
     supabase.from("races").select("id,name,description,source,source_code,raw_data").is("owner_id", null).eq("edition", "2014"),    supabase.from("subclasses").select("id,name,class_id,description,source,source_code,edition,raw_data").is("owner_id", null).eq("edition", "2014"),
     supabase.from("backgrounds").select("id,name,description,source,source_code,raw_data").is("owner_id", null).eq("edition", "2014"),
@@ -702,17 +702,21 @@ async function loadContentMaps(): Promise<ContentMaps> {
     return code === "42P01" || code === "42703" || code === "42501";
   };
 
-  const optionalFeaturesData = optionalFeaturesResult.error && isOptionalCatalogueError(optionalFeaturesResult.error)
-    ? []
-    : (optionalFeaturesResult.data ?? []);
-  const featsData = featsResult.error && isOptionalCatalogueError(featsResult.error)
-    ? []
-    : (featsResult.data ?? []);
+  const optionalFeaturesUnavailable = Boolean(optionalFeaturesResult.error && isOptionalCatalogueError(optionalFeaturesResult.error));
+  const featsUnavailable = Boolean(featsResult.error && isOptionalCatalogueError(featsResult.error));
+  const safeOptionalFeaturesResult = optionalFeaturesUnavailable
+    ? { data: [], error: null }
+    : optionalFeaturesResult;
+  const safeFeatsResult = featsUnavailable
+    ? { data: [], error: null }
+    : featsResult;
+  const optionalFeaturesData = safeOptionalFeaturesResult.data ?? [];
+  const featsData = safeFeatsResult.data ?? [];
 
-  if (optionalFeaturesResult.error && optionalFeaturesData.length === 0) {
+  if (optionalFeaturesUnavailable) {
     console.warn("Optional feature catalogue unavailable; continuing without optional features.", optionalFeaturesResult.error);
   }
-  if (featsResult.error && featsData.length === 0) {
+  if (featsUnavailable) {
     console.warn("Feat catalogue unavailable; continuing without feats.", featsResult.error);
   }
 
