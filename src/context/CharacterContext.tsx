@@ -69,6 +69,10 @@ type RaceRules = {
   skills: ProficiencyRules;
   tools: ProficiencyRules;
   speed?: number;
+  senses?: Record<string, number>;
+  resistances?: string[];
+  immunities?: string[];
+  conditionImmunities?: string[];
 };
 
 type BackgroundRules = {
@@ -667,6 +671,29 @@ function makeMaps(
     });
   }
 
+  const getSpeciesDefenses = (raw: unknown) => {
+    if (!raw || typeof raw !== "object") return { senses: {}, resistances: [], immunities: [], conditionImmunities: [] };
+    const object = raw as Record<string, unknown>;
+    const senses: Record<string, number> = {};
+    const rawSenses = object.senses;
+    if (rawSenses && typeof rawSenses === "object" && !Array.isArray(rawSenses)) {
+      for (const [key, value] of Object.entries(rawSenses as Record<string, unknown>)) {
+        const distance = Number(value);
+        if (Number.isFinite(distance) && distance > 0) senses[displayProficiencyName(key)] = distance;
+      }
+    }
+    if (typeof object.darkvision === "number" && object.darkvision > 0) senses.Darkvision = object.darkvision;
+    const names = (value: unknown) => Array.isArray(value)
+      ? value.flatMap((entry) => typeof entry === "string" ? [displayProficiencyName(entry)] : [])
+      : [];
+    return {
+      senses,
+      resistances: names(object.resist),
+      immunities: names(object.immune),
+      conditionImmunities: names(object.conditionImmune),
+    };
+  };
+
   const getSpeedValue = (raw: unknown) => {
     if (!raw || typeof raw !== "object") return undefined;
     const speed = (raw as Record<string, unknown>).speed;
@@ -692,6 +719,7 @@ function makeMaps(
           skills: extractProficiencyRules(row.raw_data, "skillProficiencies"),
           tools: extractProficiencyRules(row.raw_data, "toolProficiencies"),
           speed: getSpeedValue(row.raw_data),
+          ...getSpeciesDefenses(row.raw_data),
         },
       ]),
   ) as Record<string, RaceRules>;
@@ -1043,6 +1071,7 @@ function makeMaps(
     source: row.source ?? row.source_code ?? "",
     abilityBonuses: extractAbilityBonuses(row.raw_data),
     speed: getSpeedValue(row.raw_data),
+    ...getSpeciesDefenses(row.raw_data),
   })).filter((row) => row.name && row.parentRace);
 
   const subraceKey = (parentRace: string, name: string) => parentRace.trim().toLowerCase() + "::" + name.trim().toLowerCase();
