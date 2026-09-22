@@ -94,12 +94,13 @@ export default function NewCharacterPage() {
   const [startingItemChoices, setStartingItemChoices] = useState<Record<string, string>>({});
   const [asiChoices, setAsiChoices] = useState<string[]>([]);
   const [selectedSpells, setSelectedSpells] = useState<SpellEntry[]>([]);
-  const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one"; first: AbilityKey; second: AbilityKey }>>([]);
+  const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>>([]);
   const [expertiseSelections, setExpertiseSelections] = useState<string[]>([]);
   const [magicalSecretSelections, setMagicalSecretSelections] = useState<string[]>([]);
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [equipmentMode, setEquipmentMode] = useState<"equipment" | "gold">("equipment");
   const [step, setStep] = useState<BuilderStep>("class");
+  const [creationError, setCreationError] = useState("");
 
   const subclassUnlockLevel = getClassDefinition(form.className)?.subclassUnlockLevel ?? 1;
   const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className && form.level >= subclassUnlockLevel);
@@ -182,12 +183,12 @@ export default function NewCharacterPage() {
     asiLevels.forEach((_, index) => {
       if (asiChoices[index]) return;
       const choice = asiAbilityChoices[index];
-      if (!choice) return;
+      if (!choice?.first) return;
       if (choice.mode === "two") {
         next[choice.first] = Math.min(20, next[choice.first] + 2);
-      } else {
+      } else if (choice.second && choice.second !== choice.first) {
         next[choice.first] = Math.min(20, next[choice.first] + 1);
-        if (choice.second !== choice.first) next[choice.second] = Math.min(20, next[choice.second] + 1);
+        next[choice.second] = Math.min(20, next[choice.second] + 1);
       }
     });
     return next;
@@ -287,6 +288,16 @@ export default function NewCharacterPage() {
     }));
   }
 
+  function setLevel(value: number) {
+    const unlockLevel = getClassDefinition(form.className)?.subclassUnlockLevel ?? 1;
+    const available = catalogue.subclasses.filter((entry) => entry.className === form.className && value >= unlockLevel);
+    setForm((current) => ({
+      ...current,
+      level: value,
+      subclass: value >= unlockLevel ? (current.subclass || available[0]?.name || "") : "",
+    }));
+  }
+
   function setBackground(value: string) {
     setBackgroundSkillSelections([]);
     setBackgroundToolSelections([]);
@@ -351,15 +362,24 @@ export default function NewCharacterPage() {
     return selections.length >= required && selections.slice(0, required).every(Boolean);
   };
 
-  const asiChoicesComplete = asiLevels.every((_, index) => {
-    if (asiChoices[index]) return true;
-    const choice = asiAbilityChoices[index];
-    if (!choice) return false;
-    if (choice.mode === "two") return baseAbilityScoresWithRace[choice.first] + 2 <= 20;
-    return choice.first !== choice.second
-      && baseAbilityScoresWithRace[choice.first] + 1 <= 20
-      && baseAbilityScoresWithRace[choice.second] + 1 <= 20;
-  });
+  const asiChoicesComplete = (() => {
+    const next = { ...baseAbilityScoresWithRace };
+    return asiLevels.every((_, index) => {
+      if (asiChoices[index]) return true;
+      const choice = asiAbilityChoices[index];
+      if (!choice?.first) return false;
+      if (choice.mode === "two") {
+        if (next[choice.first] + 2 > 20) return false;
+        next[choice.first] += 2;
+        return true;
+      }
+      if (!choice.second || choice.first === choice.second) return false;
+      if (next[choice.first] + 1 > 20 || next[choice.second] + 1 > 20) return false;
+      next[choice.first] += 1;
+      next[choice.second] += 1;
+      return true;
+    });
+  })();
 
   const equipmentGroups = [
     ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: "class-" + index })),
@@ -399,6 +419,7 @@ export default function NewCharacterPage() {
 
   function submit() {
     if (!canCreate) return;
+    setCreationError("");
     const maxHp = expectedMaxHp;
     void createCharacter({
       ...form,
@@ -421,7 +442,12 @@ export default function NewCharacterPage() {
         form.notes,
         expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
       ].filter(Boolean).join("\n\n"),
-    }).then((id) => router.push(`/characters/${id}`));
+    })
+      .then((id) => router.push(`/characters/${id}`))
+      .catch((error) => {
+        console.error("Could not create character:", error);
+        setCreationError(error instanceof Error ? error.message : "Could not create the character.");
+      });
   }
 
   return (
@@ -443,7 +469,7 @@ export default function NewCharacterPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Character name" value={form.name} required onChange={(value) => setForm((current) => ({ ...current, name: value }))} />
                   <Field label="Player name" value={form.playerName} onChange={(value) => setForm((current) => ({ ...current, playerName: value }))} />
-                  <NumberField label="Level" value={form.level} min={1} max={20} onChange={(value) => setForm((current) => ({ ...current, level: value }))} />
+                  <NumberField label="Level" value={form.level} min={1} max={20} onChange={setLevel} />
                   <Select label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
                     const unlockLevel = getClassDefinition(value)?.subclassUnlockLevel ?? 1;
                     const next = catalogue.subclasses.filter((entry) => entry.className === value && form.level >= unlockLevel);
@@ -717,7 +743,7 @@ export default function NewCharacterPage() {
             <>
               <SectionCard title="Final details" description="Finish the details that do not belong to a specific rules step.">
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <NumberField label="Level" value={form.level} min={1} max={20} onChange={(value) => setForm((current) => ({ ...current, level: value }))} />
+                  <NumberField label="Level" value={form.level} min={1} max={20} onChange={setLevel} />
                   <Field label="Alignment" value={form.alignment} onChange={(value) => setForm((current) => ({ ...current, alignment: value }))} />
                   <NumberField label="Speed" value={form.speed} min={0} onChange={(value) => setForm((current) => ({ ...current, speed: value }))} />
                   <NumberField label="Current HP" value={form.hp} min={0} onChange={(value) => setForm((current) => ({ ...current, hp: value }))} />
@@ -736,6 +762,8 @@ export default function NewCharacterPage() {
                   <ProficiencySummary title="Currency" values={Object.entries(form.currency).map(([coin, value]) => `${coin.toUpperCase()} ${value}`)} />
                 </div>
               </SectionCard>
+
+              {creationError && <div className="rounded-xl border border-red-900/60 bg-red-950/20 px-4 py-3 text-sm text-red-300">{creationError}</div>}
 
               <SectionCard title="Notes">
                 <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={8} className="w-full rounded-xl border border-stone-700 bg-stone-950 px-4 py-3 text-sm leading-6 text-stone-100 outline-none focus:border-amber-400" placeholder="Backstory, campaign notes, reminders..." />
@@ -864,7 +892,7 @@ function AsiSelectionSection({ levels, choices, onChoicesChange, abilityChoices,
   levels: number[];
   choices: string[];
   onChoicesChange: (value: string[]) => void;
-  abilityChoices: Array<{ mode: "two" | "one"; first: AbilityKey; second: AbilityKey }>;
+  abilityChoices: Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>;
   onAbilityChoicesChange: (value: Array<{ mode: "two" | "one"; first: AbilityKey; second: AbilityKey }>) => void;
   availableFeats: Array<{ id: string; name: string; description: string; source: string }>;
   featCatalogue: Array<{ id: string; name: string; description: string; source: string }>;
@@ -874,7 +902,10 @@ function AsiSelectionSection({ levels, choices, onChoicesChange, abilityChoices,
     <div className="space-y-5">
       {levels.map((level, index) => {
         const selectedFeatId = choices[index] ?? "";
-        const choice = abilityChoices[index] ?? { mode: "two" as const, first: "str" as AbilityKey, second: "dex" as AbilityKey };
+        const choice = abilityChoices[index];
+        const mode = choice?.mode ?? "two";
+        const first = choice?.first ?? "";
+        const second = choice?.second ?? "";
         const selectedFeat = featCatalogue.find((feat) => feat.id === selectedFeatId);
         const eligibleFeats = availableFeats.filter((feat) => !choices.includes(feat.id) || feat.id === selectedFeatId);
         return <div key={level} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
@@ -887,22 +918,42 @@ function AsiSelectionSection({ levels, choices, onChoicesChange, abilityChoices,
           </select>
           {!selectedFeatId && <div className="mt-4 rounded-xl border border-stone-800 p-4">
             <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500">ASI allocation</label>
-            <select value={choice.mode} onChange={(event) => {
-              const next = [...abilityChoices]; next[index] = { ...choice, mode: event.target.value as "two" | "one" }; onAbilityChoicesChange(next);
+            <select value={mode} onChange={(event) => {
+              const next = [...abilityChoices];
+              next[index] = {
+                mode: event.target.value as "two" | "one",
+                first: choice?.first,
+                second: choice?.second,
+              };
+              onAbilityChoicesChange(next);
             }} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
               <option value="two">+2 to one ability score</option>
               <option value="one">+1 to two different ability scores</option>
             </select>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <select value={choice.first} onChange={(event) => {
-                const next = [...abilityChoices]; next[index] = { ...choice, first: event.target.value as AbilityKey }; onAbilityChoicesChange(next);
+              <select value={first} onChange={(event) => {
+                const next = [...abilityChoices];
+                next[index] = {
+                  mode,
+                  first: event.target.value ? event.target.value as AbilityKey : undefined,
+                  second: choice?.second,
+                };
+                onAbilityChoicesChange(next);
               }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+                <option value="">Choose an ability...</option>
                 {abilityNames.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
               </select>
-              {choice.mode === "one" && <select value={choice.second} onChange={(event) => {
-                const next = [...abilityChoices]; next[index] = { ...choice, second: event.target.value as AbilityKey }; onAbilityChoicesChange(next);
+              {mode === "one" && <select value={second} onChange={(event) => {
+                const next = [...abilityChoices];
+                next[index] = {
+                  mode,
+                  first: choice?.first,
+                  second: event.target.value ? event.target.value as AbilityKey : undefined,
+                };
+                onAbilityChoicesChange(next);
               }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
-                {abilityNames.filter(([key]) => key !== choice.first).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+                <option value="">Choose an ability...</option>
+                {abilityNames.filter(([key]) => key !== choice?.first).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
               </select>}
             </div>
             <p className="mt-2 text-xs text-stone-500">Ability scores cannot be increased above 20.</p>
