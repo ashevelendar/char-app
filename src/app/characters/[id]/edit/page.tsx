@@ -150,19 +150,6 @@ function CharacterEditor({
   }, [form.className, character.skills, selectedClassRules]);
 
   useEffect(() => {
-    setClassLanguageSelections([]);
-  }, [form.className]);
-
-  useEffect(() => {
-    setBackgroundToolSelections([]);
-    setBackgroundLanguageSelections([]);
-  }, [form.background]);
-
-  useEffect(() => {
-    setRaceLanguageSelections([]);
-  }, [form.race]);
-
-  useEffect(() => {
     if (!catalogue.classes.length) return;
     setForm((current) => {
       const className = catalogue.classes.includes(current.className) ? current.className : catalogue.classes[0];
@@ -218,6 +205,7 @@ function CharacterEditor({
   function selectRace(race: string, subrace = "") {
     const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
     setForm((current) => ({ ...current, race, subrace }));
+    setRaceLanguageSelections([]);
     setAbilities(applyAbilityBonuses(applyAbilityBonuses(baseAbilities, raceRules[race]?.abilityBonuses ?? {}), subraceRules?.abilityBonuses ?? {}));
   }
 
@@ -268,6 +256,8 @@ function CharacterEditor({
                   <SelectField label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
                     const next = catalogue.subclasses.filter((entry) => entry.className === value);
                     setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "" }));
+                    setClassSkillSelections([]);
+                    setClassLanguageSelections([]);
                   }} />
                   <SelectField label="Subclass" value={form.subclass} options={subclassOptions.map((entry) => entry.name)} onChange={(value) => setForm((current) => ({ ...current, subclass: value }))} />
                 </div>
@@ -290,7 +280,12 @@ function CharacterEditor({
           {step === "background" && (
             <>
               <SectionCard title="Background" description="Choose the background and all proficiency choices it grants.">
-                <SelectField label="Background" value={form.background} options={catalogue.backgrounds} onChange={(value) => setForm((current) => ({ ...current, background: value }))} />
+                <SelectField label="Background" value={form.background} options={catalogue.backgrounds} onChange={(value) => {
+                  setForm((current) => ({ ...current, background: value }));
+                  setBackgroundSkillSelections([]);
+                  setBackgroundToolSelections([]);
+                  setBackgroundLanguageSelections([]);
+                }} />
                 {selectedBackgroundRules?.description && <p className="mt-5 whitespace-pre-line text-sm leading-7 text-stone-400">{selectedBackgroundRules.description}</p>}
               </SectionCard>
               {selectedBackgroundRules && <SectionCard title="Background benefits">
