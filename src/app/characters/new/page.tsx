@@ -232,7 +232,7 @@ export default function NewCharacterPage() {
         if (entry.choiceType && !chosen) return [];
         if (entry.special) return [];
         const item = chosen ?? itemCatalogue.find((candidate) => {
-          const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\s+//i, "").replace(/[.,]/g, "").trim();
+          const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\s+/i, "").replace(/[.,]/g, "").trim();
           const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
           return name === normalized || name.includes(normalized) || normalized.includes(name);
         });
