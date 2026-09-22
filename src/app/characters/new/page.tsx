@@ -376,10 +376,8 @@ export default function NewCharacterPage() {
     const maxHp = getExpectedMaxHp(form.className, form.level, form.abilities.con);
     void createCharacter({
       ...form,
-      abilities: applyAbilityBonuses(
-        applyAbilityBonuses(baseAbilities, raceRules[form.race]?.abilityBonuses ?? {}),
-        selectedSubrace?.abilityBonuses ?? {},
-      ),
+      abilities: asiBonusScores,
+      feats: asiChoices.filter(Boolean),
       skills: selectedSkills,
       tools: selectedTools,
       languages: selectedLanguages,
@@ -393,6 +391,10 @@ export default function NewCharacterPage() {
       hp: Math.max(0, Math.min(maxHp, form.hp || maxHp)),
       hitDice: getExpectedHitDice(form.className, form.level),
       proficiencyBonus: getProficiencyBonus(form.level),
+      notes: [
+        form.notes,
+        expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
+      ].filter(Boolean).join("\n\n"),
     }).then((id) => router.push(`/characters/${id}`));
   }
 
@@ -443,6 +445,7 @@ export default function NewCharacterPage() {
                   {featureCatalogue
                     .filter((feature) => feature.requiredLevel <= form.level && feature.className === form.className && (!feature.subclassName || feature.subclassName === form.subclass))
                     .filter((feature) => !/gain a feature from your|gain a feature from the|optional feature/i.test(feature.description))
+                    .filter((feature) => !["ability score improvement", "expertise", "magical secrets"].includes(feature.name.toLowerCase()) && !feature.name.toLowerCase().includes("magical secrets"))
                     .map((feature) => (
                       <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4">
                         <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Level {feature.requiredLevel}</Badge><Badge tone={feature.sourceType === "subclass" ? "warn" : "neutral"}>{feature.sourceType === "subclass" ? "Subclass" : "Class"}</Badge></div>
