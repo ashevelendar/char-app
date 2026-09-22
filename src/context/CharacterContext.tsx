@@ -1847,7 +1847,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             0,
             Math.min(nextMaxHp, currentCharacter.hp + hpDelta),
           );
-          dbPatch.hit_dice = getExpectedHitDice(nextClassName, nextLevel);
+          dbPatch.hit_dice = getExpectedHitDice(nextClassName, nextLevel, classRules);
           dbPatch.proficiency_bonus = getProficiencyBonus(nextLevel);
         }
 
@@ -1857,7 +1857,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         if (patch.maxHp !== undefined && !progressionChanged) dbPatch.max_hp = patch.maxHp;
         if (patch.tempHp !== undefined) dbPatch.temporary_hp = patch.tempHp;
         if (localPatch.ac !== undefined) dbPatch.armor_class = localPatch.ac;
-        if (patch.speed !== undefined) dbPatch.speed = patch.speed;
+        if (localPatch.speed !== undefined) dbPatch.speed = localPatch.speed;
         if (patch.hitDice !== undefined && !progressionChanged) dbPatch.hit_dice = patch.hitDice;
         if (patch.proficiencyBonus !== undefined && !progressionChanged) dbPatch.proficiency_bonus = patch.proficiencyBonus;
         if (patch.notes !== undefined) dbPatch.notes = patch.notes;
