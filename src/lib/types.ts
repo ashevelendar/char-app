@@ -163,7 +163,7 @@ export interface Character {
   maxHp: number;
   tempHp: number;
   ac: number;
-  speed?: number;
+  speed: number;
   hitDice: string;
   proficiencyBonus: number;
   abilities: AbilityScores;
@@ -196,7 +196,7 @@ export interface NewCharacterInput {
   hp: number;
   maxHp: number;
   ac: number;
-  speed: number;
+  speed?: number;
   hitDice: string;
   proficiencyBonus: number;
   abilities: AbilityScores;
