@@ -8,7 +8,7 @@ import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } fro
 import { useCharacters } from "../../../context/CharacterContext";
 import { defaultCharacter } from "../../../lib/data";
 import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, SpellEntry } from "../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getExpectedHitDice, getExpectedMaxHp, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getWizardSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getWizardSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
 
@@ -93,6 +93,9 @@ export default function NewCharacterPage() {
   const [startingItemChoices, setStartingItemChoices] = useState<Record<string, string>>({});
   const [asiChoices, setAsiChoices] = useState<string[]>([]);
   const [selectedSpells, setSelectedSpells] = useState<SpellEntry[]>([]);
+  const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one"; first: AbilityKey; second: AbilityKey }>>([]);
+  const [expertiseSelections, setExpertiseSelections] = useState<string[]>([]);
+  const [magicalSecretSelections, setMagicalSecretSelections] = useState<string[]>([]);
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [equipmentMode, setEquipmentMode] = useState<"equipment" | "gold">("equipment");
   const [step, setStep] = useState<BuilderStep>("class");
