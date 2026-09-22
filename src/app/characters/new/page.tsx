@@ -261,7 +261,7 @@ export default function NewCharacterPage() {
               {selectedBackgroundRules && (
                 <SectionCard title="Background benefits">
                   {selectedBackgroundRules.skills.length > 0 && <p className="text-sm text-stone-300"><b>Fixed skills:</b> {selectedBackgroundRules.skills.join(", ")}</p>}
-                  <ChoiceGroup title="Skill choices" choices={selectedBackgroundRules.skillChoices} value={backgroundSkillSelections} onChange={setBackgroundSkillSelections} exclude={selectedClassRules?.skills.fixed ?? []} />
+                  <ChoiceGroup title="Skill choices" choices={selectedBackgroundRules.skillChoices} value={backgroundSkillSelections} onChange={setBackgroundSkillSelections} exclude={[...(selectedClassRules?.skills.fixed ?? []), ...classSkillSelections]} />
                   {selectedBackgroundRules.tools.length > 0 && <p className="mt-4 text-sm text-stone-300"><b>Fixed tools:</b> {selectedBackgroundRules.tools.join(", ")}</p>}
                   <ChoiceGroup title="Tool choices" choices={selectedBackgroundRules.toolChoices} value={backgroundToolSelections} onChange={setBackgroundToolSelections} />
                   {selectedBackgroundRules.languages.length > 0 && <p className="mt-4 text-sm text-stone-300"><b>Fixed languages:</b> {selectedBackgroundRules.languages.join(", ")}</p>}
@@ -586,7 +586,7 @@ function ChoiceGroup({ title, choices, value, onChange, exclude = [] }: { title:
     <h4 className="text-sm font-semibold text-stone-200">{title}</h4>
     {choices.flatMap((choice) => Array.from({ length: choice.count }, (_, index) => {
       const slot = offset++;
-      const options = choice.options.filter((option) => !exclude.includes(option) || value[slot] === option);
+      const options = choice.options.filter((option) => (!exclude.includes(option) || value[slot] === option) && !value.some((selected, index) => index !== slot && selected === option));
       return <select key={`${title}-${slot}`} value={value[slot] ?? ""} onChange={(event) => {
         const next = [...value];
         next[slot] = event.target.value;
