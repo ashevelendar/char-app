@@ -57,6 +57,7 @@ export default function NewCharacterPage() {
   const [backgroundSkillSelections, setBackgroundSkillSelections] = useState<string[]>([]);
   const [backgroundToolSelections, setBackgroundToolSelections] = useState<string[]>([]);
   const [backgroundLanguageSelections, setBackgroundLanguageSelections] = useState<string[]>([]);
+  const [classLanguageSelections, setClassLanguageSelections] = useState<string[]>([]);
   const [raceLanguageSelections, setRaceLanguageSelections] = useState<string[]>([]);
   const [equipmentSelections, setEquipmentSelections] = useState<InventoryEntry[]>([]);
   const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
@@ -94,7 +95,7 @@ export default function NewCharacterPage() {
       ...(selectedRaceRules?.languages.fixed ?? []),
       ...((selectedRaceRules?.languages.choices ?? []).length ? raceLanguageSelections : []),
       ...(selectedClassRules?.languages.fixed ?? []),
-      ...((selectedClassRules?.languages.choices ?? []).flatMap((choice) => choice.options.length ? [] : []) : []),
+      ...classLanguageSelections.filter(Boolean),
       ...(selectedBackgroundRules?.languages ?? []),
       ...backgroundLanguageSelections.filter(Boolean),
     ])],
@@ -111,7 +112,7 @@ export default function NewCharacterPage() {
     for (const entry of entries) {
       const key = entry.title + "::" + entry.featureTypes.join("|");
       const current = grouped.get(key);
-      if (current) current.count += entry.count;
+      if (current) current.count = Math.max(current.count, entry.count);
       else grouped.set(key, { id: key, title: entry.title, count: entry.count, featureTypes: entry.featureTypes });
     }
     return [...grouped.values()];
@@ -148,6 +149,7 @@ export default function NewCharacterPage() {
 
   useEffect(() => {
     setClassSkillSelections([]);
+    setClassLanguageSelections([]);
   }, [form.className]);
 
   useEffect(() => {
@@ -235,6 +237,7 @@ export default function NewCharacterPage() {
                     {selectedClassRules.skills.fixed.length > 0 && <p className="mt-2 text-sm text-stone-300"><b>Fixed Skills:</b> {selectedClassRules.skills.fixed.join(", ")}</p>}
                     <ChoiceGroup title="Choose class skills" choices={selectedClassRules.skills.choices} value={classSkillSelections} onChange={setClassSkillSelections} />
                     {selectedClassRules.tools.fixed.length > 0 && <p className="mt-2 text-sm text-stone-300"><b>Tools:</b> {selectedClassRules.tools.fixed.join(", ")}</p>}
+                    <ChoiceGroup title="Choose class languages" choices={selectedClassRules.languages.choices} value={classLanguageSelections} onChange={setClassLanguageSelections} />
                   </div>
                 )}
               </SectionCard>
@@ -286,6 +289,7 @@ export default function NewCharacterPage() {
               <SectionCard title="Species traits">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <ProficiencySummary title="Languages" values={selectedLanguages} />
+                  <ChoiceGroup title="Choose species languages" choices={selectedRaceRules?.languages.choices ?? []} value={raceLanguageSelections} onChange={setRaceLanguageSelections} />
                   <ProficiencySummary title="Ability bonuses" values={Object.entries(selectedSubrace?.abilityBonuses ?? selectedRaceRules?.abilityBonuses ?? {}).map(([key, value]) => `${key.toUpperCase()} +${value}`)} />
                 </div>
               </SectionCard>
@@ -351,10 +355,25 @@ export default function NewCharacterPage() {
                               type="button"
                               onClick={() => {
                                 setStartingEquipmentSelections((current) => ({ ...current, [group.id]: optionIndex }));
-                                const keys = new Set([
-                                  ...Object.keys(startingEquipmentSelections).filter((key) => key.startsWith(group.id.split("-")[0])),
-                                ]);
-                                void keys;
+                                const marker = `starting:${group.id}:`;
+                                setEquipmentSelections((current) => {
+                                  const manual = current.filter((entry) => !entry.notes?.startsWith(marker));
+                                  const additions = option.items.flatMap((entry) => {
+                                    const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\\s+/i, "").replace(/[.,]/g, "").trim();
+                                    const item = itemCatalogue.find((candidate) => {
+                                      const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
+                                      return name === normalized || name.includes(normalized) || normalized.includes(name);
+                                    });
+                                    return item ? [{ itemId: item.id, quantity: Math.max(1, entry.quantity), equipped: false, notes: marker + optionIndex }] : [];
+                                  });
+                                  const merged = [...manual];
+                                  for (const addition of additions) {
+                                    const existing = merged.find((entry) => entry.itemId === addition.itemId);
+                                    if (existing) existing.quantity += addition.quantity;
+                                    else merged.push(addition);
+                                  }
+                                  return merged;
+                                });
                               }}
                               className={`rounded-xl border p-4 text-left transition ${selected ? "border-amber-500 bg-amber-950/30" : "border-stone-800 bg-stone-950/50 hover:border-stone-600"}`}
                             >
