@@ -107,24 +107,25 @@ test("full caster spell progression reaches 3rd-level spells at wizard 5", () =>
   const wizardClass = {
     id: "test-wizard",
     name: "Wizard",
-    raw_data: {
-      spellcasting: {
-        progression: [2, 2, 2, 2, 3, 3],
-      },
-    },
+    spellSlots: [[], [2], [3], [4, 2], [4, 3], [4, 3, 2]],
   };
-  assert.equal(rules.getMaxSpellLevel(wizard, [wizardClass]), 3);
+  const classCatalogue = { Wizard: wizardClass };
+  assert.equal(rules.getMaxSpellLevel(wizard, classCatalogue), 3);
   assert.deepEqual(
-    rules.getSpellSlotSummary(wizard, [wizardClass]),
-    { 1: 4, 2: 3, 3: 2 },
+    rules.getSpellSlotSummary("Wizard", 5, classCatalogue),
+    [
+      { level: 1, count: 4 },
+      { level: 2, count: 3 },
+      { level: 3, count: 2 },
+    ],
   );
 });
 
 test("warlock uses pact spell slots", () => {
   const warlock = character({ className: "Warlock", level: 10 });
   assert.equal(rules.getMaxSpellLevel(warlock), 5);
-  const slots = rules.getSpellSlotSummary(warlock);
-  assert.equal(slots[5], 2);
+  const slots = rules.getSpellSlotSummary("Warlock", 10);
+  assert.deepEqual(slots, [{ level: 5, count: 2 }]);
 });
 
 test("spellcasting mode distinguishes prepared and known casters", () => {
@@ -160,9 +161,12 @@ test("Expertise validation enforces two proficient, unique skills", () => {
 test("inventory weight and carrying capacity use Strength", () => {
   const c = character({ abilities: { str: 12, dex: 10, con: 10, int: 10, wis: 10, cha: 10 } });
   const item = { id: "heavy", name: "Heavy Item", category: "Adventuring Gear", rarity: "Common", description: "", weight: "20 lb" };
-  assert.equal(rules.getInventoryWeight([{ itemId: "heavy", quantity: 2, equipped: false }], [item]), 40);
+  assert.equal(rules.getInventoryWeight(c), 0);
+  c.inventory = [{ itemId: "heavy", quantity: 2, equipped: false }];
+  assert.equal(rules.getInventoryWeight(c, [item]), 40);
   assert.equal(rules.getCarryingCapacity(c), 180);
-  assert.equal(rules.isItemOverCarryingCapacity(c, [{ itemId: "heavy", quantity: 10, equipped: false }], [item]), true);
+  c.inventory = [{ itemId: "heavy", quantity: 10, equipped: false }];
+  assert.equal(rules.isItemOverCarryingCapacity(c, c.inventory, [item]), true);
 });
 
 console.log("\nAll rules tests passed.\n");
