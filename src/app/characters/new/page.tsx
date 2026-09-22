@@ -49,6 +49,7 @@ export default function NewCharacterPage() {
     optionalFeatureCatalogue,
     featureCatalogue,
     featCatalogue,
+    spellCatalogue,
     itemCatalogue,
   } = useCharacters();
 
@@ -824,7 +825,7 @@ function SpellSelectionSection({ className, level, availableSpells, cantripsKnow
     <div className="grid gap-5 lg:grid-cols-2">
       <SpellPicker title={"Cantrips (" + selectedCantrips.length + "/" + cantripsKnown + ")"} spells={availableSpells.filter((spell) => spell.level === 0)} selected={selectedSpells} remaining={remainingCantrips} onToggle={toggle} />
       {spellLimit !== null && <SpellPicker title={label + " (" + selectedLeveled.length + "/" + spellLimit + ")"} spells={availableSpells.filter((spell) => spell.level > 0)} selected={selectedSpells} remaining={remainingLeveled} onToggle={toggle} />}
-      {spellLimit === null && isWizard && <SpellPicker title={"Spellbook (" + selectedLeveled.length + "/" + (wizardSpellbookLimit ?? 0) + ")"} spells={availableSpells.filter((spell) => spell.level > 0)} selected={selectedSpells} remaining={remainingLeveled} onToggle={toggle} />}
+      {spellLimit === null && isWizard && <SpellPicker title={"Spellbook (" + selectedLeveled.length + "/" + (spellLimit ?? 0) + ")"} spells={availableSpells.filter((spell) => spell.level > 0)} selected={selectedSpells} remaining={remainingLeveled} onToggle={toggle} />}
     </div>
     <p className="mt-4 text-xs text-stone-500">Only spells normally available to this class, subclass or species and within the character&apos;s current spell level are shown.</p>
   </SectionCard>;
