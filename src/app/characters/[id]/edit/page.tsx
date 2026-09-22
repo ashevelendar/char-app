@@ -537,6 +537,8 @@ function CharacterEditor({
       </div>
     </div>
   );
+}
+
 type BuilderStep = "class" | "background" | "species" | "abilities" | "equipment" | "whats-next";
 const BUILDER_STEPS: BuilderStep[] = ["class", "background", "species", "abilities", "equipment", "whats-next"];
 const STEP_META: Record<BuilderStep, { number: number; title: string; description: string }> = {
