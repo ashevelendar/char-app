@@ -15,7 +15,7 @@ const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
-type RequirementKey = "identity" | "subclass" | "classSkills" | "classLanguages" | "backgroundSkills" | "backgroundTools" | "backgroundLanguages" | "raceLanguages" | "asi" | "expertise" | "magicalSecrets" | "optionalFeatures" | "spells" | "equipment";
+type RequirementKey = "identity" | "nameClass" | "background" | "race" | "abilities" | "subclass" | "classSkills" | "classLanguages" | "backgroundSkills" | "backgroundTools" | "backgroundLanguages" | "raceLanguages" | "asi" | "expertise" | "magicalSecrets" | "optionalFeatures" | "spells" | "equipment";
 
 function isOrdinaryStartingItem(item: Item) {
   const rarity = item.rarity.trim().toLowerCase();
@@ -420,6 +420,10 @@ export default function NewCharacterPage() {
 
   const creationRequirements = {
     identity: Boolean(form.name.trim() && form.race && form.className && form.background),
+    nameClass: Boolean(form.name.trim() && form.className),
+    background: Boolean(form.background),
+    race: Boolean(form.race),
+    abilities: Object.values(baseAbilities).every((score) => Number.isFinite(score) && score >= 1),
     subclass: subclassOptions.length === 0 || Boolean(form.subclass),
     classSkills: choiceSelectionsComplete(selectedClassRules?.skills.choices ?? [], classSkillSelections),
     classLanguages: choiceSelectionsComplete(selectedClassRules?.languages.choices ?? [], classLanguageSelections),
@@ -470,6 +474,10 @@ export default function NewCharacterPage() {
 
   const requirementLabels: Record<RequirementKey, string> = {
     identity: "Character name, class, race and background",
+    nameClass: "Character name and class",
+    background: "Background",
+    race: "Species",
+    abilities: "Ability scores",
     subclass: "Subclass",
     classSkills: "Class skill choices",
     classLanguages: "Class language choices",
@@ -489,10 +497,10 @@ export default function NewCharacterPage() {
     keys.filter((key) => !creationRequirements[key]).map((key) => requirementLabels[key]);
 
   const stepRequirements: Record<BuilderStep, RequirementKey[]> = {
-    class: ["identity", "subclass", "classSkills", "classLanguages", "asi", "expertise", "magicalSecrets", "optionalFeatures", "spells"],
-    background: ["identity", "backgroundSkills", "backgroundTools", "backgroundLanguages"],
-    species: ["identity", "raceLanguages"],
-    abilities: ["identity"],
+    class: ["nameClass", "subclass", "classSkills", "classLanguages", "asi", "expertise", "magicalSecrets", "optionalFeatures", "spells"],
+    background: ["background", "backgroundSkills", "backgroundTools", "backgroundLanguages"],
+    species: ["race", "raceLanguages"],
+    abilities: ["abilities"],
     equipment: ["equipment"],
     "whats-next": Object.keys(creationRequirements) as RequirementKey[],
   };
