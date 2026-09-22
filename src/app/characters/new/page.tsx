@@ -178,6 +178,11 @@ export default function NewCharacterPage() {
   } as Character), [form.level, form.abilities, form.race, form.subrace, form.className, form.subclass, form.background, form.feats, selectedSkills, selectedTools, selectedLanguages]);
 
   const availableSpells = useMemo(() => spellCatalogue.filter((spell) => isSpellNormallyAvailable(spellCharacter, spell)), [spellCatalogue, spellCharacter]);
+  const magicalSecretSpellOptions = useMemo(() => {
+    const maxLevel = getMaxSpellLevel(spellCharacter);
+    return spellCatalogue.filter((spell) => spell.level <= maxLevel);
+  }, [spellCatalogue, spellCharacter]);
+
   const cantripsKnown = getCantripsKnown(form.className, form.level);
   const spellsKnown = getSpellsKnown(form.className, form.level);
   const preparedSpellLimit = getPreparedSpellCount(spellCharacter);
