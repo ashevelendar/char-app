@@ -55,6 +55,11 @@ export default function CharacterPage() {
   const addedLevelledSpells = character.spells.filter((entry) => spellLevelForEntry(entry) > 0).length;
   const preparedLevelledSpells = charSpells.filter(({ entry, spell }) => entry.prepared && spell.level > 0).length;
   const raceInfo = raceRules[character.race];
+  const subraceInfo = catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race);
+  const speciesSenses = { ...(raceInfo?.senses ?? {}), ...(subraceInfo?.senses ?? {}) };
+  const speciesResistances = [...new Set([...(raceInfo?.resistances ?? []), ...(subraceInfo?.resistances ?? [])])];
+  const speciesImmunities = [...new Set([...(raceInfo?.immunities ?? []), ...(subraceInfo?.immunities ?? [])])];
+  const speciesConditionImmunities = [...new Set([...(raceInfo?.conditionImmunities ?? []), ...(subraceInfo?.conditionImmunities ?? [])])];
   const backgroundInfo = backgroundRules[character.background];
   const strMod = abilityModifier(character.abilities.str);
   const proficientSkill = (name: string) => character.skills.some((skill) => skill.toLowerCase() === name.toLowerCase());
@@ -145,6 +150,17 @@ export default function CharacterPage() {
               ))}
             </div>
           </SectionCard>
+
+          {(Object.keys(speciesSenses).length > 0 || speciesResistances.length > 0 || speciesImmunities.length > 0 || speciesConditionImmunities.length > 0) && (
+            <SectionCard title="Species special traits" description="Imported senses and defensive traits from the selected species and subrace.">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {Object.entries(speciesSenses).map(([name, distance]) => <Row key={name} label={name} value={distance + " ft"} />)}
+                {speciesResistances.length > 0 && <Row label="Damage Resistances" value={speciesResistances.join(", ")} />}
+                {speciesImmunities.length > 0 && <Row label="Damage Immunities" value={speciesImmunities.join(", ")} />}
+                {speciesConditionImmunities.length > 0 && <Row label="Condition Immunities" value={speciesConditionImmunities.join(", ")} />}
+              </div>
+            </SectionCard>
+          )}
 
           {accessMode === "dm" && (
           <SectionCard
