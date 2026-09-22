@@ -399,9 +399,6 @@ function CharacterEditor({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const unlockedFeatureIds = featureCatalogue
-      .filter((feature) => feature.requiredLevel <= form.level && feature.className === form.className && (!feature.subclassName || feature.subclassName === form.subclass))
-      .map((feature) => feature.id);
 
     onSave({
       ...form,
@@ -420,7 +417,6 @@ function CharacterEditor({
           .map((spellId) => ({ spellId, prepared: true })),
       ],
       optionalFeatures,
-      features: Array.from(new Set([...(character.features ?? []), ...unlockedFeatureIds])),
       notes: [
         form.notes,
         expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
