@@ -218,7 +218,7 @@ function normalizeCharacter(value: Character): Character {
           if (!entry || typeof entry !== "object") return false;
           const candidate = entry as unknown as { featureId?: unknown; source?: unknown };
           return typeof candidate.featureId === "string" &&
-            (candidate.source === "automatic" || candidate.source === "manual" || candidate.source === "dm");
+            (candidate.source === "automatic" || candidate.source === "manual" || candidate.source === "dm" || candidate.source === "legacy");
         }) as FeatureGrantHistoryEntry[]
       : [],
     spells: normalizeSpells(value.spells),
