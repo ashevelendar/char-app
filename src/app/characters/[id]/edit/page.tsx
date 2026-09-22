@@ -270,7 +270,9 @@ function CharacterEditor({
       });
     });
 
-    newAsiLevels.forEach((_, index) => {
+    newAsiLevels.forEach((level, index) => {
+      const absoluteIndex = allAsiLevels.indexOf(level);
+      if (absoluteIndex >= 0 && asiChoices[absoluteIndex]) return;
       const choice = asiAbilityChoices[index];
       if (!choice?.first) return;
       if (choice.mode === "two") {
@@ -282,7 +284,7 @@ function CharacterEditor({
     });
 
     return next;
-  }, [baseAbilities, form.race, selectedSubrace, raceRules, newAsiLevels, asiAbilityChoices, asiChoices, featCatalogue, featAbilityChoices]);
+  }, [baseAbilities, form.race, selectedSubrace, raceRules, newAsiLevels, allAsiLevels, asiAbilityChoices, asiChoices, featCatalogue, featAbilityChoices]);
 
   const expertiseLevels = useMemo(
     () => featureCatalogue
@@ -534,12 +536,29 @@ function CharacterEditor({
               {newAsiLevels.length > 0 && (
                 <AsiSelectionSection
                   levels={newAsiLevels}
-                  choices={[]}
-                  onChoicesChange={() => undefined}
+                  allAsiLevels={allAsiLevels}
+                  selectedFeatIds={asiChoices}
+                  onFeatChange={(absoluteIndex, featId) => {
+                    setAsiChoices((current) => {
+                      const next = [...current];
+                      next[absoluteIndex] = featId;
+                      return next;
+                    });
+                    const newIndex = newAsiLevels.indexOf(newAsiLevels.find((level) => allAsiLevels[absoluteIndex] === level) ?? -1);
+                    if (newIndex >= 0) {
+                      setAsiAbilityChoices((current) => {
+                        const next = [...current];
+                        next[newIndex] = {};
+                        return next;
+                      });
+                    }
+                  }}
+                  featCatalogue={featCatalogue}
+                  character={spellCharacter}
+                  featAbilityChoices={featAbilityChoices}
+                  onFeatAbilityChoiceChange={(featId, ability) => setFeatAbilityChoices((current) => ({ ...current, [featId]: ability }))}
                   abilityChoices={asiAbilityChoices}
                   onAbilityChoicesChange={setAsiAbilityChoices}
-                  availableFeats={[]}
-                  featCatalogue={[]}
                 />
               )}
             </>
@@ -887,51 +906,130 @@ function InfoBox({ title, badge, text }: { title: string; badge?: string; text: 
 function Field({ label, value, onChange, required = false }: { label: string; value: string; onChange: (value: string) => void; required?: boolean }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><input required={required} value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm outline-none focus:border-amber-400" /></label>; }
 function NumberField({ label, value, onChange, min, max }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><input type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm outline-none focus:border-amber-400" /></label>; }
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm outline-none focus:border-amber-400">{options.length ? options.map((option) => <option key={option}>{option}</option>) : <option value="">None</option>}</select></label>; }
-function AsiSelectionSection({ levels, abilityChoices, onAbilityChoicesChange }: {
+function AsiSelectionSection({
+  levels,
+  allAsiLevels,
+  selectedFeatIds,
+  onFeatChange,
+  abilityChoices,
+  onAbilityChoicesChange,
+  featCatalogue,
+  character,
+  featAbilityChoices,
+  onFeatAbilityChoiceChange,
+}: {
   levels: number[];
-  choices: string[];
-  onChoicesChange: (value: string[]) => void;
+  allAsiLevels: number[];
+  selectedFeatIds: string[];
+  onFeatChange: (absoluteIndex: number, featId: string) => void;
   abilityChoices: Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>;
   onAbilityChoicesChange: (value: Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>) => void;
-  availableFeats: Array<{ id: string; name: string; description: string; source: string }>;
-  featCatalogue: Array<{ id: string; name: string; description: string; source: string }>;
+  featCatalogue: Array<{ id: string; name: string; description: string; source: string; prerequisite?: unknown; ability?: unknown }>;
+  character: Character;
+  featAbilityChoices: Record<string, AbilityKey>;
+  onFeatAbilityChoiceChange: (featId: string, ability: AbilityKey) => void;
 }) {
   const abilityNames: Array<[AbilityKey, string]> = [["str","Strength"],["dex","Dexterity"],["con","Constitution"],["int","Intelligence"],["wis","Wisdom"],["cha","Charisma"]];
-  return <SectionCard title="New Ability Score Improvements" description="These ASIs were reached by increasing this character's level. Choose +2 to one ability, or +1 to two different abilities. Scores cannot exceed 20.">
+
+  return <SectionCard title="New Ability Score Improvements" description="Choose an Ability Score Improvement or a feat for each newly reached ASI level.">
     <div className="space-y-5">
       {levels.map((level, index) => {
+        const absoluteIndex = allAsiLevels.indexOf(level);
+        const selectedFeatId = absoluteIndex >= 0 ? (selectedFeatIds[absoluteIndex] ?? "") : "";
+        const feat = featCatalogue.find((entry) => entry.id === selectedFeatId);
         const choice = abilityChoices[index];
-        const mode = choice?.mode ?? "two";
+        const mode = selectedFeatId ? "feat" : (choice?.mode ?? "two");
         const first = choice?.first ?? "";
         const second = choice?.second ?? "";
+
+        const availableFeats = featCatalogue.filter((entry) => {
+          if (selectedFeatIds.includes(entry.id) && entry.id !== selectedFeatId) return false;
+          return isFeatAvailable(character, entry as typeof entry & { prerequisite?: unknown; ability?: unknown });
+        });
+
         return <div key={level} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
-          <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">Level {level}</h3><Badge>ASI</Badge></div>
-          <select value={mode} onChange={(event) => {
-            const next = [...abilityChoices];
-            next[index] = { mode: event.target.value as "two" | "one", first: choice?.first, second: choice?.second };
-            onAbilityChoicesChange(next);
-          }} className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+          <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">Level {level}</h3><Badge>ASI / Feat</Badge></div>
+
+          <select
+            value={mode}
+            onChange={(event) => {
+              if (event.target.value === "feat") {
+                const next = [...abilityChoices];
+                next[index] = {};
+                onAbilityChoicesChange(next);
+              } else {
+                if (absoluteIndex >= 0) onFeatChange(absoluteIndex, "");
+                const next = [...abilityChoices];
+                next[index] = { mode: event.target.value as "two" | "one", first: choice?.first, second: choice?.second };
+                onAbilityChoicesChange(next);
+              }
+            }}
+            className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm"
+          >
             <option value="two">+2 to one ability score</option>
             <option value="one">+1 to two different ability scores</option>
+            <option value="feat">Choose a feat</option>
           </select>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <select value={first} onChange={(event) => {
-              const next = [...abilityChoices];
-              next[index] = { mode, first: event.target.value ? event.target.value as AbilityKey : undefined, second: choice?.second };
-              onAbilityChoicesChange(next);
-            }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
-              <option value="">Choose an ability...</option>
-              {abilityNames.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
-            </select>
-            {mode === "one" && <select value={second} onChange={(event) => {
-              const next = [...abilityChoices];
-              next[index] = { mode, first: choice?.first, second: event.target.value ? event.target.value as AbilityKey : undefined };
-              onAbilityChoicesChange(next);
-            }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
-              <option value="">Choose an ability...</option>
-              {abilityNames.filter(([key]) => key !== choice?.first).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
-            </select>}
-          </div>
+
+          {mode === "feat" ? (
+            <>
+              <select
+                value={selectedFeatId}
+                onChange={(event) => absoluteIndex >= 0 && onFeatChange(absoluteIndex, event.target.value)}
+                className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm"
+              >
+                <option value="">Choose a feat...</option>
+                {availableFeats.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
+              </select>
+
+              {feat && (
+                <article className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4">
+                  <div className="flex items-center gap-2"><h3 className="font-semibold text-amber-300">{feat.name}</h3>{feat.source && <Badge>{feat.source}</Badge>}</div>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-300">{feat.description}</p>
+                  {(() => {
+                    const options = getFeatAbilityOptions(feat as Parameters<typeof getFeatAbilityOptions>[0]);
+                    if (!options.length) return null;
+                    const grouped = [...new Map(options.map((option) => [option.ability, option])).values()];
+                    const selectedAbility = featAbilityChoices[feat.id];
+                    return (
+                      <div className="mt-4 rounded-xl border border-stone-700 bg-stone-950/60 p-3">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-stone-400">Ability Score Effect</div>
+                        {grouped.length > 1 ? (
+                          <select
+                            value={selectedAbility ?? ""}
+                            onChange={(event) => onFeatAbilityChoiceChange(feat.id, event.target.value as AbilityKey)}
+                            className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm"
+                          >
+                            <option value="">Choose an ability...</option>
+                            {grouped.map((option) => <option key={option.ability} value={option.ability}>+{option.amount} {option.ability.toUpperCase()}</option>)}
+                          </select>
+                        ) : <p className="mt-2 text-sm text-amber-300">+{grouped[0].amount} {grouped[0].ability.toUpperCase()}</p>}
+                      </div>
+                    );
+                  })()}
+                </article>
+              )}
+            </>
+          ) : (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <select value={first} onChange={(event) => {
+                const next = [...abilityChoices];
+                next[index] = { mode, first: event.target.value ? event.target.value as AbilityKey : undefined, second: choice?.second };
+                onAbilityChoicesChange(next);
+              }} className="rounded-xl border border-stone-700 bg-stone-950/60 px-3 py-2.5 text-sm">
+                <option value="">Choose an ability...</option>
+                {abilityNames.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+              </select>
+              {mode === "one" && <select value={second} onChange={(event) => {
+                const next = [...abilityChoices];
+                next[index] = { mode, first: choice?.first, second: event.target.value ? event.target.value as AbilityKey : undefined };
+                onAbilityChoicesChange(next);
+              }} className="rounded-xl border border-stone-700 bg-stone-950/60 px-3 py-2.5 text-sm">
+                <option value="">Choose an ability...</option>
+                {abilityNames.filter(([key]) => key !== choice?.first).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+              </select>}
+            </div>
+          )}
         </div>;
       })}
     </div>
