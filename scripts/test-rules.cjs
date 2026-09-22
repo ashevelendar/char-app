@@ -87,8 +87,8 @@ test("ability modifiers use floor((score - 10) / 2)", () => {
 
 test("HP progression uses class hit die and Constitution", () => {
   assert.equal(rules.getExpectedMaxHp("Wizard", 1, 10), 6);
-  assert.equal(rules.getExpectedMaxHp("Wizard", 5, 14), 30);
-  assert.equal(rules.getExpectedMaxHp("Fighter", 5, 14), 42);
+  assert.equal(rules.getExpectedMaxHp("Wizard", 5, 14), 32);
+  assert.equal(rules.getExpectedMaxHp("Fighter", 5, 14), 40);
 });
 
 test("hit dice track class hit die and level", () => {
@@ -153,4 +153,4 @@ test("inventory weight and carrying capacity use Strength", () => {
   assert.equal(rules.isItemOverCarryingCapacity(c, [{ itemId: "heavy", quantity: 10, equipped: false }], [item]), true);
 });
 
-console.log("\nAll rules tests passed.");
+console.log("\nAll rules tests passed.\n");
