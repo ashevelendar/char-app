@@ -305,10 +305,7 @@ function CharacterEditor({
   const magicalSecretCount = magicalSecretFeatures.length * 2;
   const normalSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : knownSpellLimit === null ? null : Math.max(0, knownSpellLimit - magicalSecretCount);
 
-  const effectiveSelectedSpells = useMemo(
-    () => selectedSpells.filter((entry) => spellCatalogue.some((spell) => spell.id === entry.spellId)),
-    [selectedSpells, spellCatalogue],
-  );
+  const effectiveSelectedSpells = selectedSpells;
 
   useEffect(() => {
     setAsiChoices((current) => {
@@ -408,7 +405,6 @@ function CharacterEditor({
 
     onSave({
       ...form,
-      abilities,
       skills: selectedSkills,
       tools: selectedTools,
       languages: selectedLanguages,
