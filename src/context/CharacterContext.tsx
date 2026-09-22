@@ -961,7 +961,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setCatalogue(maps.catalogue);
         setRaceRules(maps.raceRules);
         setBackgroundRules(maps.backgroundRules);
-        setSpellCatalogue(maps.spellCatalogue);        setFeatureCatalogue(maps.featureCatalogue);
+        setSpellCatalogue(maps.spellCatalogue);        setItemCatalogue(maps.itemCatalogue);        setFeatureCatalogue(maps.featureCatalogue);
         setFeatCatalogue(maps.featCatalogue);
 
         const profileResult = await supabase!
