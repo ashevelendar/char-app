@@ -1660,7 +1660,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     createCharacter: async (input) => {
       const baseId = crypto.randomUUID();
       const level = Math.max(1, Math.min(20, Number(input.level) || 1));
-      const maxHp = getExpectedMaxHp(input.className, level, input.abilities.con);
+      const maxHp = getExpectedMaxHp(input.className, level, input.abilities.con, classRules);
       const baseCharacter: Character = {
         id: baseId,
         ...input,
@@ -1669,7 +1669,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         level,
         hp: Math.max(0, Math.min(maxHp, input.hp || maxHp)),
         maxHp,
-        hitDice: getExpectedHitDice(input.className, level),
+        hitDice: getExpectedHitDice(input.className, level, classRules),
         proficiencyBonus: getProficiencyBonus(level),
         tempHp: 0,
         savingThrows: input.savingThrows ?? [],
@@ -1719,6 +1719,13 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         patch.level !== undefined ||
         patch.className !== undefined ||
         patch.abilities?.con !== undefined;
+      const featureSetChanged =
+        patch.level !== undefined ||
+        patch.className !== undefined ||
+        patch.subclass !== undefined ||
+        patch.race !== undefined ||
+        patch.background !== undefined ||
+        patch.feats !== undefined;
       const acCalculationChanged =
         patch.race !== undefined ||
         patch.abilities !== undefined ||
@@ -1730,7 +1737,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         const nextClassName = patch.className ?? currentCharacter.className;
         const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
         const nextSubclass = patch.subclass ?? currentCharacter.subclass;
-        const unlockLevel = getClassDefinition(nextClassName)?.subclassUnlockLevel ?? 1;
+        const unlockLevel = getClassDefinition(nextClassName, classRules)?.subclassUnlockLevel ?? 1;
         const subclassIsValid = !nextSubclass
           || (nextLevel >= unlockLevel && catalogue.subclasses.some(
             (entry) => entry.className === nextClassName && entry.name === nextSubclass,
@@ -1760,14 +1767,38 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         const nextClassName = patch.className ?? currentCharacter.className;
         const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
         const nextConstitution = patch.abilities?.con ?? currentCharacter.abilities.con;
-        const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextConstitution);
+        const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextConstitution, classRules);
         const hpDelta = nextMaxHp - currentCharacter.maxHp;
 
         localPatch.level = nextLevel;
         localPatch.maxHp = nextMaxHp;
         localPatch.hp = Math.max(0, Math.min(nextMaxHp, currentCharacter.hp + hpDelta));
-        localPatch.hitDice = getExpectedHitDice(nextClassName, nextLevel);
+        localPatch.hitDice = getExpectedHitDice(nextClassName, nextLevel, classRules);
         localPatch.proficiencyBonus = getProficiencyBonus(nextLevel);
+      }
+
+      if (currentCharacter && featureSetChanged && patch.features === undefined) {
+        const nextCharacter: Character = {
+          ...currentCharacter,
+          ...localPatch,
+          level: Math.max(1, Math.min(20, patch.level ?? currentCharacter.level)),
+          className: patch.className ?? currentCharacter.className,
+          subclass: patch.subclass ?? currentCharacter.subclass,
+          race: patch.race ?? currentCharacter.race,
+          background: patch.background ?? currentCharacter.background,
+          feats: patch.feats ?? currentCharacter.feats,
+        };
+        const autoGrantable = (feature: Feature, candidate: Character) =>
+          isFeatureNormallyAvailable(candidate, feature) &&
+          !/gain a feature from your|gain a feature from the|optional feature/i.test(feature.description);
+        const oldAutoFeatures = new Set(
+          featureCatalogue.filter((feature) => autoGrantable(feature, currentCharacter)).map((feature) => feature.id),
+        );
+        const preservedFeatures = currentCharacter.features.filter((featureId) => !oldAutoFeatures.has(featureId));
+        const nextAutoFeatures = featureCatalogue
+          .filter((feature) => autoGrantable(feature, nextCharacter))
+          .map((feature) => feature.id);
+        localPatch.features = Array.from(new Set([...preservedFeatures, ...nextAutoFeatures]));
       }
 
       setCharacters((current) =>
@@ -1787,7 +1818,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           const nextClassName = patch.className ?? currentCharacter.className;
           const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
           const nextConstitution = patch.abilities?.con ?? currentCharacter.abilities.con;
-          const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextConstitution);
+          const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextConstitution, classRules);
           const hpDelta = nextMaxHp - currentCharacter.maxHp;
 
           dbPatch.level = nextLevel;
