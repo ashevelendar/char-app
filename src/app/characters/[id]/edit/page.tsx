@@ -163,7 +163,7 @@ function CharacterEditor({
   const [currency, setCurrency] = useState<Currency>(character.currency ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 });
   const [step, setStep] = useState<BuilderStep>("class");
 
-  const subclassUnlockLevel = getClassDefinition(form.className)?.subclassUnlockLevel ?? 1;
+  const subclassUnlockLevel = getClassDefinition(form.className, classRules)?.subclassUnlockLevel ?? 1;
   const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className && form.level >= subclassUnlockLevel);
   const selectedSubclass = subclassOptions.find((entry) => entry.name === form.subclass);
   const selectedSubrace = catalogue.subraces.find((entry) => entry.name === form.subrace && entry.parentRace === form.race);
@@ -171,8 +171,8 @@ function CharacterEditor({
   const selectedClassRules = classRules[form.className];
 
   useEffect(() => {
-    const nextMaxHp = getExpectedMaxHp(form.className, form.level, abilities.con);
-    const nextHitDice = getExpectedHitDice(form.className, form.level);
+    const nextMaxHp = getExpectedMaxHp(form.className, form.level, abilities.con, classRules);
+    const nextHitDice = getExpectedHitDice(form.className, form.level, classRules);
     const nextProficiencyBonus = getProficiencyBonus(form.level);
     setForm((current) => {
       if (current.maxHp === nextMaxHp && current.hitDice === nextHitDice && current.proficiencyBonus === nextProficiencyBonus) return current;
@@ -199,7 +199,7 @@ function CharacterEditor({
       const className = catalogue.classes.includes(current.className) ? current.className : catalogue.classes[0];
       const race = catalogue.races.includes(current.race) ? current.race : catalogue.races[0] ?? "";
       const background = catalogue.backgrounds.includes(current.background) ? current.background : catalogue.backgrounds[0] ?? "";
-      const unlockLevel = getClassDefinition(className)?.subclassUnlockLevel ?? 1;
+      const unlockLevel = getClassDefinition(className, classRules)?.subclassUnlockLevel ?? 1;
       const options = catalogue.subclasses.filter((entry) => entry.className === className && current.level >= unlockLevel);
       const subclass = options.some((entry) => entry.name === current.subclass) ? current.subclass : options[0]?.name ?? "";
       const subraces = catalogue.subraces.filter((entry) => entry.parentRace === race);
@@ -239,9 +239,9 @@ function CharacterEditor({
     [selectedClassRules, subclassOptionalFeatureProgression, form.subclass, form.level],
   );
 
-  const asiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level);
-  const allAsiLevels = getAbilityScoreImprovementLevelsUpTo(form.className, form.level);
-  const newAsiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level);
+  const asiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level, classRules);
+  const allAsiLevels = getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules);
+  const newAsiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level, classRules);
 
   const progressionAbilities = useMemo(() => {
     const next = { ...abilities };
@@ -293,13 +293,13 @@ function CharacterEditor({
     [spellCatalogue, spellCharacter],
   );
   const magicalSecretSpellOptions = useMemo(() => {
-    const maxLevel = getMaxSpellLevel(spellCharacter);
+    const maxLevel = getMaxSpellLevel(spellCharacter, classRules);
     return spellCatalogue.filter((spell) => spell.level <= maxLevel);
   }, [spellCatalogue, spellCharacter]);
 
-  const cantripsKnown = getCantripsKnown(form.className, form.level);
-  const spellsKnown = getSpellsKnown(form.className, form.level);
-  const preparedSpellLimit = getPreparedSpellCount(spellCharacter);
+  const cantripsKnown = getCantripsKnown(form.className, form.level, classRules);
+  const spellsKnown = getSpellsKnown(form.className, form.level, classRules);
+  const preparedSpellLimit = getPreparedSpellCount(spellCharacter, classRules);
   const wizardSpellbookLimit = form.className === "Wizard" ? getWizardSpellbookProgression(form.level) : null;
   const knownSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : spellsKnown ?? preparedSpellLimit;
   const magicalSecretCount = magicalSecretFeatures.length * 2;
