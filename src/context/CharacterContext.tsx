@@ -1510,7 +1510,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         currency: input.currency ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
         optionalFeatures: input.optionalFeatures ?? [],
         features: [],
-        spells: [],
+        spells: input.spells ?? [],
         accessOverrides: [],
         notes: input.notes,
       };
