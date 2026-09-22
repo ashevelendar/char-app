@@ -394,6 +394,7 @@ export function getSpellbookProgression(className: string, level: number, classC
   const safeLevel = Math.max(1, Math.min(20, level));
   const progression = getDynamicClassRule(className, classCatalogue)?.spellbookProgression;
   if (progression?.length) return progression[safeLevel - 1] ?? progression[safeLevel] ?? null;
+  if (className === "Wizard") return 6 + (safeLevel - 1) * 2;
   return null;
 }
 
