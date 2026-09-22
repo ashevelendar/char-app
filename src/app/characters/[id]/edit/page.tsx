@@ -151,7 +151,8 @@ function CharacterEditor({
   const [skills, setSkills] = useState<string[]>(character.skills);
   const [tools, setTools] = useState<string[]>(character.tools);
   const [languages, setLanguages] = useState<string[]>(character.languages);
-  const [asiChoices, setAsiChoices] = useState<string[]>(character.feats ?? []);\n  const [featAbilityChoices, setFeatAbilityChoices] = useState<Record<string, AbilityKey>>(initialFeatAbilityChoices);
+  const [asiChoices, setAsiChoices] = useState<string[]>(character.feats ?? []);
+  const [featAbilityChoices, setFeatAbilityChoices] = useState<Record<string, AbilityKey>>(initialFeatAbilityChoices);
   const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>>([]);
   const [expertiseSelections, setExpertiseSelections] = useState<string[]>(() => {
     const match = character.notes.match(/^Expertise:\s*(.+)$/m);
