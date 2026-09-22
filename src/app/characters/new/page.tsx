@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Badge, PageHeader, SectionCard } from "../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, InventoryEntry } from "../../../lib/types";
+import type { AbilityKey, AbilityScores, Currency, InventoryEntry } from "../../../lib/types";
 import { getExpectedHitDice, getExpectedMaxHp, getProficiencyBonus } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
@@ -49,6 +49,7 @@ export default function NewCharacterPage() {
     languages: [] as string[],
     savingThrows: [] as AbilityKey[],
     optionalFeatures: [] as string[],
+    currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 } as Currency,
   });
 
   const [baseAbilities, setBaseAbilities] = useState<AbilityScores>(defaults);
@@ -62,6 +63,7 @@ export default function NewCharacterPage() {
   const [equipmentSelections, setEquipmentSelections] = useState<InventoryEntry[]>([]);
   const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
   const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [equipmentMode, setEquipmentMode] = useState<"equipment" | "gold">("equipment");
   const [step, setStep] = useState<BuilderStep>("class");
 
   const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className);
@@ -193,7 +195,8 @@ export default function NewCharacterPage() {
       skills: selectedSkills,
       tools: selectedTools,
       languages: selectedLanguages,
-      inventory: equipmentSelections,
+      inventory: equipmentMode === "equipment" ? equipmentSelections : [],
+      currency: form.currency,
       maxHp,
       hp: Math.max(0, Math.min(maxHp, form.hp || maxHp)),
       hitDice: getExpectedHitDice(form.className, form.level),
@@ -334,9 +337,18 @@ export default function NewCharacterPage() {
             <>
               <SectionCard title="Starting Equipment" description="Choose the equipment granted by your class and background. Each choice adds the selected items to Current Inventory.">
                 <div className="mb-5 flex items-center justify-center gap-1 rounded-xl border border-stone-800 bg-stone-950/70 p-1">
-                  <div className="flex-1 rounded-lg bg-stone-100 px-4 py-2.5 text-center text-sm font-semibold text-stone-950">Equipment</div>
-                  <div className="flex-1 rounded-lg px-4 py-2.5 text-center text-sm font-semibold text-stone-600" aria-disabled="true">Gold</div>
+                  <button type="button" onClick={() => setEquipmentMode("equipment")} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold ${equipmentMode === "equipment" ? "bg-stone-100 text-stone-950" : "text-stone-500 hover:text-stone-300"}`}>Equipment</button>
+                  <button type="button" onClick={() => setEquipmentMode("gold")} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold ${equipmentMode === "gold" ? "bg-stone-100 text-stone-950" : "text-stone-500 hover:text-stone-300"}`}>Gold</button>
                 </div>
+                {equipmentMode === "gold" && (
+                  <div className="mb-5 rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
+                    <h3 className="font-semibold">Starting Currency</h3>
+                    <p className="mt-1 text-xs text-stone-500">Use this when the character takes gold instead of starting equipment.</p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-5">
+                      {(["cp","sp","ep","gp","pp"] as const).map((coin) => <NumberField key={coin} label={coin.toUpperCase()} value={form.currency[coin]} min={0} onChange={(value) => setForm((current) => ({ ...current, currency: { ...current.currency, [coin]: value } }))} />)}
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-4">
                   {[
                     ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `class-${index}`, heading: "Class equipment" })),
@@ -399,7 +411,7 @@ export default function NewCharacterPage() {
                 </div>
               </SectionCard>
 
-              <SectionCard title={`Current Inventory (${equipmentSelections.length})`} description="This is the equipment that will be placed on the character.">
+              {equipmentMode === "equipment" && <SectionCard title={`Current Inventory (${equipmentSelections.length})`} description="This is the equipment that will be placed on the character.">
                 {equipmentSelections.length === 0 ? <p className="text-sm text-stone-500">Nothing selected yet.</p> : (
                   <div className="space-y-2">
                     {equipmentSelections.map((entry) => {
@@ -418,7 +430,7 @@ export default function NewCharacterPage() {
                     })}
                   </div>
                 )}
-              </SectionCard>
+              </SectionCard>}
 
               <SectionCard title="Add Items" description="Add anything else from the imported 2014 equipment catalogue.">
                 <div className="mb-4 flex gap-3">
@@ -438,6 +450,9 @@ export default function NewCharacterPage() {
                 </div>
               </SectionCard>
 
+              <SectionCard title="Currency" description="Currency is saved with the character and can be edited later from the inventory step.">
+                <div className="grid gap-3 sm:grid-cols-5">{(["cp","sp","ep","gp","pp"] as const).map((coin) => <NumberField key={coin} label={coin.toUpperCase()} value={form.currency[coin]} min={0} onChange={(value) => setForm((current) => ({ ...current, currency: { ...current.currency, [coin]: value } }))} />)}</div>
+              </SectionCard>
               <SectionCard title="Other Possessions" description="Use Notes on the final step for free-form possessions that are not represented by an item record." />
             </>
           )}
@@ -472,7 +487,8 @@ export default function NewCharacterPage() {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <ProficiencySummary title="Character" values={[form.name || "Unnamed", form.className, form.subclass, form.race, form.subrace, form.background].filter(Boolean)} />
                   <ProficiencySummary title="Abilities" values={Object.entries(form.abilities).map(([key, value]) => `${key.toUpperCase()} ${value}`)} />
-                  <ProficiencySummary title="Equipment" values={equipmentSelections.map((entry) => itemCatalogue.find((item) => item.id === entry.itemId)?.name ?? entry.itemId)} />
+                  <ProficiencySummary title="Equipment" values={(equipmentMode === "equipment" ? equipmentSelections : []).map((entry) => itemCatalogue.find((item) => item.id === entry.itemId)?.name ?? entry.itemId)} />
+                  <ProficiencySummary title="Currency" values={Object.entries(form.currency).map(([coin, value]) => `${coin.toUpperCase()} ${value}`)} />
                 </div>
               </SectionCard>
 
