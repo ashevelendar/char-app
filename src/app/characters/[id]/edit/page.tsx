@@ -117,6 +117,7 @@ function CharacterEditor({
   const [raceLanguageSelections, setRaceLanguageSelections] = useState<string[]>([]);
   const [equipmentSelections, setEquipmentSelections] = useState<InventoryEntry[]>(character.inventory);
   const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
+  const [startingItemChoices, setStartingItemChoices] = useState<Record<string, string>>({});
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [step, setStep] = useState<BuilderStep>("class");
 
@@ -213,6 +214,51 @@ function CharacterEditor({
     const subraceRules = catalogue.subraces.find((entry) => entry.name === value && entry.parentRace === form.race);
     setForm((current) => ({ ...current, subrace: value }));
     setAbilities(applyAbilityBonuses(applyAbilityBonuses(baseAbilities, raceRules[form.race]?.abilityBonuses ?? {}), subraceRules?.abilityBonuses ?? {}));
+  }
+
+  function equipmentChoiceOptions(choiceType: string) {
+    const type = choiceType.toLowerCase();
+    return itemCatalogue.filter((item) => {
+      if (type === "weaponmartial") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("martial"));
+      if (type === "weaponsimple") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("simple"));
+      if (type === "armorlight") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("light"));
+      if (type === "armormedium") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("medium"));
+      if (type === "armorheavy") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("heavy"));
+      if (type === "instrumentmusical") return item.name.toLowerCase().includes("instrument");
+      return true;
+    });
+  }
+
+  function applyStartingEquipment(
+    groupId: string,
+    optionIndex: number,
+    option: { items: Array<{ name: string; quantity: number; choiceType?: string; special?: boolean }> },
+    choiceOverrides: Record<string, string> = {},
+  ) {
+    const marker = `starting:${groupId}:`;
+    setEquipmentSelections((current) => {
+      const withoutGroup = current.filter((entry) => !entry.notes?.startsWith(marker));
+      const additions = option.items.flatMap((entry, entryIndex) => {
+        const choiceKey = `${groupId}:${optionIndex}:${entryIndex}`;
+        const choiceId = choiceOverrides[choiceKey] ?? startingItemChoices[choiceKey];
+        const chosen = entry.choiceType ? itemCatalogue.find((item) => item.id === choiceId) : undefined;
+        if (entry.choiceType && !chosen) return [];
+        if (entry.special) return [];
+        const item = chosen ?? itemCatalogue.find((candidate) => {
+          const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\\s+/i, "").replace(/[.,]/g, "").trim();
+          const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
+          return name === normalized || name.includes(normalized) || normalized.includes(name);
+        });
+        return item ? [{ itemId: item.id, quantity: Math.max(1, entry.quantity), equipped: false, notes: marker + optionIndex }] : [];
+      });
+      const merged = [...withoutGroup];
+      for (const addition of additions) {
+        const existing = merged.find((entry) => entry.itemId === addition.itemId);
+        if (existing) existing.quantity += addition.quantity;
+        else merged.push(addition);
+      }
+      return merged;
+    });
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -353,7 +399,7 @@ function CharacterEditor({
                   <button type="button" onClick={() => setEquipmentMode("gold")} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold ${equipmentMode === "gold" ? "bg-stone-100 text-stone-950" : "text-stone-500 hover:text-stone-300"}`}>Gold</button>
                 </div>
                 {equipmentMode === "gold" && <div className="mb-5 grid gap-3 sm:grid-cols-5">{(["cp","sp","ep","gp","pp"] as const).map((coin) => <NumberField key={coin} label={coin.toUpperCase()} value={currency[coin]} min={0} onChange={(value) => setCurrency((current) => ({ ...current, [coin]: value }))} />)}</div>
-                <div className="space-y-4">
+                {equipmentMode === "equipment" && <div className="space-y-4">
                   {[
                     ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `class-${index}`, heading: "Class equipment" })),
                     ...(selectedBackgroundRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `background-${index}`, heading: "Background equipment" })),
@@ -363,37 +409,39 @@ function CharacterEditor({
                       <div className="grid gap-2 sm:grid-cols-2">
                         {group.options.map((option, optionIndex) => {
                           const selected = startingEquipmentSelections[group.id] === optionIndex;
-                          return <button key={optionIndex} type="button" onClick={() => {
-                            setStartingEquipmentSelections((current) => ({ ...current, [group.id]: optionIndex }));
-                            const marker = `starting:${group.id}:`;
-                            setEquipmentSelections((current) => {
-                              const withoutGroup = current.filter((entry) => !entry.notes?.startsWith(marker));
-                              const additions = option.items.flatMap((entry) => {
-                                const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\\s+/i, "").replace(/[.,]/g, "").trim();
-                                const item = itemCatalogue.find((candidate) => {
-                                  const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
-                                  return name === normalized || name.includes(normalized) || normalized.includes(name);
-                                });
-                                return item ? [{ itemId: item.id, quantity: Math.max(1, entry.quantity), equipped: false, notes: marker + optionIndex }] : [];
-                              });
-                              const merged = [...withoutGroup];
-                              for (const addition of additions) {
-                                const existing = merged.find((entry) => entry.itemId === addition.itemId);
-                                if (existing) existing.quantity += addition.quantity;
-                                else merged.push(addition);
-                              }
-                              return merged;
-                            });
-                          }} className={`rounded-xl border p-4 text-left transition ${selected ? "border-amber-500 bg-amber-950/30" : "border-stone-800 bg-stone-950/50 hover:border-stone-600"}`}>
-                            <div className="flex items-center gap-2"><span className={`h-4 w-4 rounded-full border-2 ${selected ? "border-amber-400 bg-amber-400" : "border-stone-600"}`} /><span className="font-semibold">{option.label}</span></div>
-                            <p className="mt-2 text-xs leading-5 text-stone-500">{option.items.map((entry) => `${entry.quantity > 1 ? entry.quantity + "× " : ""}${entry.name}`).join(", ") || "No item records parsed"}</p>
-                          </button>;
+                          return <div key={optionIndex} className={`rounded-xl border p-4 transition ${selected ? "border-amber-500 bg-amber-950/30" : "border-stone-800 bg-stone-950/50 hover:border-stone-600"}`}>
+                            <button type="button" onClick={() => {
+                              setStartingEquipmentSelections((current) => ({ ...current, [group.id]: optionIndex }));
+                              applyStartingEquipment(group.id, optionIndex, option);
+                            }} className="flex w-full items-start gap-3 text-left">
+                              <span className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 ${selected ? "border-amber-400 bg-amber-400" : "border-stone-600"}`} />
+                              <span className="font-semibold">{option.label}</span>
+                            </button>
+                            <div className="mt-3 space-y-2 pl-7">
+                              {option.items.map((entry, entryIndex) => {
+                                if (!entry.choiceType) return <p key={entryIndex} className="text-xs leading-5 text-stone-500">{entry.quantity > 1 ? entry.quantity + "× " : ""}{entry.special ? "Other possession: " : ""}{entry.name}</p>;
+                                const choiceKey = `${group.id}:${optionIndex}:${entryIndex}`;
+                                const choiceItems = equipmentChoiceOptions(entry.choiceType);
+                                return <label key={entryIndex} className="block text-xs text-stone-400">
+                                  {entry.name}
+                                  <select value={startingItemChoices[choiceKey] ?? ""} onChange={(event) => {
+                                    const value = event.target.value;
+                                    setStartingItemChoices((current) => ({ ...current, [choiceKey]: value }));
+                                    if (selected) applyStartingEquipment(group.id, optionIndex, option, { [choiceKey]: value });
+                                  }} className="mt-1 w-full rounded-lg border border-stone-700 bg-stone-950 px-3 py-2 text-sm text-stone-100">
+                                    <option value="">Choose...</option>
+                                    {choiceItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                                  </select>
+                                </label>;
+                              })}
+                            </div>
+                          </div>;
                         })}
                       </div>
                     </div>
                   ))}
                   {!((selectedClassRules?.startingEquipment?.length ?? 0) + (selectedBackgroundRules?.startingEquipment?.length ?? 0)) && <p className="text-sm text-stone-500">No parsed starting-equipment bundles were found.</p>}
-                </div>
+                </div>}
               </SectionCard>
 
               {equipmentMode === "equipment" && <SectionCard title={`Current Inventory (${equipmentSelections.length})`} description="Manage the inventory that will be saved with this character.">
