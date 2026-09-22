@@ -135,7 +135,16 @@ test("spellcasting mode distinguishes prepared and known casters", () => {
 });
 
 test("prepared spell limits and known-spell limits are level-aware", () => {
-  assert.equal(rules.getPreparedSpellCount(character({ className: "Wizard", level: 5 })), 8);
+  const wizard = character({ className: "Wizard", level: 5 });
+  const wizardClass = {
+    id: "test-wizard",
+    name: "Wizard",
+    preparedSpells: "<$int_mod$> + <$level$>",
+    spellcastingAbility: "int",
+    casterProgression: "full",
+  };
+  const classCatalogue = { Wizard: wizardClass };
+  assert.equal(rules.getPreparedSpellCount(wizard, classCatalogue), 8);
   assert.equal(rules.getSpellsKnown("Warlock", 5), 6);
 });
 
