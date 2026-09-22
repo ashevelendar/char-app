@@ -199,6 +199,10 @@ function normalizeCharacter(value: Character): Character {
     spells: normalizeSpells(value.spells),
     inventory: normalizeInventory(value.inventory),
     optionalFeatures: Array.isArray(value.optionalFeatures) ? value.optionalFeatures : [],
+    currency: {
+      ...defaultCharacter.currency,
+      ...(value.currency ?? {}),
+    },
     accessOverrides: Array.isArray(value.accessOverrides) ? value.accessOverrides : [],
   };
 
@@ -1191,6 +1195,15 @@ function toCharacter(
     languages: Array.isArray(row.languages) ? row.languages : [],
     feats: Array.isArray(row.feats) ? row.feats : [],
     resourceUses: row.resource_uses && typeof row.resource_uses === "object" ? row.resource_uses : {},
+    currency: row.currency && typeof row.currency === "object"
+      ? {
+          cp: Number(row.currency.cp) || 0,
+          sp: Number(row.currency.sp) || 0,
+          ep: Number(row.currency.ep) || 0,
+          gp: Number(row.currency.gp) || 0,
+          pp: Number(row.currency.pp) || 0,
+        }
+      : { ...defaultCharacter.currency },
     optionalFeatures: optionalFeaturesForCharacter,
     features: featuresForCharacter,
     spells: spellsForCharacter,
@@ -1272,7 +1285,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             current_hp,max_hp,temporary_hp,armor_class,speed,hit_dice,proficiency_bonus,
             subrace_id,tools,
             strength,dexterity,constitution,intelligence,wisdom,charisma,
-            saving_throws,skills,languages,notes,feats,resource_uses,
+            saving_throws,skills,languages,notes,feats,resource_uses,currency,
             race:races(name),subrace:subraces(name),class:classes(name),subclass:subclasses(name),background:backgrounds(name)
           `)
           .eq("user_id", user!.id)
@@ -1417,6 +1430,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         languages: input.languages ?? [],
         feats: input.feats ?? [],
         resourceUses: input.resourceUses ?? {},
+        currency: input.currency ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
         optionalFeatures: input.optionalFeatures ?? [],
         features: [],
         spells: [],
@@ -2150,6 +2164,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     notes: character.notes,
     feats: character.feats,
     resource_uses: character.resourceUses,
+    currency: character.currency,
   };
 
   const result = await supabase.from("characters").insert(row).select("id").single();
