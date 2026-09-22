@@ -539,7 +539,7 @@ export default function NewCharacterPage() {
       languages: selectedLanguages,
       spells: [
         ...effectiveSelectedSpells,
-        ...magicalSecretSelections.filter(Boolean).filter((id) => !selectedSpells.some((entry) => entry.spellId === id)).map((spellId) => ({ spellId, prepared: true })),
+        ...magicalSecretSelections.filter(Boolean).filter((id) => !selectedSpells.some((entry) => entry.spellId === id)).map((spellId) => ({ spellId, prepared: true, source: "magical-secrets" as const })),
       ],
       inventory: equipmentMode === "equipment" ? equipmentSelections : [],
       currency: form.currency,
@@ -1170,7 +1170,7 @@ function SpellSelectionSection({ className, level, availableSpells, cantripsKnow
     const count = spell.level === 0 ? selectedCantrips.length : selectedLeveled.length;
     const limit = spell.level === 0 ? cantripsKnown : spellLimit;
     if (limit !== null && count >= limit) return;
-    onChange([...selectedSpells, { spellId, prepared: spell.level === 0 || !spellbook }]);
+    onChange([...selectedSpells, { spellId, prepared: spell.level === 0 || !spellbook, source: "normal" }]);
   }
   const spellbookText = "Choose the spells in your spellbook. At level " + level + ", your character can have " + (spellLimit ?? 0) + " spells in the spellbook.";
   const knownText = "Choose the spells your character starts with. You can select " + cantripsKnown + " cantrip" + (cantripsKnown === 1 ? "" : "s") + (spellLimit !== null ? " and " + spellLimit + " " + label.toLowerCase() + "." : ".");
