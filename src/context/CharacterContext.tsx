@@ -232,7 +232,6 @@ function cleanDisplayText(value: string) {
     .replaceAll(" ,", ",").replaceAll(" .", ".").replaceAll(" ;", ";").replaceAll(" :", ":")
     .trim();
 }
-}
 
 function catalogueText(value: unknown): string {
   if (typeof value === "string") {
