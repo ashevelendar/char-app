@@ -36,6 +36,7 @@ import type {
   HomebrewContent,
   Spell,
   SpellEntry,
+  ClassRuleData,
 } from "../lib/types";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
@@ -50,7 +51,7 @@ type ProficiencyRules = { fixed: string[]; choices: ProficiencyChoice[] };
 type EquipmentEntry = { name: string; quantity: number; choiceType?: string; special?: boolean };
 type EquipmentBundle = { label: string; items: EquipmentEntry[] };
 type EquipmentChoiceGroup = { label: string; options: EquipmentBundle[] };
-type ClassRules = {
+type ClassRules = ClassRuleData & {
   savingThrows: AbilityKey[];
   skills: ProficiencyRules;
   tools: ProficiencyRules;
@@ -899,7 +900,40 @@ function makeMaps(
             }));
           })
         : [];
+      const spellSlotGroup = Array.isArray(raw.classTableGroups)
+        ? raw.classTableGroups.find((group) =>
+            group &&
+            typeof group === "object" &&
+            Array.isArray((group as Record<string, unknown>).rowsSpellProgression),
+          ) as Record<string, unknown> | undefined
+        : undefined;
+      const spellSlots = Array.isArray(spellSlotGroup?.rowsSpellProgression)
+        ? (spellSlotGroup.rowsSpellProgression as unknown[]).map((row) =>
+            Array.isArray(row) ? row.map((value) => Number(value) || 0) : [],
+          )
+        : [];
+      const asiLevels = featureCatalogue
+        .filter((feature) => feature.sourceType === "class" && feature.className === row.name && feature.name.toLowerCase() === "ability score improvement")
+        .map((feature) => feature.requiredLevel)
+        .sort((a, b) => a - b);
+      const subclassUnlockLevel = featureCatalogue
+        .filter((feature) => feature.sourceType === "subclass" && feature.className === row.name)
+        .reduce((minimum, feature) => Math.min(minimum, feature.requiredLevel), Number.POSITIVE_INFINITY);
+
       return [row.name, {
+        hitDie: Number.isFinite(Number(row.hit_die)) ? Number(row.hit_die) : null,
+        spellcastingAbility: typeof row.spellcasting_ability === "string" ? row.spellcasting_ability : null,
+        casterProgression: typeof raw.casterProgression === "string" ? raw.casterProgression : null,
+        cantripProgression: Array.isArray(raw.cantripProgression)
+          ? raw.cantripProgression.map((value) => Number(value) || 0)
+          : [],
+        spellsKnownProgression: Array.isArray(raw.spellsKnownProgression)
+          ? raw.spellsKnownProgression.map((value) => Number(value) || 0)
+          : [],
+        preparedSpells: typeof raw.preparedSpells === "string" ? raw.preparedSpells : null,
+        spellSlots,
+        subclassUnlockLevel: Number.isFinite(subclassUnlockLevel) ? subclassUnlockLevel : undefined,
+        asiLevels: [...new Set(asiLevels)],
         savingThrows,
         skills: extractProficiencyRules(starting, "skills"),
         tools: extractProficiencyRules(starting, "tools"),
