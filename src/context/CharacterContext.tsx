@@ -1066,6 +1066,19 @@ function makeMaps(
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const extractSpeciesTraits = (raw: unknown): Array<{ name: string; description: string }> => {
+    if (!raw || typeof raw !== "object") return [];
+    const entries = (raw as Record<string, unknown>).entries;
+    if (!Array.isArray(entries)) return [];
+    return entries.flatMap((entry) => {
+      if (!entry || typeof entry !== "object") return [];
+      const object = entry as Record<string, unknown>;
+      const name = typeof object.name === "string" ? cleanDisplayText(object.name).replace(/\.$/, "") : "";
+      const description = catalogueText(object.entries ?? object.entry ?? object.text);
+      return name && description ? [{ name, description }] : [];
+    }).filter((trait) => !/^(age|alignment|size|speed|languages?|ability score increase)$/i.test(trait.name));
+  };
+
   const subraces: SubraceDefinition[] = preferredRows(subraceRows)
     .filter((row, index, rows) => {
       const parentRace = row.race_name ?? raceNameById.get(row.race_id) ?? "";
