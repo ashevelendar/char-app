@@ -1325,7 +1325,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         optionalFeatures: input.optionalFeatures ?? [],
         features: [],
         spells: [],
-        inventory: [],
         accessOverrides: [],
         notes: input.notes,
       };
