@@ -384,7 +384,8 @@ function CharacterEditor({
 
   function equipmentChoiceOptions(choiceType: string) {
     const type = choiceType.toLowerCase();
-    return itemCatalogue.filter((item) => {
+    const commonItems = itemCatalogue.filter((item) => (item.rarity || "Common").trim().toLowerCase() === "common");
+    return commonItems.filter((item) => {
       if (type === "weaponmartial") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("martial"));
       if (type === "weaponsimple") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("simple"));
       if (type === "armorlight") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("light"));
@@ -410,7 +411,7 @@ function CharacterEditor({
         const chosen = entry.choiceType ? itemCatalogue.find((item) => item.id === choiceId) : undefined;
         if (entry.choiceType && !chosen) return [];
         if (entry.special) return [];
-        const item = chosen ?? itemCatalogue.find((candidate) => {
+        const item = chosen ?? itemCatalogue.filter((candidate) => (candidate.rarity || "Common").trim().toLowerCase() === "common").find((candidate) => {
           const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\s+/i, "").replace(/[.,]/g, "").trim();
           const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
           return name === normalized || name.includes(normalized) || normalized.includes(name);
@@ -586,11 +587,11 @@ function CharacterEditor({
               </SectionCard>
               {selectedBackgroundRules && <SectionCard title="Background benefits">
                 {selectedBackgroundRules.skills.length > 0 && <p className="text-sm text-stone-300"><b>Fixed skills:</b> {selectedBackgroundRules.skills.join(", ")}</p>}
-                <ChoiceGroup title="Skill choices" choices={selectedBackgroundRules.skillChoices} value={backgroundSkillSelections} onChange={setBackgroundSkillSelections} exclude={[...(selectedClassRules?.skills.fixed ?? []), ...classSkillSelections]} />
+                <ChoiceGroup title="Choose skills" choices={selectedBackgroundRules.skillChoices} value={backgroundSkillSelections} onChange={setBackgroundSkillSelections} exclude={[...(selectedClassRules?.skills.fixed ?? []), ...classSkillSelections]} />
                 {selectedBackgroundRules.tools.length > 0 && <p className="mt-4 text-sm text-stone-300"><b>Fixed tools:</b> {selectedBackgroundRules.tools.join(", ")}</p>}
-                <ChoiceGroup title="Tool choices" choices={selectedBackgroundRules.toolChoices} value={backgroundToolSelections} onChange={setBackgroundToolSelections} />
+                <ChoiceGroup title="Choose tools" choices={selectedBackgroundRules.toolChoices} value={backgroundToolSelections} onChange={setBackgroundToolSelections} />
                 {selectedBackgroundRules.languages.length > 0 && <p className="mt-4 text-sm text-stone-300"><b>Fixed languages:</b> {selectedBackgroundRules.languages.join(", ")}</p>}
-                <ChoiceGroup title="Language choices" choices={selectedBackgroundRules.languageChoices} value={backgroundLanguageSelections} onChange={setBackgroundLanguageSelections} />
+                <ChoiceGroup title="Choose languages" choices={selectedBackgroundRules.languageChoices} value={backgroundLanguageSelections} onChange={setBackgroundLanguageSelections} />
                 {selectedBackgroundRules.featureName && <div className="mt-5 rounded-2xl border border-amber-900/50 bg-amber-950/20 p-5"><div className="text-xs font-semibold uppercase tracking-wider text-amber-500">Background Feature</div><h3 className="mt-1 text-lg font-semibold text-amber-300">{selectedBackgroundRules.featureName}</h3><p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-300">{selectedBackgroundRules.featureDescription}</p></div>}
               </SectionCard>}
               {selectedBackgroundRules && <SectionCard title="Background traits">
@@ -918,13 +919,16 @@ function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }
 function ChoiceGroup({ title, choices, value, onChange, exclude = [] }: { title: string; choices: Array<{ count: number; options: string[] }>; value: string[]; onChange: (value: string[]) => void; exclude?: string[] }) {
   if (!choices.length) return null;
   let offset = 0;
-  return <div className="mt-4 space-y-3"><h4 className="text-sm font-semibold text-stone-200">{title}</h4>{choices.flatMap((choice) => Array.from({ length: choice.count }, () => {
-    const slot = offset++;
-    const options = choice.options.filter((option) => (!exclude.includes(option) || value[slot] === option) && !value.some((selected, index) => index !== slot && selected === option));
-    return <select key={`${title}-${slot}`} value={value[slot] ?? ""} onChange={(event) => { const next = [...value]; next[slot] = event.target.value; onChange(next); }} className="w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100"><option value="">Choose an option...</option>{options.map((option) => <option key={option}>{option}</option>)}</select>;
-  }))}</div>;
+  const totalChoices = choices.reduce((sum, choice) => sum + choice.count, 0);
+  return <div className="mt-4 space-y-3">
+    <h4 className="text-sm font-semibold text-stone-200">{title}{totalChoices > 0 ? ` (${totalChoices})` : ""}</h4>
+    {choices.flatMap((choice) => Array.from({ length: choice.count }, () => {
+      const slot = offset++;
+      const options = choice.options.filter((option) => (!exclude.includes(option) || value[slot] === option) && !value.some((selected, index) => index !== slot && selected === option));
+      return <select key={`${title}-${slot}`} value={value[slot] ?? ""} onChange={(event) => { const next = [...value]; next[slot] = event.target.value; onChange(next); }} className="w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100"><option value="">Choose an option...</option>{options.map((option) => <option key={option}>{option}</option>)}</select>;
+    }))}
+  </div>;
 }
-
 function OptionalFeatureGroup({ title, count, featureTypes, catalogue, selected, onChange }: { title: string; count: number; featureTypes: string[]; catalogue: Array<{ id: string; name: string; description: string; featureTypes: string[]; source: string }>; selected: string[]; onChange: (value: string[]) => void }) {
   const options = catalogue.filter((entry) => entry.featureTypes.some((type) => featureTypes.includes(type)));
   const slots = Array.from({ length: count }, (_, index) => selected.filter((id) => options.some((option) => option.id === id))[index] ?? "");
