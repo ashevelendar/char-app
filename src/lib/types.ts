@@ -129,6 +129,10 @@ export interface SubraceDefinition {
   source: string;
   abilityBonuses: Partial<AbilityScores>;
   speed?: number;
+  senses?: Record<string, number>;
+  resistances?: string[];
+  immunities?: string[];
+  conditionImmunities?: string[];
 }
 
 export interface OptionalFeatureDefinition {
