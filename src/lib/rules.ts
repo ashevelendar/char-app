@@ -711,7 +711,8 @@ export function getAutomaticallyGrantedFeatureIds(character: Character, featureC
   while (changed) {
     changed = false;
     for (const feature of candidates) {
-      if (feature.requiresFeatureId && !granted.has(feature.requiresFeatureId)) continue;
+      const requiredFeatureIds = feature.requiresFeatureIds?.length ? feature.requiresFeatureIds : (feature.requiresFeatureId ? [feature.requiresFeatureId] : []);
+      if (requiredFeatureIds.some((requiredId) => !granted.has(requiredId))) continue;
       if (!granted.has(feature.id)) {
         granted.add(feature.id);
         changed = true;
