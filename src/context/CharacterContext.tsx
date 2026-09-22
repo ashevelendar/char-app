@@ -149,6 +149,7 @@ type CharacterContextValue = {
   spellCatalogue: Spell[];
   featureCatalogue: Feature[];
   featCatalogue: Feat[];
+  homebrewCatalogue: HomebrewContent[];
   itemCatalogue: Item[];
   optionalFeatureCatalogue: OptionalFeatureDefinition[];
   classRules: Record<string, ClassRules>;
