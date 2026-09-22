@@ -180,6 +180,7 @@ export interface NewCharacterInput {
   abilities: AbilityScores;
   savingThrows?: AbilityKey[];
   notes: string;
+  spells?: SpellEntry[];
   skills?: string[];
   tools?: string[];
   languages?: string[];
