@@ -293,11 +293,12 @@ function CharacterEditor({
   const asiChoices = allAsiLevels.map((level) => asiHistory.find((entry) => entry.level === level)?.featId ?? "");
 
   useEffect(() => {
+    const currentAsiLevels = getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules);
     setAsiHistory((current) => {
-      const next = allAsiLevels.map((level) => current.find((entry) => entry.level === level) ?? { level, mode: "two" as const });
+      const next = currentAsiLevels.map((level) => current.find((entry) => entry.level === level) ?? { level, mode: "two" as const });
       return next.filter((entry) => entry.level <= form.level);
     });
-  }, [allAsiLevels.join(","), form.level]);
+  }, [form.className, form.level, classRules]);
 
   function updateAsiHistory(level: number, entry: AsiHistoryEntry | undefined) {
     const previous = asiHistory.find((item) => item.level === level);
