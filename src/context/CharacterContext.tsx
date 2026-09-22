@@ -1063,16 +1063,25 @@ function makeMaps(
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const subraces: SubraceDefinition[] = subraceRows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    parentRace: row.race_name ?? raceNameById.get(row.race_id) ?? "",
-    description: row.description ?? "",
-    source: row.source ?? row.source_code ?? "",
-    abilityBonuses: extractAbilityBonuses(row.raw_data),
-    speed: getSpeedValue(row.raw_data),
-    ...getSpeciesDefenses(row.raw_data),
-  })).filter((row) => row.name && row.parentRace);
+  const subraces: SubraceDefinition[] = preferredRows(subraceRows)
+    .filter((row, index, rows) => {
+      const parentRace = row.race_name ?? raceNameById.get(row.race_id) ?? "";
+      const key = parentRace.trim().toLowerCase() + "::" + row.name.trim().toLowerCase();
+      return row.name && parentRace && rows.findIndex((candidate) => {
+        const candidateParent = candidate.race_name ?? raceNameById.get(candidate.race_id) ?? "";
+        return candidateParent.trim().toLowerCase() + "::" + candidate.name.trim().toLowerCase() === key;
+      }) === index;
+    })
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      parentRace: row.race_name ?? raceNameById.get(row.race_id) ?? "",
+      description: row.description ?? "",
+      source: row.source ?? row.source_code ?? "",
+      abilityBonuses: extractAbilityBonuses(row.raw_data),
+      speed: getSpeedValue(row.raw_data),
+      ...getSpeciesDefenses(row.raw_data),
+    }));
 
   const subraceKey = (parentRace: string, name: string) => parentRace.trim().toLowerCase() + "::" + name.trim().toLowerCase();
   const subraceByName = new Map(subraces.map((row) => [subraceKey(row.parentRace, row.name), row.id]));
