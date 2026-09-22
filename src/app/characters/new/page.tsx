@@ -399,7 +399,7 @@ export default function NewCharacterPage() {
               </SectionCard>
 
               <div className="flex justify-end">
-                <button type="button" onClick={submit} disabled={!form.name.trim() || !form.race || !form.className || !form.background} className="rounded-xl bg-stone-100 px-6 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-300 disabled:opacity-40">Create Character</button>
+                <button type="button" onClick={submit} disabled={!form.name.trim() || !form.race || !form.className || !form.background} data-create-character="true" className="rounded-xl bg-stone-100 px-6 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-300 disabled:opacity-40">Create Character</button>
               </div>
             </>
           )}
@@ -421,6 +421,58 @@ const STEP_META: Record<BuilderStep, { number: number; title: string; descriptio
   equipment: { number: 5, title: "Equipment", description: "Choose the equipment your character will start with." },
   "whats-next": { number: 6, title: "What's Next", description: "Finish your character, review the build and create the character sheet." },
 };
+
+function BuilderStepNav({ step, onStepChange }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void }) {
+  return (
+    <div className="border-b border-stone-800 bg-stone-950/95">
+      <div className="mx-auto max-w-5xl overflow-x-auto px-4 sm:px-6 lg:px-8">
+        <nav className="flex min-w-max items-stretch gap-1" aria-label="Character creation steps">
+          {BUILDER_STEPS.map((entry, index) => {
+            const active = entry === step;
+            const meta = STEP_META[entry];
+            return (
+              <button
+                key={entry}
+                type="button"
+                onClick={() => onStepChange(entry)}
+                className={`relative px-4 py-4 text-left transition ${active ? "text-stone-100" : "text-stone-500 hover:text-stone-300"}`}
+              >
+                <span className="mr-2 text-[10px] font-bold text-stone-600">{index + 1}.</span>
+                <span className="text-xs font-semibold uppercase tracking-wider">{meta.title}</span>
+                {active && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-amber-400" />}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
+  );
+}
+
+function BuilderFooter({ step, onStepChange, canCreate }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void; canCreate: boolean }) {
+  const index = BUILDER_STEPS.indexOf(step);
+  const previous = index > 0 ? BUILDER_STEPS[index - 1] : null;
+  const next = index < BUILDER_STEPS.length - 1 ? BUILDER_STEPS[index + 1] : null;
+  return (
+    <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-stone-800 bg-stone-950/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+        <button type="button" disabled={!previous} onClick={() => previous && onStepChange(previous)} className="rounded-xl border border-stone-700 px-5 py-2.5 text-sm font-semibold text-stone-300 hover:bg-stone-900 disabled:opacity-30">
+          Back
+        </button>
+        <div className="text-xs text-stone-600">{index + 1} / {BUILDER_STEPS.length}</div>
+        {next ? (
+          <button type="button" onClick={() => onStepChange(next)} className="rounded-xl bg-stone-100 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300">
+            Next: {STEP_META[next].title}
+          </button>
+        ) : (
+          <button type="button" onClick={() => canCreate && document.querySelector<HTMLButtonElement>('button[data-create-character="true"]')?.click()} disabled={!canCreate} className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300 disabled:opacity-40">
+            Create Character
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }: { races: string[]; subraces: Array<{ name: string; parentRace: string }>; selectedRace: string; selectedSubrace: string; onSelect: (race: string, subrace?: string) => void }) {
   const [expanded, setExpanded] = useState(selectedRace);
