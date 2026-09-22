@@ -19,7 +19,7 @@ const tabs: { id: Tab; label: string }[] = [{ id: "overview", label: "Overview" 
 
 export default function CharacterPage() {
   const params = useParams<{ id: string }>();
-  const { characters, accessMode, databaseStatus, addSpell, removeSpell, toggleSpellPrepared, addInventoryItem, removeInventoryItem, changeInventoryQuantity, toggleInventoryEquipped, addFeature, removeFeature, revokeOverride, updateCharacter, spellCatalogue, featureCatalogue, featCatalogue, itemCatalogue, catalogue, raceRules, backgroundRules, optionalFeatureCatalogue } = useCharacters();
+  const { characters, accessMode, databaseStatus, addSpell, removeSpell, toggleSpellPrepared, addInventoryItem, removeInventoryItem, changeInventoryQuantity, toggleInventoryEquipped, addFeature, removeFeature, revokeOverride, updateCharacter, spellCatalogue, featureCatalogue, featCatalogue, itemCatalogue, catalogue, classRules, raceRules, backgroundRules, optionalFeatureCatalogue } = useCharacters();
   const [tab, setTab] = useState<Tab>("overview");
   const character = characters.find((entry) => entry.id === params.id);
   const [showRestricted, setShowRestricted] = useState(false);
@@ -42,14 +42,14 @@ export default function CharacterPage() {
   const charItems = useMemo(() => character ? character.inventory.map((entry) => { const item = libraryItems.find((candidate) => candidate.id === entry.itemId); return item ? { item, entry } : null; }).filter((x): x is { item: Item; entry: (typeof character.inventory)[number] } => Boolean(x)) : [], [character, libraryItems]);
   if (!character) return <div className="mx-auto max-w-5xl px-4 py-12"><SectionCard title="Character not found"><Link href="/characters" className="text-amber-400">Back to Characters</Link></SectionCard></div>;
 
-  const accessibleSpells = getAvailableSpells(character, true, librarySpells);
+  const accessibleSpells = getAvailableSpells(character, true, librarySpells, classRules);
   const accessibleFeatures = featureCatalogue.length ? featureCatalogue.filter((feature) => isFeatureNormallyAvailable(character, feature) || hasOverride(character, "feature", feature.id)) : getAvailableFeatures(character);
   const accessibleItems = getAvailableItems(character, true, libraryItems);
-  const maxSpellLevel = getMaxSpellLevel(character);
-  const castingMode = getSpellcastingMode(character);
-  const spellSummary = getSpellcastingSummary(character);
-  const knownLimit = getSpellsKnown(character.className, character.level);
-  const preparedLimit = getPreparedSpellCount(character);
+  const maxSpellLevel = getMaxSpellLevel(character, classRules);
+  const castingMode = getSpellcastingMode(character, classRules);
+  const spellSummary = getSpellcastingSummary(character, classRules);
+  const knownLimit = getSpellsKnown(character.className, character.level, classRules);
+  const preparedLimit = getPreparedSpellCount(character, classRules);
   const spellLevelForEntry = (entry: (typeof character.spells)[number]) => librarySpells.find((spell) => spell.id === entry.spellId)?.level ?? spells.find((spell) => spell.id === entry.spellId)?.level ?? 1;
   const addedCantrips = character.spells.filter((entry) => spellLevelForEntry(entry) === 0).length;
   const addedLevelledSpells = character.spells.filter((entry) => spellLevelForEntry(entry) > 0).length;
@@ -298,13 +298,13 @@ export default function CharacterPage() {
             const matching = librarySpells
               .filter((spell) => !character.spells.some((entry) => entry.spellId === spell.id))
               .filter((spell) => (spell.name + " " + spell.description).toLowerCase().includes(search.toLowerCase()))
-              .filter((spell) => (accessMode === "dm" && showRestricted) || isSpellNormallyAvailable(character, spell) || hasOverride(character, "spell", spell.id));
+              .filter((spell) => (accessMode === "dm" && showRestricted) || isSpellNormallyAvailable(character, spell, classRules) || hasOverride(character, "spell", spell.id));
             const visible = matching.slice(0, 120);
             return <><div className="mb-3 text-xs text-stone-600">Showing {visible.length} of {matching.length} matching spells{matching.length > 120 ? " • refine your search to see more" : ""}.</div><div className="grid gap-3 md:grid-cols-2">{visible.map((spell) => {
               const allowed = isSpellNormallyAvailable(character, spell) || hasOverride(character, "spell", spell.id);
               const capacityAvailable = spell.level === 0 ? addedCantrips < spellSummary.cantripsKnown : knownLimit === null || addedLevelledSpells < knownLimit;
               const overrideButton = !allowed && accessMode === "dm";
-              const status = !allowed ? getSpellRestrictionReason(character, spell) : capacityAvailable ? "Available" : spell.level === 0 ? "Cantrip limit reached (" + spellSummary.cantripsKnown + ")" : "Spells known limit reached (" + knownLimit + ")";
+              const status = !allowed ? getSpellRestrictionReason(character, spell, classRules) : capacityAvailable ? "Available" : spell.level === 0 ? "Cantrip limit reached (" + spellSummary.cantripsKnown + ")" : "Spells known limit reached (" + knownLimit + ")";
               return <LibraryCard key={spell.id} title={spell.name} meta={(spell.level === 0 ? "Cantrip" : "Level " + spell.level) + " • " + spell.school + (spell.source ? " • " + spell.source : "")} description={spell.description} status={status} tone={allowed && capacityAvailable ? "good" : "warn"} actions={allowed ? <button disabled={!capacityAvailable} onClick={() => addSpell(character.id, spell.id, false)} className={capacityAvailable ? "rounded-xl border border-stone-700 px-3 py-2 text-sm" : "cursor-not-allowed rounded-xl border border-stone-800 px-3 py-2 text-sm text-stone-600"}>+ Add</button> : overrideButton ? <button onClick={() => addSpell(character.id, spell.id, false, true)} className="rounded-xl border border-amber-700 px-3 py-2 text-sm text-amber-300">DM Grant</button> : <span className="text-xs text-stone-600">Locked in Player Mode</span>} />;
             })}</div></>;
           })()}
