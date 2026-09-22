@@ -45,7 +45,7 @@ type DatabaseStatus = "loading" | "connected" | "error" | "local-only";
 
 type ProficiencyChoice = { count: number; options: string[] };
 type ProficiencyRules = { fixed: string[]; choices: ProficiencyChoice[] };
-type EquipmentEntry = { name: string; quantity: number };
+type EquipmentEntry = { name: string; quantity: number; choiceType?: string; special?: boolean };
 type EquipmentBundle = { label: string; items: EquipmentEntry[] };
 type EquipmentChoiceGroup = { label: string; options: EquipmentBundle[] };
 type ClassRules = {
@@ -411,7 +411,9 @@ function extractBackgroundFeature(raw: unknown): { name: string; description: st
 }
 
 function cleanEquipmentName(value: string) {
-  return catalogueText(value)
+  const rendered = catalogueText(value);
+  const firstPipe = rendered.split("|")[0];
+  return firstPipe
     .replace(/^(?:a|an|one)\s+/i, "")
     .replace(/\b(?:set of|pair of)\b/gi, "")
     .trim();
@@ -429,20 +431,49 @@ function parseEquipmentEntries(value: unknown): EquipmentEntry[] {
   if (!value || typeof value !== "object") return [];
   const object = value as Record<string, unknown>;
   if (typeof object.item === "string") {
-    return [{ name: cleanEquipmentName(object.item), quantity: Math.max(1, Number(object.quantity) || 1) }];
+    return [{
+      name: cleanEquipmentName(object.item),
+      quantity: Math.max(1, Number(object.quantity) || 1),
+    }];
   }
   if (typeof object.special === "string") {
-    return [{ name: cleanEquipmentName(object.special), quantity: 1 }];
+    return [{
+      name: cleanEquipmentName(object.special),
+      quantity: Math.max(1, Number(object.quantity) || 1),
+      special: true,
+    }];
   }
-  const nested = ["items", "equipment", "entries", "entry"].flatMap((key) => key in object ? parseEquipmentEntries(object[key]) : []);
+  if (typeof object.equipmentType === "string") {
+    const labels: Record<string, string> = {
+      weaponMartial: "Choose a martial weapon",
+      weaponSimple: "Choose a simple weapon",
+      armorLight: "Choose light armor",
+      armorMedium: "Choose medium armor",
+      armorHeavy: "Choose heavy armor",
+      instrumentMusical: "Choose a musical instrument",
+    };
+    return [{
+      name: labels[object.equipmentType] ?? `Choose ${object.equipmentType}`,
+      quantity: Math.max(1, Number(object.quantity) || 1),
+      choiceType: object.equipmentType,
+    }];
+  }
+  const nested = ["items", "equipment", "entries", "entry", "_"].flatMap((key) => key in object ? parseEquipmentEntries(object[key]) : []);
   return nested;
 }
 
 function extractStartingEquipment(raw: unknown): EquipmentChoiceGroup[] {
   if (!raw || typeof raw !== "object") return [];
   const starting = (raw as Record<string, unknown>).startingEquipment;
-  if (!Array.isArray(starting)) return [];
-  return starting.flatMap((group, groupIndex) => {
+  if (!starting) return [];
+
+  const groups = Array.isArray(starting)
+    ? starting
+    : starting && typeof starting === "object" && Array.isArray((starting as Record<string, unknown>).defaultData)
+      ? (starting as Record<string, unknown>).defaultData
+      : [];
+
+  return groups.flatMap((group, groupIndex) => {
     if (!group || typeof group !== "object") return [];
     const object = group as Record<string, unknown>;
     const optionEntries = Object.entries(object).filter(([key]) => /^[a-z]+$/.test(key));
@@ -455,9 +486,10 @@ function extractStartingEquipment(raw: unknown): EquipmentChoiceGroup[] {
         })),
       }];
     }
-    const items = parseEquipmentEntries(group);
-    return items.length
-      ? [{ label: `Starting Equipment ${groupIndex + 1}`, options: [{ label: "Included", items }] }]
+
+    const fixedItems = parseEquipmentEntries(object._ ?? group);
+    return fixedItems.length
+      ? [{ label: `Starting Equipment ${groupIndex + 1}`, options: [{ label: "Included", items: fixedItems }] }]
       : [];
   });
 }
@@ -1576,6 +1608,30 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             .eq("user_id", user.id);
 
           if (result.error) throw result.error;
+        }
+
+        if (patch.inventory !== undefined) {
+          const inventoryRows = patch.inventory.flatMap((entry) => {
+            const dbItemId = maps.itemByDbId.get(entry.itemId) ?? maps.itemByAppId.get(entry.itemId);
+            return dbItemId ? [{
+              character_id: id,
+              item_id: dbItemId,
+              quantity: Math.max(1, Number(entry.quantity) || 1),
+              equipped: Boolean(entry.equipped),
+              dm_granted: false,
+            }] : [];
+          });
+
+          const deleteResult = await supabase
+            .from("character_items")
+            .delete()
+            .eq("character_id", id);
+          if (deleteResult.error) throw deleteResult.error;
+
+          if (inventoryRows.length) {
+            const insertResult = await supabase.from("character_items").insert(inventoryRows);
+            if (insertResult.error) throw insertResult.error;
+          }
         }
 
         if (patch.optionalFeatures !== undefined) {
