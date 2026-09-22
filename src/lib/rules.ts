@@ -216,7 +216,7 @@ type FeatPrerequisiteCharacter = Pick<Character, "level" | "abilities" | "race" 
   }
 
   if (rule.spellcastingFeature === true || rule.spellcasting === true) {
-    if (getSpellcastingMode(character) === "none") return false;
+    if (getClassDefinition(character.className)?.spellcasting === "none") return false;
   }
 
   const featRule = rule.feat;
