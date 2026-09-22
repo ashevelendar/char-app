@@ -8,7 +8,7 @@ import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell"
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry } from "../../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getExpectedHitDice, getExpectedMaxHp, getNewAbilityScoreImprovementLevels, getProficiencyBonus, isFeatAvailable } from "../../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getNewAbilityScoreImprovementLevels, getProficiencyBonus, isFeatAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
@@ -152,7 +152,8 @@ function CharacterEditor({
   const [currency, setCurrency] = useState<Currency>(character.currency ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 });
   const [step, setStep] = useState<BuilderStep>("class");
 
-  const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className);
+  const subclassUnlockLevel = getClassDefinition(form.className)?.subclassUnlockLevel ?? 1;
+  const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className && form.level >= subclassUnlockLevel);
   const selectedSubclass = subclassOptions.find((entry) => entry.name === form.subclass);
   const selectedSubrace = catalogue.subraces.find((entry) => entry.name === form.subrace && entry.parentRace === form.race);
   const selectedBackgroundRules = backgroundRules[form.background];
@@ -187,7 +188,8 @@ function CharacterEditor({
       const className = catalogue.classes.includes(current.className) ? current.className : catalogue.classes[0];
       const race = catalogue.races.includes(current.race) ? current.race : catalogue.races[0] ?? "";
       const background = catalogue.backgrounds.includes(current.background) ? current.background : catalogue.backgrounds[0] ?? "";
-      const options = catalogue.subclasses.filter((entry) => entry.className === className);
+      const unlockLevel = getClassDefinition(className)?.subclassUnlockLevel ?? 1;
+      const options = catalogue.subclasses.filter((entry) => entry.className === className && current.level >= unlockLevel);
       const subclass = options.some((entry) => entry.name === current.subclass) ? current.subclass : options[0]?.name ?? "";
       const subraces = catalogue.subraces.filter((entry) => entry.parentRace === race);
       const subrace = subraces.some((entry) => entry.name === current.subrace) ? current.subrace : "";
