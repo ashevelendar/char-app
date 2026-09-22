@@ -98,6 +98,7 @@ type ContentMaps = {
   itemCatalogue: Item[];
   optionalFeatureCatalogue: OptionalFeatureDefinition[];
   classRules: Record<string, ClassRules>;
+  subclassOptionalFeatureProgression: Record<string, ClassRules["optionalFeatureProgression"]>;
   subraceByName: Map<string, string>;
   subraceByDbId: Map<string, string>;
   spellByAppId: Map<string, string>;
@@ -141,6 +142,7 @@ type CharacterContextValue = {
   itemCatalogue: Item[];
   optionalFeatureCatalogue: OptionalFeatureDefinition[];
   classRules: Record<string, ClassRules>;
+  subclassOptionalFeatureProgression: Record<string, ClassRules["optionalFeatureProgression"]>;
 };
 
 const CharacterContext = createContext<CharacterContextValue | undefined>(undefined);
@@ -675,6 +677,28 @@ function makeMaps(
     }),
   );
 
+  const subclassOptionalFeatureProgression: Record<string, ClassRules["optionalFeatureProgression"]> = Object.fromEntries(
+    subclassRows.map((row) => {
+      const raw = row.raw_data && typeof row.raw_data === "object" ? row.raw_data as Record<string, unknown> : {};
+      const progression = Array.isArray(raw.optionalfeatureProgression)
+        ? raw.optionalfeatureProgression.flatMap((entry) => {
+            if (!entry || typeof entry !== "object") return [];
+            const object = entry as Record<string, unknown>;
+            const title = typeof object.name === "string" ? object.name : "Optional Feature";
+            const featureTypes = Array.isArray(object.featureType) ? object.featureType.map(String) : [];
+            const progressionData = object.progression && typeof object.progression === "object" ? object.progression as Record<string, unknown> : {};
+            return Object.entries(progressionData).map(([level, count]) => ({
+              title,
+              featureTypes,
+              count: Math.max(0, Number(count) || 0),
+              level: Number(level) || 1,
+            }));
+          })
+        : [];
+      return [row.name, progression];
+    }),
+  );
+
   const optionalFeatureCatalogue: OptionalFeatureDefinition[] = optionalFeatureRows
     .map((row) => ({
       id: row.id,
@@ -722,6 +746,7 @@ function makeMaps(
     itemCatalogue,
     optionalFeatureCatalogue,
     classRules,
+    subclassOptionalFeatureProgression,
     raceRules,
     backgroundRules,
     spellByAppId: new Map(spells.flatMap((spell) => {
@@ -1076,6 +1101,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [featCatalogue, setFeatCatalogue] = useState<Feat[]>([]);
   const [optionalFeatureCatalogue, setOptionalFeatureCatalogue] = useState<OptionalFeatureDefinition[]>([]);
   const [classRules, setClassRules] = useState<Record<string, ClassRules>>({});
+  const [subclassOptionalFeatureProgression, setSubclassOptionalFeatureProgression] = useState<Record<string, ClassRules["optionalFeatureProgression"]>>({});
 
   useEffect(() => {
     if (!user || !supabase) {
@@ -1089,6 +1115,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       setFeatCatalogue([]);
       setOptionalFeatureCatalogue([]);
       setClassRules({});
+      setSubclassOptionalFeatureProgression({});
       setHydrated(true);
       setDatabaseStatus(supabase ? "local-only" : "error");
       return;
@@ -1111,6 +1138,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setItemCatalogue(maps.itemCatalogue);
         setOptionalFeatureCatalogue(maps.optionalFeatureCatalogue);
         setClassRules(maps.classRules);
+        setSubclassOptionalFeatureProgression(maps.subclassOptionalFeatureProgression);
 
         const profileResult = await supabase!
           .from("profiles")
