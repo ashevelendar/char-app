@@ -144,6 +144,10 @@ export interface SubraceDefinition {
   resistances?: string[];
   immunities?: string[];
   conditionImmunities?: string[];
+  languages?: { fixed: string[]; choices: Array<{ count: number; options: string[] }> };
+  skills?: { fixed: string[]; choices: Array<{ count: number; options: string[] }> };
+  tools?: { fixed: string[]; choices: Array<{ count: number; options: string[] }> };
+  traits?: Array<{ name: string; description: string }>;
 }
 
 export interface OptionalFeatureDefinition {
