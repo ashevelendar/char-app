@@ -405,7 +405,7 @@ function CharacterEditor({
                   <button type="button" onClick={() => setEquipmentMode("equipment")} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold ${equipmentMode === "equipment" ? "bg-stone-100 text-stone-950" : "text-stone-500 hover:text-stone-300"}`}>Equipment</button>
                   <button type="button" onClick={() => setEquipmentMode("gold")} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold ${equipmentMode === "gold" ? "bg-stone-100 text-stone-950" : "text-stone-500 hover:text-stone-300"}`}>Gold</button>
                 </div>
-                {equipmentMode === "gold" && <div className="mb-5 grid gap-3 sm:grid-cols-5">{(["cp","sp","ep","gp","pp"] as const).map((coin) => <NumberField key={coin} label={coin.toUpperCase()} value={currency[coin]} min={0} onChange={(value) => setCurrency((current) => ({ ...current, [coin]: value }))} />)}</div>
+                {equipmentMode === "gold" && <div className="mb-5 grid gap-3 sm:grid-cols-5">{(["cp","sp","ep","gp","pp"] as const).map((coin) => <NumberField key={coin} label={coin.toUpperCase()} value={currency[coin]} min={0} onChange={(value) => setCurrency((current) => ({ ...current, [coin]: value }))} />)}</div>}
                 {equipmentMode === "equipment" && <div className="space-y-4">
                   {[
                     ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `class-${index}`, heading: "Class equipment" })),
