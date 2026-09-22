@@ -16,6 +16,11 @@ export interface ExpertiseHistoryEntry {
   level: number;
   skills: string[];
 }
+
+export interface MagicalSecretsHistoryEntry {
+  level: number;
+  spellIds: string[];
+}
 export type SpellLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 export type AccessMode = "player" | "dm";
 export type ContentType = "spell" | "feature" | "item";
