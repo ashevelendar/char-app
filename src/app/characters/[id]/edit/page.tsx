@@ -253,6 +253,7 @@ function CharacterEditor({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Character name" value={form.name} onChange={(value) => setForm((current) => ({ ...current, name: value }))} required />
                   <Field label="Player name" value={form.playerName} onChange={(value) => setForm((current) => ({ ...current, playerName: value }))} />
+                  <NumberField label="Level" value={form.level} min={1} max={20} onChange={(value) => setForm((current) => ({ ...current, level: value }))} />
                   <SelectField label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
                     const next = catalogue.subclasses.filter((entry) => entry.className === value);
                     setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "" }));
@@ -520,7 +521,7 @@ function ChoiceGroup({ title, choices, value, onChange, exclude = [] }: { title:
   let offset = 0;
   return <div className="mt-4 space-y-3"><h4 className="text-sm font-semibold text-stone-200">{title}</h4>{choices.flatMap((choice) => Array.from({ length: choice.count }, () => {
     const slot = offset++;
-    const options = choice.options.filter((option) => !exclude.includes(option) || value[slot] === option);
+    const options = choice.options.filter((option) => (!exclude.includes(option) || value[slot] === option) && !value.some((selected, index) => index !== slot && selected === option));
     return <select key={`${title}-${slot}`} value={value[slot] ?? ""} onChange={(event) => { const next = [...value]; next[slot] = event.target.value; onChange(next); }} className="w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100"><option value="">Choose an option...</option>{options.map((option) => <option key={option}>{option}</option>)}</select>;
   }))}</div>;
 }
