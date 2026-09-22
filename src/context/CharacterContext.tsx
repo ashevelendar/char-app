@@ -35,6 +35,9 @@ import type {
   Feat,
   Feature,
   FeatureGrantHistoryEntry,
+  ExpertiseHistoryEntry,
+  MagicalSecretsHistoryEntry,
+  AsiHistoryEntry,
   HomebrewContent,
   Spell,
   SpellEntry,
@@ -169,13 +172,13 @@ const CharacterContext = createContext<CharacterContextValue | undefined>(undefi
 function normalizeSpells(value: unknown): SpellEntry[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
-    if (typeof entry === "string") return [{ spellId: entry, prepared: false }];
+    if (typeof entry === "string") return [{ spellId: entry, prepared: false, source: "legacy" as const }];
     if (entry && typeof entry === "object" && "spellId" in entry && typeof entry.spellId === "string") {
       const candidate = entry as Partial<SpellEntry> & { source?: unknown };
       const source = candidate.source === "normal" || candidate.source === "magical-secrets" || candidate.source === "dm" || candidate.source === "legacy"
         ? candidate.source
-        : undefined;
-      return [{ spellId: candidate.spellId as string, prepared: Boolean(candidate.prepared), ...(source ? { source } : {}) }];
+        : "legacy" as const;
+      return [{ spellId: candidate.spellId as string, prepared: Boolean(candidate.prepared), source }];
     }
     return [];
   });
@@ -230,6 +233,9 @@ function normalizeCharacter(value: Character): Character {
       ...(value.currency ?? {}),
     },
     accessOverrides: Array.isArray(value.accessOverrides) ? value.accessOverrides : [],
+    asiHistory: Array.isArray(value.asiHistory) ? value.asiHistory : [],
+    expertiseHistory: Array.isArray(value.expertiseHistory) ? value.expertiseHistory : [],
+    magicalSecretsHistory: Array.isArray(value.magicalSecretsHistory) ? value.magicalSecretsHistory : [],
   };
 
   const level = Math.max(1, Math.min(20, Number(merged.level) || 1));
@@ -1447,6 +1453,7 @@ function toCharacter(
   optionalFeatureRows: any[],
   homebrewRows: any[],
   overrideRows: any[],
+  progressionRows: any[],
   maps: ContentMaps,
 ): Character {
   const spellsForCharacter = spellRows
@@ -1493,6 +1500,12 @@ function toCharacter(
     .filter((entry) => entry.character_id === row.id)
     .map((entry) => entry.homebrew_content_id)
     .filter((id): id is string => typeof id === "string");
+
+  const progressionForCharacter = progressionRows.filter((entry) => entry.character_id === row.id);
+  const progressionData = (kind: string) => progressionForCharacter
+    .filter((entry) => entry.kind === kind)
+    .map((entry) => ({ level: Number(entry.level), ...(entry.data && typeof entry.data === "object" ? entry.data : {}) }))
+    .sort((a, b) => a.level - b.level);
 
   const overrides = overrideRows
     .filter((entry) => entry.character_id === row.id)
@@ -1573,6 +1586,9 @@ function toCharacter(
     spells: spellsForCharacter,
     inventory: inventoryForCharacter,
     accessOverrides: overrides,
+    asiHistory: progressionData("asi") as AsiHistoryEntry[],
+    expertiseHistory: progressionData("expertise") as ExpertiseHistoryEntry[],
+    magicalSecretsHistory: progressionData("magical-secrets") as MagicalSecretsHistoryEntry[],
     notes: row.notes ?? "",
   });
 }
@@ -1689,7 +1705,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
         const ids = (characterResult.data ?? []).map((row: any) => row.id);
 
-        const [spellResult, featureResult, itemResult, optionalFeatureResult, homebrewResult, overrideResult] = await Promise.all([
+        const [spellResult, featureResult, itemResult, optionalFeatureResult, homebrewResult, overrideResult, progressionResult] = await Promise.all([
           ids.length
             ? supabase!.from("character_spells").select("character_id,spell_id,prepared,dm_granted,source").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
@@ -1708,9 +1724,12 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           ids.length
             ? supabase!.from("character_overrides").select("character_id,content_type,content_id,reason").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
+          ids.length
+            ? supabase!.from("character_progression_history").select("character_id,kind,level,data").in("character_id", ids)
+            : Promise.resolve({ data: [], error: null }),
         ]);
 
-        for (const result of [spellResult, featureResult, itemResult, optionalFeatureResult, homebrewResult, overrideResult]) {
+        for (const result of [spellResult, featureResult, itemResult, optionalFeatureResult, homebrewResult, overrideResult, progressionResult]) {
           if (result.error) throw result.error;
         }
 
@@ -1725,6 +1744,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             optionalFeatureResult.data ?? [],
             homebrewResult.data ?? [],
             overrideResult.data ?? [],
+            progressionResult.data ?? [],
             maps,
           ),
         );
@@ -2126,6 +2146,23 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
                 dm_granted: false,
                 source: "Normal",
               })));
+            if (insertResult.error) throw insertResult.error;
+          }
+        }
+
+        if (patch.asiHistory !== undefined || patch.expertiseHistory !== undefined || patch.magicalSecretsHistory !== undefined) {
+          const currentAsi = patch.asiHistory ?? currentCharacter?.asiHistory ?? [];
+          const currentExpertise = patch.expertiseHistory ?? currentCharacter?.expertiseHistory ?? [];
+          const currentSecrets = patch.magicalSecretsHistory ?? currentCharacter?.magicalSecretsHistory ?? [];
+          const progressionRows = [
+            ...currentAsi.map((entry) => ({ character_id: id, kind: "asi", level: entry.level, data: { mode: entry.mode, ...(entry.first ? { first: entry.first } : {}), ...(entry.second ? { second: entry.second } : {}), ...(entry.featId ? { featId: entry.featId } : {}), ...(entry.featAbility ? { featAbility: entry.featAbility } : {}) } })),
+            ...currentExpertise.map((entry) => ({ character_id: id, kind: "expertise", level: entry.level, data: { skills: entry.skills } })),
+            ...currentSecrets.map((entry) => ({ character_id: id, kind: "magical-secrets", level: entry.level, data: { spellIds: entry.spellIds } })),
+          ];
+          const deleteResult = await supabase.from("character_progression_history").delete().eq("character_id", id);
+          if (deleteResult.error) throw deleteResult.error;
+          if (progressionRows.length) {
+            const insertResult = await supabase.from("character_progression_history").insert(progressionRows);
             if (insertResult.error) throw insertResult.error;
           }
         }
@@ -2808,7 +2845,8 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
       character_id: dbId,
       spell_id: spellId,
       prepared: entry.prepared,
-      source: "Migrated",
+      source: entry.source === "magical-secrets" ? "Magical Secrets" : entry.source === "normal" ? "Normal" : entry.source === "dm" ? "DM Grant" : "Migrated",
+      dm_granted: entry.source === "dm",
     }] : [];
   });
 
@@ -2872,6 +2910,11 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
 
   if (optionalFeatureRows.length) {
     const insert = await supabase.from("character_optional_features").insert(optionalFeatureRows);
+    if (insert.error) throw insert.error;
+  }
+
+  if (progressionRows.length) {
+    const insert = await supabase.from("character_progression_history").insert(progressionRows);
     if (insert.error) throw insert.error;
   }
 
