@@ -1746,6 +1746,13 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       const localPatch: Partial<Character> = { ...patch };
 
+      if (currentCharacter && (patch.race !== undefined || patch.subrace !== undefined)) {
+        const nextRace = patch.race ?? currentCharacter.race;
+        const nextSubrace = patch.subrace ?? currentCharacter.subrace;
+        const subraceRule = catalogue.subraces.find((entry) => entry.parentRace === nextRace && entry.name === nextSubrace);
+        localPatch.speed = subraceRule?.speed ?? raceRules[nextRace]?.speed ?? currentCharacter.speed;
+      }
+
       if (currentCharacter && (patch.subclass !== undefined || patch.className !== undefined || patch.level !== undefined)) {
         const nextClassName = patch.className ?? currentCharacter.className;
         const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
