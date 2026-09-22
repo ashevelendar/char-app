@@ -99,19 +99,19 @@ export const features: Feature[] = [
 ];
 
 export const items: Item[] = [
-  { id: "longsword", name: "Longsword", category: "Weapon", rarity: "Common", description: "A well-used longsword kept for emergencies and close combat.", weight: "3 lb", value: "15 gp" },
-  { id: "studded-leather", name: "Studded Leather", category: "Armour", rarity: "Common", description: "Light armour reinforced with small metal studs.", weight: "13 lb", value: "45 gp" },
+  { id: "longsword", name: "Longsword", category: "Weapon", rarity: "Common", description: "A well-used longsword kept for emergencies and close combat.", weight: "3 lb", value: "15 gp", weaponDamage: "1d8", weaponDamageVersatile: "1d10", weaponDamageType: "slashing", weaponProperties: ["Versatile"], weaponCategory: "Martial", weaponRange: "5 ft.", isWeapon: true },
+  { id: "studded-leather", name: "Studded Leather", category: "Armour", rarity: "Common", description: "Light armour reinforced with small metal studs.", weight: "13 lb", value: "45 gp", armorClass: 12, armorCategory: "Light", isArmor: true },
   { id: "healing-potion", name: "Potion of Healing", category: "Consumable", rarity: "Common", description: "A small vial of restorative magic used to recover from injuries.", weight: "0.5 lb", value: "50 gp" },
   { id: "dragon-scale", name: "Dragon Scale Pendant", category: "Wondrous Item", rarity: "Uncommon", description: "A mounted dragon scale worn as a reminder of a druidic bond with dragonkind.", weight: "—", value: "Priceless", requiresAttunement: true },
   { id: "backpack", name: "Backpack", category: "Adventuring Gear", rarity: "Common", description: "A sturdy travel pack containing basic adventuring supplies.", weight: "5 lb", value: "2 gp" },
-  { id: "quarterstaff", name: "Quarterstaff", category: "Weapon", rarity: "Common", description: "A simple wooden staff used as a walking stick or weapon.", weight: "4 lb", value: "0.2 gp" },
-  { id: "dagger", name: "Dagger", category: "Weapon", rarity: "Common", description: "A small, light blade suitable for close combat or throwing.", weight: "1 lb", value: "2 gp" },
-  { id: "shield", name: "Shield", category: "Armour", rarity: "Common", description: "A sturdy shield carried on one arm for protection.", weight: "6 lb", value: "10 gp" },
+  { id: "quarterstaff", name: "Quarterstaff", category: "Weapon", rarity: "Common", description: "A simple wooden staff used as a walking stick or weapon.", weight: "4 lb", value: "0.2 gp", weaponDamage: "1d6", weaponDamageVersatile: "1d8", weaponDamageType: "bludgeoning", weaponProperties: ["Versatile"], weaponCategory: "Simple", weaponRange: "5 ft.", isWeapon: true },
+  { id: "dagger", name: "Dagger", category: "Weapon", rarity: "Common", description: "A small, light blade suitable for close combat or throwing.", weight: "1 lb", value: "2 gp", weaponDamage: "1d4", weaponDamageType: "piercing", weaponProperties: ["Finesse", "Light", "Thrown"], weaponCategory: "Simple", weaponRange: "20/60 ft.", isWeapon: true },
+  { id: "shield", name: "Shield", category: "Armour", rarity: "Common", description: "A sturdy shield carried on one arm for protection.", weight: "6 lb", value: "10 gp", armorClass: 2, shieldBonus: 2, armorCategory: "Shield", isArmor: true, isShield: true },
   { id: "rope-hempen", name: "Hemp Rope", category: "Adventuring Gear", rarity: "Common", description: "A strong coil of hempen rope useful for climbing, tying and general adventuring.", weight: "10 lb", value: "1 gp" },
   { id: "torch", name: "Torch", category: "Adventuring Gear", rarity: "Common", description: "A simple torch that provides light when lit.", weight: "1 lb", value: "0.01 gp" },
   { id: "rations", name: "Rations", category: "Consumable", rarity: "Common", description: "Travel-ready food intended to keep an adventurer fed on the road.", weight: "2 lb", value: "0.5 gp" },
   { id: "waterskin", name: "Waterskin", category: "Adventuring Gear", rarity: "Common", description: "A leather container for carrying drinking water.", weight: "5 lb full", value: "0.2 gp" },
-  { id: "cloak-protection", name: "Cloak of Protection", category: "Wondrous Item", rarity: "Uncommon", description: "A magical cloak that improves the wearer's general defenses.", weight: "—", value: "500 gp", requiresAttunement: true },
+  { id: "cloak-protection", name: "Cloak of Protection", category: "Wondrous Item", rarity: "Uncommon", description: "A magical cloak that improves the wearer's general defenses.", weight: "—", value: "500 gp", requiresAttunement: true, bonusAc: 1 },
   { id: "ring-invisibility", name: "Ring of Invisibility", category: "Ring", rarity: "Legendary", description: "A legendary ring that can render its wearer invisible while its magic is active.", requiresAttunement: true, restricted: true },
   { id: "holy-avenger", name: "Holy Avenger", category: "Weapon", rarity: "Legendary", description: "A legendary weapon of extraordinary power. This demo catalogue treats it as DM-granted content.", requiresAttunement: true, restricted: true },
 ];
