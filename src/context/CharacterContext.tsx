@@ -723,8 +723,6 @@ function makeMaps(
     itemCatalogue,
     optionalFeatureCatalogue,
     classRules,
-    optionalFeatureCatalogue,
-    classRules,
     raceRules,
     backgroundRules,
     spellByAppId: new Map(spells.flatMap((spell) => {
@@ -1108,7 +1106,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setCatalogue(maps.catalogue);
         setRaceRules(maps.raceRules);
         setBackgroundRules(maps.backgroundRules);
-        setSpellCatalogue(maps.spellCatalogue);        setItemCatalogue(maps.itemCatalogue);        setFeatureCatalogue(maps.featureCatalogue);
+        setSpellCatalogue(maps.spellCatalogue);
+        setItemCatalogue(maps.itemCatalogue);
+        setFeatureCatalogue(maps.featureCatalogue);
         setFeatCatalogue(maps.featCatalogue);
         setItemCatalogue(maps.itemCatalogue);
         setOptionalFeatureCatalogue(maps.optionalFeatureCatalogue);
