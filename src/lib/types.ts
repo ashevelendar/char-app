@@ -156,7 +156,6 @@ export interface NewCharacterInput {
   name: string;
   race: string;
   subrace?: string;
-  subrace: string;
   className: string;
   subclass: string;
   level: number;
