@@ -151,6 +151,19 @@ export default function CharacterPage() {
             </div>
           </SectionCard>
 
+          {(subraceInfo?.traits?.length ?? 0) > 0 && (
+            <SectionCard title="Subrace traits" description="Mechanical and descriptive traits granted by the selected subrace.">
+              <div className="space-y-3">
+                {subraceInfo!.traits!.map((trait) => (
+                  <article key={trait.name} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4">
+                    <h3 className="font-semibold text-stone-200">{trait.name}</h3>
+                    <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-400">{trait.description}</p>
+                  </article>
+                ))}
+              </div>
+            </SectionCard>
+          )}
+
           {(Object.keys(speciesSenses).length > 0 || speciesResistances.length > 0 || speciesImmunities.length > 0 || speciesConditionImmunities.length > 0) && (
             <SectionCard title="Species special traits" description="Imported senses and defensive traits from the selected species and subrace.">
               <div className="grid gap-3 sm:grid-cols-2">
