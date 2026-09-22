@@ -10,6 +10,8 @@ import { useCharacters } from "../../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry } from "../../../../lib/types";
 import { getExpectedHitDice, getExpectedMaxHp, getNewAbilityScoreImprovementLevels, getProficiencyBonus } from "../../../../lib/rules";
 
+type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
+
 function getOptionalChoiceGroups(classEntries: OptionalChoiceEntry[], subclassEntries: OptionalChoiceEntry[], level: number) {
   const consolidate = (entries: OptionalChoiceEntry[]) => {
     const groups = new Map<string, { id: string; title: string; count: number; featureTypes: string[] }>();
@@ -70,6 +72,7 @@ export default function EditCharacterPage() {
       classRules={classRules}
       subclassOptionalFeatureProgression={subclassOptionalFeatureProgression}
       optionalFeatureCatalogue={optionalFeatureCatalogue}
+      itemCatalogue={itemCatalogue}
       onSave={async (patch) => { await updateCharacter(character.id, patch); router.push(`/characters/${character.id}`); }}
     />
   );
@@ -85,6 +88,7 @@ function CharacterEditor({
   classRules,
   subclassOptionalFeatureProgression,
   optionalFeatureCatalogue,
+  itemCatalogue,
   onSave,
 }: {
   character: Character;
@@ -96,6 +100,7 @@ function CharacterEditor({
   classRules: ReturnType<typeof useCharacters>["classRules"];
   subclassOptionalFeatureProgression: ReturnType<typeof useCharacters>["subclassOptionalFeatureProgression"];
   optionalFeatureCatalogue: ReturnType<typeof useCharacters>["optionalFeatureCatalogue"];
+  itemCatalogue: ReturnType<typeof useCharacters>["itemCatalogue"];
   onSave: (patch: Partial<Character>) => void | Promise<void>;
 }) {
   const [form, setForm] = useState({
