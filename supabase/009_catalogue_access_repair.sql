@@ -11,6 +11,12 @@
 
 grant usage on schema public to authenticated;
 
+-- Keep the character row compatible with the current browser client even
+-- when the older feature/resource migrations have not been run yet.
+alter table if exists public.characters
+  add column if not exists feats jsonb not null default '[]'::jsonb,
+  add column if not exists resource_uses jsonb not null default '{}'::jsonb;
+
 -- Make the item columns required by the current app available even if
 -- the 5e.tools content-model migration was not applied yet.
 alter table if exists public.items
