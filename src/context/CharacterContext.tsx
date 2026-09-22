@@ -1309,6 +1309,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         id: baseId,
         ...input,
         subrace: input.subrace ?? "",
+        inventory: input.inventory ?? [],
         level,
         hp: Math.max(0, Math.min(maxHp, input.hp || maxHp)),
         maxHp,
