@@ -7,7 +7,7 @@ import type { FormEvent } from "react";
 import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, SpellEntry } from "../../../../lib/types";
+import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, InventoryEntry, SpellEntry } from "../../../../lib/types";
 import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
@@ -38,6 +38,38 @@ function getOptionalChoiceGroups(classEntries: OptionalChoiceEntry[], subclassEn
 
 const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
 const abilityLabels: Record<AbilityKey, string> = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
+function getAsiAbilityBonuses(entry?: AsiHistoryEntry): Partial<AbilityScores> {
+  if (!entry || entry.mode === "feat") return {};
+  if (!entry.first) return {};
+  if (entry.mode === "two") return { [entry.first]: 2 };
+  if (!entry.second || entry.second === entry.first) return {};
+  return { [entry.first]: 1, [entry.second]: 1 };
+}
+
+function getAsiHistoryBonusTotal(entries: AsiHistoryEntry[]): AbilityScores {
+  return entries.reduce((total, entry) => {
+    const bonuses = getAsiAbilityBonuses(entry);
+    for (const key of abilityKeys) total[key] += bonuses[key] ?? 0;
+    return total;
+  }, { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 });
+}
+
+function parseAsiHistory(notes: string): AsiHistoryEntry[] {
+  const match = notes.match(/^ASI History:\s*(.+)$/m);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[1]) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is AsiHistoryEntry => {
+      if (!entry || typeof entry !== "object") return false;
+      const value = entry as Record<string, unknown>;
+      return typeof value.level === "number" && (value.mode === "two" || value.mode === "one" || value.mode === "feat");
+    }).sort((a, b) => a.level - b.level);
+  } catch {
+    return [];
+  }
+}
+
 
 export default function EditCharacterPage() {
   const params = useParams<{ id: string }>();
@@ -133,25 +165,28 @@ function CharacterEditor({
     try { return JSON.parse(match[1]) as Record<string, AbilityKey>; } catch { return {} as Record<string, AbilityKey>; }
   }, [character.notes]);
 
+  const initialAsiHistory = useMemo(() => parseAsiHistory(character.notes), [character.notes]);
+  const initialAsiBonuses = getAsiHistoryBonusTotal(initialAsiHistory);
+
   const getExistingFeatBonus = (ability: AbilityKey) => character.feats.reduce((total, featId) => {
     const feat = featCatalogue.find((entry) => entry.id === featId);
     return total + (feat ? (getFeatAbilityBonuses(feat, initialFeatAbilityChoices[featId])[ability] ?? 0) : 0);
   }, 0);
 
   const [baseAbilities, setBaseAbilities] = useState<AbilityScores>(() => ({
-    str: Math.max(1, character.abilities.str - (raceRules[character.race]?.abilityBonuses.str ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.str ?? 0) - getExistingFeatBonus("str")),
-    dex: Math.max(1, character.abilities.dex - (raceRules[character.race]?.abilityBonuses.dex ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.dex ?? 0) - getExistingFeatBonus("dex")),
-    con: Math.max(1, character.abilities.con - (raceRules[character.race]?.abilityBonuses.con ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.con ?? 0) - getExistingFeatBonus("con")),
-    int: Math.max(1, character.abilities.int - (raceRules[character.race]?.abilityBonuses.int ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.int ?? 0) - getExistingFeatBonus("int")),
-    wis: Math.max(1, character.abilities.wis - (raceRules[character.race]?.abilityBonuses.wis ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.wis ?? 0) - getExistingFeatBonus("wis")),
-    cha: Math.max(1, character.abilities.cha - (raceRules[character.race]?.abilityBonuses.cha ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.cha ?? 0) - getExistingFeatBonus("cha")),
+    str: Math.max(1, character.abilities.str - (raceRules[character.race]?.abilityBonuses.str ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.str ?? 0) - getExistingFeatBonus("str") - initialAsiBonuses.str),
+    dex: Math.max(1, character.abilities.dex - (raceRules[character.race]?.abilityBonuses.dex ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.dex ?? 0) - getExistingFeatBonus("dex") - initialAsiBonuses.dex),
+    con: Math.max(1, character.abilities.con - (raceRules[character.race]?.abilityBonuses.con ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.con ?? 0) - getExistingFeatBonus("con") - initialAsiBonuses.con),
+    int: Math.max(1, character.abilities.int - (raceRules[character.race]?.abilityBonuses.int ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.int ?? 0) - getExistingFeatBonus("int") - initialAsiBonuses.int),
+    wis: Math.max(1, character.abilities.wis - (raceRules[character.race]?.abilityBonuses.wis ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.wis ?? 0) - getExistingFeatBonus("wis") - initialAsiBonuses.wis),
+    cha: Math.max(1, character.abilities.cha - (raceRules[character.race]?.abilityBonuses.cha ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.cha ?? 0) - getExistingFeatBonus("cha") - initialAsiBonuses.cha),
   }));
   const [abilities, setAbilities] = useState<AbilityScores>(character.abilities);
   const [abilityMethod, setAbilityMethod] = useState<AbilityScoreMethod>("manual");
   const [skills, setSkills] = useState<string[]>(character.skills);
   const [tools, setTools] = useState<string[]>(character.tools);
   const [languages, setLanguages] = useState<string[]>(character.languages);
-  const [asiChoices, setAsiChoices] = useState<string[]>(character.feats ?? []);
+  const [asiHistory, setAsiHistory] = useState<AsiHistoryEntry[]>(initialAsiHistory);
   const [featAbilityChoices, setFeatAbilityChoices] = useState<Record<string, AbilityKey>>(initialFeatAbilityChoices);
   const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one" | "feat"; first?: AbilityKey; second?: AbilityKey }>>([]);
   const [expertiseSelections, setExpertiseSelections] = useState<string[]>(() => {
