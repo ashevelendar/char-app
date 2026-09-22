@@ -28,6 +28,8 @@ import type {
   InventoryEntry,
   Item,
   NewCharacterInput,
+  OptionalFeatureDefinition,
+  SubraceDefinition,
   Feat,
   Feature,
   Spell,
@@ -41,18 +43,34 @@ const SETTINGS_KEY = "dnd-character-manager-settings";
 
 type DatabaseStatus = "loading" | "connected" | "error" | "local-only";
 
+type ProficiencyChoice = { count: number; options: string[] };
+type ProficiencyRules = { fixed: string[]; choices: ProficiencyChoice[] };
+type ClassRules = {
+  savingThrows: string[];
+  skills: ProficiencyRules;
+  tools: ProficiencyRules;
+  languages: ProficiencyRules;
+  optionalFeatureProgression: Array<{ title: string; featureTypes: string[]; count: number; level: number }>;
+};
+
 type RaceRules = {
   abilityBonuses: Partial<AbilityScores>;
   description: string;
   source: string;
   naturalArmor?: { base: number; dexMax?: number | null };
+  languages: ProficiencyRules;
+  skills: ProficiencyRules;
+  tools: ProficiencyRules;
 };
 
 type BackgroundRules = {
   description: string;
   skills: string[];
+  skillChoices: ProficiencyChoice[];
   languages: string[];
+  languageChoices: ProficiencyChoice[];
   tools: string[];
+  toolChoices: ProficiencyChoice[];
   featureName: string;
   featureDescription: string;
 };
@@ -60,6 +78,7 @@ type BackgroundRules = {
 type Catalogue = {
   classes: string[];
   races: string[];
+  subraces: SubraceDefinition[];
   subclasses: Array<{ name: string; className: string; description?: string; source?: string }>;
   backgrounds: string[];
 };
@@ -77,6 +96,10 @@ type ContentMaps = {
   featureCatalogue: Feature[];
   featCatalogue: Feat[];
   itemCatalogue: Item[];
+  optionalFeatureCatalogue: OptionalFeatureDefinition[];
+  classRules: Record<string, ClassRules>;
+  subraceByName: Map<string, string>;
+  subraceByDbId: Map<string, string>;
   spellByAppId: Map<string, string>;
   featureByAppId: Map<string, string>;
   itemByAppId: Map<string, string>;
@@ -116,6 +139,8 @@ type CharacterContextValue = {
   featureCatalogue: Feature[];
   featCatalogue: Feat[];
   itemCatalogue: Item[];
+  optionalFeatureCatalogue: OptionalFeatureDefinition[];
+  classRules: Record<string, ClassRules>;
 };
 
 const CharacterContext = createContext<CharacterContextValue | undefined>(undefined);
@@ -222,6 +247,43 @@ function extractAbilityBonuses(raw: unknown): Partial<AbilityScores> {
     }
   }
   return result;
+}
+
+function displayProficiencyName(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+}
+
+function extractProficiencyRules(raw: unknown, field: string): ProficiencyRules {
+  const fixed: string[] = [];
+  const choices: ProficiencyChoice[] = [];
+  if (!raw || typeof raw !== "object") return { fixed, choices };
+  const value = (raw as Record<string, unknown>)[field];
+  if (!Array.isArray(value)) return { fixed, choices };
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const object = entry as Record<string, unknown>;
+    const choose = object.choose;
+    if (choose && typeof choose === "object") {
+      const choice = choose as Record<string, unknown>;
+      const from = Array.isArray(choice.from)
+        ? choice.from.map((item) => displayProficiencyName(String(item))).filter(Boolean)
+        : [];
+      choices.push({ count: Math.max(1, Number(choice.count) || 1), options: [...new Set(from)] });
+    }
+    for (const [key, enabled] of Object.entries(object)) {
+      if (key === "choose" || key === "any") continue;
+      if (enabled === true) fixed.push(displayProficiencyName(key));
+    }
+  }
+
+  return {
+    fixed: [...new Set(fixed)],
+    choices,
+  };
 }
 
 function extractProficiencyNames(raw: unknown, field: string): string[] {
@@ -369,7 +431,7 @@ function calculateArmorClass(character: Pick<Character, "abilities" | "inventory
 }
 
 function makeMaps(
-  classesRows: Array<{ id: string; name: string }>,
+  classesRows: Array<{ id: string; name: string; raw_data?: unknown }>,
   raceRows: Array<{ id: string; name: string; description?: string | null; source?: string | null; source_code?: string | null; raw_data?: unknown }>,
   subclassRows: Array<{
     id: string;
@@ -405,6 +467,8 @@ function makeMaps(
   classFeatureRows: Array<{ class_id: string; feature_id: string; required_level?: number | null }>,
   subclassFeatureRows: Array<{ subclass_id: string; feature_id: string; required_level?: number | null }>,
   featRows: Array<{ id: string; name: string; description?: string | null; prerequisite?: unknown; ability?: unknown; source?: string | null; edition?: string | null; content_key?: string | null }>,
+  subraceRows: Array<{ id: string; name: string; race_id: string; race_name?: string | null; description?: string | null; source?: string | null; source_code?: string | null; raw_data?: unknown }>,
+  optionalFeatureRows: Array<{ id: string; name: string; description?: string | null; feature_types?: unknown; source?: string | null; content_key?: string | null; raw_data?: unknown }>,
 ): ContentMaps {  const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
   const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));  const raceNameById = new Map(raceRows.map((row: any) => [row.id, row.name]));
   const uniqueNames = (values: string[]) => [...new Set(values.filter(Boolean))];
@@ -427,6 +491,9 @@ function makeMaps(
           description: row.description ?? "",
           source: row.source ?? row.source_code ?? "",
           naturalArmor: extractNaturalArmor(row.raw_data),
+          languages: extractProficiencyRules(row.raw_data, "languageProficiencies"),
+          skills: extractProficiencyRules(row.raw_data, "skillProficiencies"),
+          tools: extractProficiencyRules(row.raw_data, "toolProficiencies"),
         },
       ]),
   ) as Record<string, RaceRules>;
@@ -440,9 +507,12 @@ function makeMaps(
           row.name,
           {
             description: row.description ?? "",
-            skills: extractProficiencyNames(row.raw_data, "skillProficiencies"),
-            languages: extractProficiencyNames(row.raw_data, "languageProficiencies"),
-            tools: extractProficiencyNames(row.raw_data, "toolProficiencies"),
+            skills: extractProficiencyRules(row.raw_data, "skillProficiencies").fixed,
+            skillChoices: extractProficiencyRules(row.raw_data, "skillProficiencies").choices,
+            languages: extractProficiencyRules(row.raw_data, "languageProficiencies").fixed,
+            languageChoices: extractProficiencyRules(row.raw_data, "languageProficiencies").choices,
+            tools: extractProficiencyRules(row.raw_data, "toolProficiencies").fixed,
+            toolChoices: extractProficiencyRules(row.raw_data, "toolProficiencies").choices,
             featureName: feature.name,
             featureDescription: feature.description,
           },
@@ -572,6 +642,61 @@ function makeMaps(
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const classRules: Record<string, ClassRules> = Object.fromEntries(
+    classesRows.map((row) => {
+      const raw = row.raw_data && typeof row.raw_data === "object" ? row.raw_data as Record<string, unknown> : {};
+      const starting = raw.startingProficiencies;
+      const savingThrows = Array.isArray(raw.proficiency)
+        ? raw.proficiency.map((entry) => displayProficiencyName(String(entry)))
+        : [];
+      const progression = Array.isArray(raw.optionalfeatureProgression)
+        ? raw.optionalfeatureProgression.flatMap((entry) => {
+            if (!entry || typeof entry !== "object") return [];
+            const object = entry as Record<string, unknown>;
+            const title = typeof object.name === "string" ? object.name : "Optional Feature";
+            const featureTypes = Array.isArray(object.featureType) ? object.featureType.map(String) : [];
+            const progressionData = object.progression && typeof object.progression === "object" ? object.progression as Record<string, unknown> : {};
+            return Object.entries(progressionData).map(([level, count]) => ({
+              title,
+              featureTypes,
+              count: Math.max(0, Number(count) || 0),
+              level: Number(level) || 1,
+            }));
+          })
+        : [];
+      return [row.name, {
+        savingThrows,
+        skills: extractProficiencyRules(starting, "skills"),
+        tools: extractProficiencyRules(starting, "tools"),
+        languages: extractProficiencyRules(starting, "languages"),
+        optionalFeatureProgression: progression,
+      }];
+    }),
+  );
+
+  const optionalFeatureCatalogue: OptionalFeatureDefinition[] = optionalFeatureRows
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description ?? "",
+      featureTypes: Array.isArray(row.feature_types) ? row.feature_types.map(String) : [],
+      source: row.source ?? "",
+      contentKey: row.content_key ?? undefined,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const subraces: SubraceDefinition[] = subraceRows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    parentRace: row.race_name ?? raceNameById.get(row.race_id) ?? "",
+    description: row.description ?? "",
+    source: row.source ?? row.source_code ?? "",
+    abilityBonuses: extractAbilityBonuses(row.raw_data),
+  })).filter((row) => row.name && row.parentRace);
+
+  const subraceByName = new Map(subraces.map((row) => [row.name, row.id]));
+  const subraceByDbId = new Map(subraces.map((row) => [row.id, row.name]));
+
   const featCatalogue: Feat[] = featRows
     .map((row) => ({
       id: row.id,
@@ -594,6 +719,10 @@ function makeMaps(
     featureCatalogue,
     featCatalogue,
     itemCatalogue,
+    optionalFeatureCatalogue,
+    classRules,
+    optionalFeatureCatalogue,
+    classRules,
     raceRules,
     backgroundRules,
     spellByAppId: new Map(spells.flatMap((spell) => {
@@ -616,6 +745,8 @@ function makeMaps(
     spellByDbId: canonicalIdByDbId,
     featureByDbId: reverseByName(featureRows, features),
     itemByDbId: reverseByName(itemRows, items),
+    subraceByName,
+    subraceByDbId,
     optionalFeatureByDbId: new Map(
       optionalFeatureRows.flatMap((row) =>
         row.content_key ? [[row.id, row.content_key] as const] : [],
@@ -625,6 +756,7 @@ function makeMaps(
     catalogue: {
       classes: uniqueNames(classesRows.map((row) => row.name)),
       races: uniqueNames(raceRows.map((row) => row.name)),
+      subraces,
       subclasses: Array.from(
         new Map(
           subclassRows
@@ -675,19 +807,21 @@ async function loadContentMaps(): Promise<ContentMaps> {
     featuresResult,
     itemsResult,
     optionalFeaturesResult,
+    subracesResult,
     spellClassesResult,
     spellSubclassesResult,
     spellRacesResult,
     classFeaturesResult,
     subclassFeaturesResult,
     featsResult,
-  ] = await Promise.all([    supabase.from("classes").select("id,name").is("owner_id", null),
+  ] = await Promise.all([    supabase.from("classes").select("id,name,raw_data").is("owner_id", null).eq("edition", "2014"),
     supabase.from("races").select("id,name,description,source,source_code,raw_data").is("owner_id", null).eq("edition", "2014"),    supabase.from("subclasses").select("id,name,class_id,description,source,source_code,edition,raw_data").is("owner_id", null).eq("edition", "2014"),
     supabase.from("backgrounds").select("id,name,description,source,source_code,raw_data").is("owner_id", null).eq("edition", "2014"),
     supabase.from("spells").select("id,name,level,school,casting_time,range,duration,description,higher_levels,source,source_code,edition,content_key").is("owner_id", null).eq("edition", "2014"),
     supabase.from("features").select("id,name,description,source,source_code,source_type,required_level,edition,raw_data").is("owner_id", null).eq("edition", "2014"),
-    supabase.from("items").select("id,name,category,rarity,description,weight,value,requires_attunement,minimum_level,raw_data").is("owner_id", null),
-    supabase.from("optional_features").select("id,content_key").is("owner_id", null),
+    supabase.from("items").select("id,name,category,rarity,description,weight,value,requires_attunement,minimum_level,raw_data").is("owner_id", null).eq("edition", "2014"),
+    supabase.from("optional_features").select("id,name,description,feature_types,source,content_key,raw_data").is("owner_id", null).eq("edition", "2014"),
+    supabase.from("subraces").select("id,name,race_id,race_name,description,source,source_code,raw_data").is("owner_id", null).eq("edition", "2014"),
     supabase.from("spell_classes").select("spell_id,class_id"),
     supabase.from("spell_subclasses").select("spell_id,subclass_id"),
     supabase.from("spell_races").select("spell_id,race_id"),
@@ -731,6 +865,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
     ["features", featuresResult],
     ["items", itemsResult],
     ["optional_features", safeOptionalFeaturesResult],
+    ["subraces", subracesResult],
     ["spell_classes", spellClassesResult],
     ["spell_subclasses", spellSubclassesResult],
     ["spell_races", spellRacesResult],
@@ -764,6 +899,7 @@ async function loadContentMaps(): Promise<ContentMaps> {
     features: featuresResult.data ?? [],
     items: itemsResult.data ?? [],
     optionalFeatures: optionalFeaturesData,
+    subraces: subracesResult.data ?? [],
     spellClasses: spellClassesResult.data ?? [],
     spellSubclasses: spellSubclassesResult.data ?? [],
     spellRaces: spellRacesResult.data ?? [],
@@ -802,6 +938,8 @@ async function loadContentMaps(): Promise<ContentMaps> {
     rows.classFeatures,
     rows.subclassFeatures,
     rows.feats,
+    rows.subraces,
+    rows.optionalFeatures,
   );
 }
 
@@ -929,24 +1067,29 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [accessMode, setAccessModeState] = useState<AccessMode>("player");
   const [hydrated, setHydrated] = useState(false);
   const [databaseStatus, setDatabaseStatus] = useState<DatabaseStatus>("loading");
-  const [catalogue, setCatalogue] = useState<Catalogue>({ classes: [], races: [], subclasses: [], backgrounds: [] });
+  const [catalogue, setCatalogue] = useState<Catalogue>({ classes: [], races: [], subraces: [], subclasses: [], backgrounds: [] });
   const [raceRules, setRaceRules] = useState<Record<string, RaceRules>>({});
   const [backgroundRules, setBackgroundRules] = useState<Record<string, BackgroundRules>>({});
   const [spellCatalogue, setSpellCatalogue] = useState<Spell[]>([]);
   const [itemCatalogue, setItemCatalogue] = useState<Item[]>([]);
   const [featureCatalogue, setFeatureCatalogue] = useState<Feature[]>([]);
   const [featCatalogue, setFeatCatalogue] = useState<Feat[]>([]);
+  const [optionalFeatureCatalogue, setOptionalFeatureCatalogue] = useState<OptionalFeatureDefinition[]>([]);
+  const [classRules, setClassRules] = useState<Record<string, ClassRules>>({});
 
   useEffect(() => {
     if (!user || !supabase) {
       setCharacters([]);
-      setCatalogue({ classes: [], races: [], subclasses: [], backgrounds: [] });
+      setCatalogue({ classes: [], races: [], subraces: [], subclasses: [], backgrounds: [] });
       setRaceRules({});
       setBackgroundRules({});
       setSpellCatalogue([]);
       setItemCatalogue([]);
       setFeatureCatalogue([]);
-      setFeatCatalogue([]);      setHydrated(true);
+      setFeatCatalogue([]);
+      setOptionalFeatureCatalogue([]);
+      setClassRules({});
+      setHydrated(true);
       setDatabaseStatus(supabase ? "local-only" : "error");
       return;
     }
@@ -963,6 +1106,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setBackgroundRules(maps.backgroundRules);
         setSpellCatalogue(maps.spellCatalogue);        setItemCatalogue(maps.itemCatalogue);        setFeatureCatalogue(maps.featureCatalogue);
         setFeatCatalogue(maps.featCatalogue);
+        setItemCatalogue(maps.itemCatalogue);
+        setOptionalFeatureCatalogue(maps.optionalFeatureCatalogue);
+        setClassRules(maps.classRules);
 
         const profileResult = await supabase!
           .from("profiles")
