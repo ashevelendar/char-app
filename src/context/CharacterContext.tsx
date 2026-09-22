@@ -1532,15 +1532,18 @@ function toCharacter(
       : [];
   });
 
-  const featureProvenance = characterFeatures.flatMap((entry) => {
+  const featureProvenance: FeatureGrantHistoryEntry[] = [];
+  for (const entry of characterFeatures) {
     const featureId = maps.featureByDbId.get(entry.feature_id);
-    if (!featureId) return [];
+    if (!featureId) continue;
     const source = String(entry.source ?? "").toLowerCase();
-    if (Boolean(entry.dm_granted) || source.includes("dm")) return [{ featureId, source: "dm" as const }];
-    if (source.includes("manual")) return [{ featureId, source: "manual" as const }];
-    if (source.includes("automatic")) return [{ featureId, source: "automatic" as const }];
-    return [{ featureId, source: "legacy" as const }];
-  });
+    const grantSource: FeatureGrantSource =
+      Boolean(entry.dm_granted) || source.includes("dm") ? "dm" :
+      source.includes("manual") ? "manual" :
+      source.includes("automatic") ? "automatic" :
+      "legacy";
+    featureProvenance.push({ featureId, source: grantSource });
+  }
 
   const raceName = relationName(row.race);
   const storedAbilities: AbilityScores = {
