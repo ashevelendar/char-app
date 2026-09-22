@@ -1265,7 +1265,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         hitDice: getExpectedHitDice(input.className, level),
         proficiencyBonus: getProficiencyBonus(level),
         tempHp: 0,
-        savingThrows: [],
+        savingThrows: input.savingThrows ?? [],
         skills: input.skills ?? [],
         tools: input.tools ?? [],
         languages: input.languages ?? [],
