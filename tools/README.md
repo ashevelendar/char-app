@@ -62,7 +62,6 @@ Run the catalogue in this order so parent relationships and spell/class links re
 8. `items --sources all`
 9. `optionalfeatures --sources all`
 10. `feats --sources all`
-8. `items --sources all`
 
 All imports are upserts on `content_key`, so rerunning them is safe. Rerun spells after the full class catalogue is present so class links are rebuilt against all imported classes. The importer now uses the canonical `data/spells/sources.json` mapping for normal class spell lists; optional/variant spell-list metadata remains in each spell's `raw_data` for a future optional-feature table.
 
