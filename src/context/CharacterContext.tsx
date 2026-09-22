@@ -623,6 +623,8 @@ function extractRequiredFeatureId(
     "prerequisiteFeatures",
     "featurePrerequisite",
     "featurePrerequisites",
+    "prerequisite",
+    "prerequisites",
   ]);
   const resolve = (value: unknown): string | undefined => {
     if (typeof value === "string") {
