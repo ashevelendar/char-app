@@ -1685,6 +1685,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         maxHp,
         hitDice: getExpectedHitDice(input.className, level, classRules),
         proficiencyBonus: getProficiencyBonus(level),
+        speed: input.speed ?? catalogue.subraces.find((entry) => entry.parentRace === input.race && entry.name === (input.subrace ?? ""))?.speed ?? raceRules[input.race]?.speed ?? 30,
         tempHp: 0,
         savingThrows: input.savingThrows ?? [],
         skills: input.skills ?? [],
