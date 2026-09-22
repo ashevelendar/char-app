@@ -88,7 +88,7 @@ test("ability modifiers use floor((score - 10) / 2)", () => {
 test("HP progression uses class hit die and Constitution", () => {
   assert.equal(rules.getExpectedMaxHp("Wizard", 1, 10), 6);
   assert.equal(rules.getExpectedMaxHp("Wizard", 5, 14), 32);
-  assert.equal(rules.getExpectedMaxHp("Fighter", 5, 14), 40);
+  assert.equal(rules.getExpectedMaxHp("Fighter", 5, 14), 44);
 });
 
 test("hit dice track class hit die and level", () => {
