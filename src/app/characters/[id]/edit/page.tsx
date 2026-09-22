@@ -8,7 +8,7 @@ import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell"
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, SpellEntry } from "../../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
@@ -127,20 +127,31 @@ function CharacterEditor({
     notes: character.notes,
   });
 
+  const initialFeatAbilityChoices = useMemo(() => {
+    const match = character.notes.match(/^Feat Ability Choices: (.+)$/m);
+    if (!match) return {} as Record<string, AbilityKey>;
+    try { return JSON.parse(match[1]) as Record<string, AbilityKey>; } catch { return {} as Record<string, AbilityKey>; }
+  }, [character.notes]);
+
+  const getExistingFeatBonus = (ability: AbilityKey) => character.feats.reduce((total, featId) => {
+    const feat = featCatalogue.find((entry) => entry.id === featId);
+    return total + (feat ? (getFeatAbilityBonuses(feat, initialFeatAbilityChoices[featId])[ability] ?? 0) : 0);
+  }, 0);
+
   const [baseAbilities, setBaseAbilities] = useState<AbilityScores>(() => ({
-    str: Math.max(1, character.abilities.str - (raceRules[character.race]?.abilityBonuses.str ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.str ?? 0)),
-    dex: Math.max(1, character.abilities.dex - (raceRules[character.race]?.abilityBonuses.dex ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.dex ?? 0)),
-    con: Math.max(1, character.abilities.con - (raceRules[character.race]?.abilityBonuses.con ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.con ?? 0)),
-    int: Math.max(1, character.abilities.int - (raceRules[character.race]?.abilityBonuses.int ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.int ?? 0)),
-    wis: Math.max(1, character.abilities.wis - (raceRules[character.race]?.abilityBonuses.wis ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.wis ?? 0)),
-    cha: Math.max(1, character.abilities.cha - (raceRules[character.race]?.abilityBonuses.cha ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.cha ?? 0)),
+    str: Math.max(1, character.abilities.str - (raceRules[character.race]?.abilityBonuses.str ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.str ?? 0) - getExistingFeatBonus("str")),
+    dex: Math.max(1, character.abilities.dex - (raceRules[character.race]?.abilityBonuses.dex ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.dex ?? 0) - getExistingFeatBonus("dex")),
+    con: Math.max(1, character.abilities.con - (raceRules[character.race]?.abilityBonuses.con ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.con ?? 0) - getExistingFeatBonus("con")),
+    int: Math.max(1, character.abilities.int - (raceRules[character.race]?.abilityBonuses.int ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.int ?? 0) - getExistingFeatBonus("int")),
+    wis: Math.max(1, character.abilities.wis - (raceRules[character.race]?.abilityBonuses.wis ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.wis ?? 0) - getExistingFeatBonus("wis")),
+    cha: Math.max(1, character.abilities.cha - (raceRules[character.race]?.abilityBonuses.cha ?? 0) - (catalogue.subraces.find((entry) => entry.name === character.subrace && entry.parentRace === character.race)?.abilityBonuses.cha ?? 0) - getExistingFeatBonus("cha")),
   }));
   const [abilities, setAbilities] = useState<AbilityScores>(character.abilities);
   const [abilityMethod, setAbilityMethod] = useState<AbilityScoreMethod>("manual");
   const [skills, setSkills] = useState<string[]>(character.skills);
   const [tools, setTools] = useState<string[]>(character.tools);
   const [languages, setLanguages] = useState<string[]>(character.languages);
-  const [asiChoices, setAsiChoices] = useState<string[]>(character.feats ?? []);
+  const [asiChoices, setAsiChoices] = useState<string[]>(character.feats ?? []);\n  const [featAbilityChoices, setFeatAbilityChoices] = useState<Record<string, AbilityKey>>(initialFeatAbilityChoices);
   const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>>([]);
   const [expertiseSelections, setExpertiseSelections] = useState<string[]>(() => {
     const match = character.notes.match(/^Expertise:\s*(.+)$/m);
@@ -256,7 +267,7 @@ function CharacterEditor({
       }
     });
     return next;
-  }, [abilities, newAsiLevels, asiAbilityChoices]);
+  }, [abilities, newAsiLevels, asiAbilityChoices, asiChoices, featCatalogue, featAbilityChoices]);
 
   const expertiseLevels = useMemo(
     () => featureCatalogue
