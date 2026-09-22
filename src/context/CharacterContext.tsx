@@ -2415,7 +2415,15 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           const accessOverrides = !featureAllowed && override && accessMode === "dm" && !hasOverride(entry, "feature", featureId)
             ? [...entry.accessOverrides, { type: "feature" as const, contentId: featureId, reason: "Granted by DM" }]
             : entry.accessOverrides;
-          return { ...entry, features: [...entry.features, featureId], accessOverrides };
+          return {
+            ...entry,
+            features: [...entry.features, featureId],
+            featureProvenance: [
+              ...entry.featureProvenance.filter((grant) => grant.featureId !== featureId),
+              { featureId, source: !featureAllowed && override && accessMode === "dm" ? "dm" : "manual" },
+            ],
+            accessOverrides,
+          };
         }));
       }
 
@@ -2429,7 +2437,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             character_id: characterId,
             feature_id: dbFeatureId,
             dm_granted: !featureAllowed && override,
-            source: !featureAllowed && override ? "DM Grant" : "Normal",
+            source: !featureAllowed && override ? "DM Grant" : "Manual",
           }, { onConflict: "character_id,feature_id" });
 
           if (result.error) throw result.error;
@@ -2580,7 +2588,11 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     removeFeature: async (characterId, featureId) => {
       setCharacters((current) => current.map((character) =>
         character.id === characterId
-          ? { ...character, features: character.features.filter((id) => id !== featureId) }
+          ? {
+              ...character,
+              features: character.features.filter((id) => id !== featureId),
+              featureProvenance: character.featureProvenance.filter((entry) => entry.featureId !== featureId),
+            }
           : character,
       ));
 
