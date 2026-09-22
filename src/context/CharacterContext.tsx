@@ -653,18 +653,38 @@ function makeMaps(
     preferredRows(backgroundRows)
       .filter((row, index, rows) => rows.findIndex((candidate) => candidate.name === row.name) === index)
       .map((row) => {
-        const feature = extractBackgroundFeature(row.raw_data);
+        const raw = row.raw_data && typeof row.raw_data === "object" ? row.raw_data as Record<string, unknown> : {};
+        const feature = extractBackgroundFeature(raw);
+        const skillRules = extractProficiencyRules(raw, "skillProficiencies");
+        const languageRules = extractProficiencyRules(raw, "languageProficiencies");
+        const alternateLanguageRules = extractProficiencyRules(raw, "languages");
+        const toolRules = extractProficiencyRules(raw, "toolProficiencies");
+        const languageText = catalogueText(raw.entries);
+        const textLanguageMatch = languageText.match(/\\b(two|one|three|four|five|six)\\s+of\\s+your\\s+choice\\b/i);
+        const textLanguageCount = textLanguageMatch
+          ? ({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 }[textLanguageMatch[1].toLowerCase()] ?? 0)
+          : 0;
+        const languageChoices = languageRules.choices.length
+          ? languageRules.choices
+          : alternateLanguageRules.choices.length
+            ? alternateLanguageRules.choices
+            : textLanguageCount > 0
+              ? [{ count: textLanguageCount, options: LANGUAGE_OPTIONS_2014 }]
+              : [];
+        const lore = row.description?.trim()
+          || catalogueText(raw.fluff)
+          || catalogueText(raw.entries);
         return [
           row.name,
           {
-            description: row.description ?? "",
-            skills: extractProficiencyRules(row.raw_data, "skillProficiencies").fixed,
-            skillChoices: extractProficiencyRules(row.raw_data, "skillProficiencies").choices,
-            languages: extractProficiencyRules(row.raw_data, "languageProficiencies").fixed,
-            languageChoices: extractProficiencyRules(row.raw_data, "languageProficiencies").choices,
-            tools: extractProficiencyRules(row.raw_data, "toolProficiencies").fixed,
-            toolChoices: extractProficiencyRules(row.raw_data, "toolProficiencies").choices,
-            startingEquipment: extractStartingEquipment(row.raw_data),
+            description: lore,
+            skills: skillRules.fixed,
+            skillChoices: skillRules.choices,
+            languages: [...new Set([...languageRules.fixed, ...alternateLanguageRules.fixed])],
+            languageChoices,
+            tools: toolRules.fixed,
+            toolChoices: toolRules.choices,
+            startingEquipment: extractStartingEquipment(raw),
             featureName: feature.name,
             featureDescription: feature.description,
           },
