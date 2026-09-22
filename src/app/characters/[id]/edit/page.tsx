@@ -605,7 +605,14 @@ function CharacterEditor({
     if (currentStep === "species") {
       if (!form.race) return false;
       const hasSubraces = catalogue.subraces.some((entry) => entry.parentRace === form.race);
-      return !hasSubraces || Boolean(form.subrace);
+      if (hasSubraces && !form.subrace) return false;
+      const subrace = catalogue.subraces.find((entry) => entry.name === form.subrace && entry.parentRace === form.race);
+      const skillSlots = subrace?.skills?.choices.reduce((total, choice) => total + choice.count, 0) ?? 0;
+      const toolSlots = subrace?.tools?.choices.reduce((total, choice) => total + choice.count, 0) ?? 0;
+      const languageSlots = subrace?.languages?.choices.reduce((total, choice) => total + choice.count, 0) ?? 0;
+      return subraceSkillSelections.filter(Boolean).length === skillSlots
+        && subraceToolSelections.filter(Boolean).length === toolSlots
+        && subraceLanguageSelections.filter(Boolean).length === languageSlots;
     }
     return true;
   };
