@@ -378,7 +378,7 @@ export default function NewCharacterPage() {
                 <div className="space-y-3">
                   {featureCatalogue
                     .filter((feature) => feature.requiredLevel <= form.level && feature.className === form.className && (!feature.subclassName || feature.subclassName === form.subclass))
-                    .filter((feature) => !/gain a feature from your|gain a feature from the/i.test(feature.description))
+                    .filter((feature) => !/gain a feature from your|gain a feature from the|optional feature/i.test(feature.description))
                     .map((feature) => (
                       <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4">
                         <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Level {feature.requiredLevel}</Badge><Badge tone={feature.sourceType === "subclass" ? "warn" : "neutral"}>{feature.sourceType === "subclass" ? "Subclass" : "Class"}</Badge></div>
