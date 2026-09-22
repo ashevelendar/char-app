@@ -548,7 +548,7 @@ function CharacterEditor({
                     if (newIndex >= 0) {
                       setAsiAbilityChoices((current) => {
                         const next = [...current];
-                        next[newIndex] = {};
+                        next[newIndex] = { mode: "two" };
                         return next;
                       });
                     }
@@ -955,7 +955,7 @@ function AsiSelectionSection({
             onChange={(event) => {
               if (event.target.value === "feat") {
                 const next = [...abilityChoices];
-                next[index] = {};
+                next[index] = { mode: "two" };
                 onAbilityChoicesChange(next);
               } else {
                 if (absoluteIndex >= 0) onFeatChange(absoluteIndex, "");
