@@ -141,6 +141,7 @@ export const defaultCharacter: Character = {
   languages: ["Common", "Draconic", "Druidic", "Lizardfolk"],
   feats: [],
   optionalFeatures: [],
+  homebrew: [],
   features: ["druidic", "wild-shape", "dragon-affinity", "draconic-speech", "dragon-form", "lizardfolk-bite", "lizardfolk-hold-breath"],
   spells: [
     { spellId: "guidance", prepared: true },
