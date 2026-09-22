@@ -1071,7 +1071,7 @@ function AsiSelectionSection({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">Level {level}</h3>
             <Badge>{level <= characterLevel ? "Existing ASI" : "New ASI"}</Badge>
-            {!entry?.first && mode !== "feat" && <Badge tone="warn">Needs recording</Badge>}
+            {(mode === "legacy" || (!entry?.first && mode !== "feat")) && <Badge tone="warn">Needs recording</Badge>}
           </div>
 
           <select
@@ -1089,6 +1089,7 @@ function AsiSelectionSection({
             }}
             className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm"
           >
+            <option value="legacy">Record previous choice...</option>
             <option value="two">+2 to one ability score</option>
             <option value="one">+1 to two different ability scores</option>
             <option value="feat">Choose a feat</option>
