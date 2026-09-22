@@ -1,5 +1,5 @@
 import { classDefinitions, features, items, races, spells, subclasses } from "./data";
-import type { Character, ClassRuleData, ContentType, Feat, Feature, Item, Spell } from "./types";
+import type { AbilityKey, AbilityScores, Character, ClassRuleData, ContentType, Feat, Feature, Item, Spell } from "./types";
 
 type RuleClassCatalogue = Record<string, ClassRuleData>;
 
@@ -290,11 +290,9 @@ function featPrerequisiteMet(prerequisite: unknown, character: FeatPrerequisiteC
 }
 
 
-export type FeatAbilityChoice = { featId: string; ability: AbilityKey };
-
 function normalizeAbilityKey(value: unknown): AbilityKey | null {
   if (typeof value !== "string") return null;
-  const normalized = value.toLowerCase().replace(/[\\s_-]/g, "");
+  const normalized = value.toLowerCase().replace(/[\s_-]/g, "");
   const aliases: Record<string, AbilityKey> = {
     str: "str", strength: "str", dex: "dex", dexterity: "dex", con: "con", constitution: "con",
     int: "int", intelligence: "int", wis: "wis", wisdom: "wis", cha: "cha", charisma: "cha",
