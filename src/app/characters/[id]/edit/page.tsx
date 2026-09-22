@@ -766,7 +766,6 @@ function CharacterEditor({
                 <MagicalSecretsSection
                   features={magicalSecretFeatures}
                   spells={magicalSecretSpellOptions}
-                  excluded={effectiveSelectedSpells.map((entry) => entry.spellId)}
                   history={magicalSecretHistory}
                   onChange={updateMagicalSecretHistory}
                 />
