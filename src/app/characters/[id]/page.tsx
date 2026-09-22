@@ -31,7 +31,9 @@ export default function CharacterPage() {
     return spell ? { spell, entry } : null;
   }).filter((x): x is { spell: Spell; entry: (typeof character.spells)[number] } => Boolean(x)) : [], [character, librarySpells]);
   const charFeatures = useMemo(() => character ? character.features.map((id) => featureCatalogue.find((feature) => feature.id === id) ?? features.find((feature) => feature.id === id)).filter((feature): feature is Feature => Boolean(feature)) : [], [character, featureCatalogue]);
-  const charOptionalFeatures = useMemo(() => character ? character.optionalFeatures.map((id) => optionalFeatureCatalogue.find((feature) => feature.id === id)).filter((feature): feature is (typeof optionalFeatureCatalogue)[number] => Boolean(feature)) : [], [character, optionalFeatureCatalogue]);
+  const charOptionalFeatures = useMemo(() => character ? character.optionalFeatures
+    .map((id) => optionalFeatureCatalogue.find((feature) => feature.id === id || feature.contentKey === id))
+    .filter((feature): feature is (typeof optionalFeatureCatalogue)[number] => Boolean(feature)) : [], [character, optionalFeatureCatalogue]);
   const libraryItems = databaseStatus === "connected" && itemCatalogue.length
     ? itemCatalogue
     : databaseStatus === "local-only" || databaseStatus === "error"
