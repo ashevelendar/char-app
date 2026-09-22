@@ -1148,7 +1148,13 @@ function AsiSelectionSection({
               )}
             </>
           ) : (
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="mt-3">
+              {mode === "legacy" && (
+                <p className="mb-3 rounded-xl border border-stone-700 bg-stone-950/70 p-3 text-sm leading-6 text-stone-400">
+                  This ASI predates stored history. The character's current score already includes this ASI, so record the original allocation first. After that, changing it will safely replace the old bonus.
+                </p>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
               <select
                 value={first}
                 onChange={(event) => onAsiChange(level, {
@@ -1175,6 +1181,7 @@ function AsiSelectionSection({
                 <option value="">Choose an ability...</option>
                 {abilityNames.filter(([key]) => key !== entry?.first).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
               </select>}
+              </div>
             </div>
           )}
         </div>;
