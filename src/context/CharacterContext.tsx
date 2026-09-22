@@ -348,7 +348,9 @@ function extractNaturalArmor(raw: unknown): { base: number; dexMax?: number | nu
 
 function calculateArmorClass(character: Pick<Character, "abilities" | "inventory" | "race">, itemCatalogue: Item[], raceRules: Record<string, RaceRules>): number {
   const dex = Math.floor((character.abilities.dex - 10) / 2);
-  const availableItems = [...itemCatalogue, ...items.filter((fallback) => !itemCatalogue.some((item) => item.id === fallback.id || item.name.toLowerCase() === fallback.name.toLowerCase()))];
+  const availableItems = itemCatalogue.length
+    ? itemCatalogue
+    : items;
   const equipped = character.inventory.filter((entry) => entry.equipped).map((entry) => availableItems.find((item) => item.id === entry.itemId)).filter((item): item is Item => Boolean(item));
   const armor = equipped.find((item) => item.isArmor && !item.isShield);
   const shield = equipped.find((item) => item.isShield);
