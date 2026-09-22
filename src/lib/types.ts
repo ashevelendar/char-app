@@ -128,6 +128,7 @@ export interface SubraceDefinition {
   description: string;
   source: string;
   abilityBonuses: Partial<AbilityScores>;
+  speed?: number;
 }
 
 export interface OptionalFeatureDefinition {
