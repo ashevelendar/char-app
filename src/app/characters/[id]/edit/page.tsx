@@ -191,11 +191,10 @@ function CharacterEditor({
 
   const asiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level);
 
-  function setRace(value: string) {
-    const subrace = "";
-    const abilitiesNext = applyAbilityBonuses(baseAbilities, raceRules[value]?.abilityBonuses ?? {});
-    setForm((current) => ({ ...current, race: value, subrace }));
-    setAbilities(abilitiesNext);
+  function selectRace(race: string, subrace = "") {
+    const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
+    setForm((current) => ({ ...current, race, subrace }));
+    setAbilities(applyAbilityBonuses(applyAbilityBonuses(baseAbilities, raceRules[race]?.abilityBonuses ?? {}), subraceRules?.abilityBonuses ?? {}));
   }
 
   function setSubrace(value: string) {
@@ -229,8 +228,7 @@ function CharacterEditor({
         <SectionCard title="Identity">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Character name" value={form.name} onChange={(value) => setForm((current) => ({ ...current, name: value }))} required />
-            <SelectField label="Race" value={form.race} options={catalogue.races} onChange={setRace} />
-            {catalogue.subraces.filter((entry) => entry.parentRace === form.race).length > 0 && <SelectField label="Subrace" value={form.subrace} options={catalogue.subraces.filter((entry) => entry.parentRace === form.race).map((entry) => entry.name)} onChange={setSubrace} />}
+            <div className="sm:col-span-2 lg:col-span-3"><RacePicker races={catalogue.races} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} /></div>
             <SelectField label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
               const next = catalogue.subclasses.filter((entry) => entry.className === value);
               setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "" }));
@@ -328,6 +326,29 @@ function CharacterEditor({
       </form>
     </div>
   );
+}
+
+function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }: { races: string[]; subraces: Array<{ name: string; parentRace: string }>; selectedRace: string; selectedSubrace: string; onSelect: (race: string, subrace?: string) => void }) {
+  const [expanded, setExpanded] = useState(selectedRace);
+  return <div>
+    <div className="text-xs font-semibold uppercase tracking-wider text-stone-500">Race</div>
+    <div className="mt-2 space-y-2">
+      {races.map((race) => {
+        const children = subraces.filter((entry) => entry.parentRace === race);
+        const open = expanded === race;
+        const selected = selectedRace === race && !selectedSubrace;
+        return <div key={race} className="rounded-xl border border-stone-800 bg-stone-950/60 overflow-hidden">
+          <button type="button" onClick={() => { setExpanded(open ? "" : race); onSelect(race); }} className={`flex w-full items-center justify-between px-4 py-3 text-left ${selected ? "bg-stone-800 text-stone-100" : "text-stone-300"}`}>
+            <span className="font-semibold">{race}</span>
+            {children.length > 0 && <span className="text-xs text-stone-500">{children.length} subrace{children.length === 1 ? "" : "s"} {open ? "▴" : "▾"}</span>}
+          </button>
+          {open && children.length > 0 && <div className="border-t border-stone-800 p-2">
+            {children.map((entry) => <button key={entry.name} type="button" onClick={() => { setExpanded(race); onSelect(race, entry.name); }} className={`block w-full rounded-lg px-4 py-2 text-left text-sm ${selectedSubrace === entry.name ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-stone-900 hover:text-stone-200"}`}>{entry.name}</button>)}
+          </div>}
+        </div>;
+      })}
+    </div>
+  </div>;
 }
 
 function ChoiceGroup({ title, choices, value, onChange, exclude = [] }: { title: string; choices: Array<{ count: number; options: string[] }>; value: string[]; onChange: (value: string[]) => void; exclude?: string[] }) {
