@@ -463,7 +463,7 @@ function makeMaps(
   spellRaceRows: Array<{ spell_id: string; race_id: string }>,
   featureRows: Array<{ id: string; name: string; description?: string | null; source?: string | null; source_code?: string | null; source_type?: string | null; required_level?: number | null; raw_data?: unknown }>,
   itemRows: Array<{ id: string; name: string; category?: string | null; rarity?: string | null; description?: string | null; weight?: string | null; value?: string | null; requires_attunement?: boolean | null; minimum_level?: number | null; raw_data?: unknown }>,
-  optionalFeatureRows: Array<{ id: string; content_key: string | null }>,
+  optionalFeatureRows: Array<{ id: string; name: string; description?: string | null; feature_types?: unknown; source?: string | null; content_key?: string | null; raw_data?: unknown }>,
   classFeatureRows: Array<{ class_id: string; feature_id: string; required_level?: number | null }>,
   subclassFeatureRows: Array<{ subclass_id: string; feature_id: string; required_level?: number | null }>,
   featRows: Array<{ id: string; name: string; description?: string | null; prerequisite?: unknown; ability?: unknown; source?: string | null; edition?: string | null; content_key?: string | null }>,
