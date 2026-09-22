@@ -46,6 +46,7 @@ export default function NewCharacterPage() {
     classRules,
     subclassOptionalFeatureProgression,
     optionalFeatureCatalogue,
+    featureCatalogue,
     featCatalogue,
     itemCatalogue,
   } = useCharacters();
@@ -525,7 +526,9 @@ export default function NewCharacterPage() {
               <SectionCard title="Currency" description="Currency is saved with the character and can be edited later from the inventory step.">
                 <div className="grid gap-3 sm:grid-cols-5">{(["cp","sp","ep","gp","pp"] as const).map((coin) => <NumberField key={coin} label={coin.toUpperCase()} value={form.currency[coin]} min={0} onChange={(value) => setForm((current) => ({ ...current, currency: { ...current.currency, [coin]: value } }))} />)}</div>
               </SectionCard>
-              <SectionCard title="Other Possessions" description="Use Notes on the final step for free-form possessions that are not represented by an item record." />
+              <SectionCard title="Other Possessions" description="Use Notes on the final step for free-form possessions that are not represented by an item record.">
+                <p className="text-sm text-stone-500">Add free-form possessions in Notes on the final step.</p>
+              </SectionCard>
             </>
           )}
 
