@@ -1,5 +1,5 @@
 import { classDefinitions, features, items, races, spells, subclasses } from "./data";
-import type { Character, ContentType, Feature, Item, Spell } from "./types";
+import type { Character, ContentType, Feat, Feature, Item, Spell } from "./types";
 
 export function getClassDefinition(className: string) {
   return classDefinitions.find((entry) => entry.name === className);
@@ -158,6 +158,95 @@ export function getAbilityScoreImprovementLevels(className: string) {
 
 export function getNewAbilityScoreImprovementLevels(className: string, oldLevel: number, newLevel: number) {
   return getAbilityScoreImprovementLevels(className).filter((level) => level > oldLevel && level <= newLevel);
+}
+
+export function getAbilityScoreImprovementLevelsUpTo(className: string, level: number) {
+  return getAbilityScoreImprovementLevels(className).filter((asiLevel) => asiLevel <= level);
+}
+
+function normalizeRuleText(value: unknown) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function featPrerequisiteMet(prerequisite: unknown, character: Character): boolean {
+  if (!prerequisite) return true;
+  if (Array.isArray(prerequisite)) return prerequisite.every((entry) => featPrerequisiteMet(entry, character));
+  if (typeof prerequisite !== "object") return true;
+
+  const rule = prerequisite as Record<string, unknown>;
+
+  if (typeof rule.level === "number" && character.level < rule.level) return false;
+
+  const abilityRule = rule.ability;
+  if (Array.isArray(abilityRule) && abilityRule.length > 0) {
+    const abilityMet = abilityRule.some((entry) => {
+      if (!entry || typeof entry !== "object") return true;
+      return Object.entries(entry as Record<string, unknown>).some(([key, value]) => {
+        const score = character.abilities[key as keyof typeof character.abilities];
+        return typeof score === "number" && typeof value === "number" && score >= value;
+      });
+    });
+    if (!abilityMet) return false;
+  }
+
+  const raceRule = rule.race;
+  if (Array.isArray(raceRule) && raceRule.length > 0) {
+    const raceMet = raceRule.some((entry) => {
+      if (typeof entry === "string") return normalizeRuleText(entry) === normalizeRuleText(character.race);
+      if (!entry || typeof entry !== "object") return false;
+      const race = normalizeRuleText((entry as Record<string, unknown>).name);
+      const subrace = normalizeRuleText((entry as Record<string, unknown>).subrace);
+      const currentRace = normalizeRuleText(character.race);
+      const currentSubrace = normalizeRuleText(character.subrace);
+      return race === currentRace && (!subrace || subrace === currentSubrace);
+    });
+    if (!raceMet) return false;
+  }
+
+  const classRule = rule.class;
+  if (Array.isArray(classRule) && classRule.length > 0) {
+    const classMet = classRule.some((entry) => normalizeRuleText(entry) === normalizeRuleText(character.className));
+    if (!classMet) return false;
+  }
+
+  const backgroundRule = rule.background;
+  if (Array.isArray(backgroundRule) && backgroundRule.length > 0) {
+    const backgroundMet = backgroundRule.some((entry) => normalizeRuleText(entry) === normalizeRuleText(character.background));
+    if (!backgroundMet) return false;
+  }
+
+  if (rule.spellcastingFeature === true || rule.spellcasting === true) {
+    if (getSpellcastingMode(character) === "none") return false;
+  }
+
+  const featRule = rule.feat;
+  if (Array.isArray(featRule) && featRule.length > 0) {
+    const owned = new Set(character.feats.map(normalizeRuleText));
+    const featMet = featRule.some((entry) => {
+      const name = normalizeRuleText(typeof entry === "string" ? entry.split("|")[0] : "");
+      return Boolean(name && [...owned].some((ownedFeat) => ownedFeat === name));
+    });
+    if (!featMet) return false;
+  }
+
+  const proficiencyRule = rule.proficiency;
+  if (Array.isArray(proficiencyRule) && proficiencyRule.length > 0) {
+    const proficiencies = new Set([...character.skills, ...character.tools, ...character.languages].map(normalizeRuleText));
+    const proficiencyMet = proficiencyRule.some((entry) => proficiencies.has(normalizeRuleText(entry)));
+    if (!proficiencyMet) return false;
+  }
+
+  return true;
+}
+
+export function isFeatAvailable(character: Character, feat: Feat) {
+  return featPrerequisiteMet(feat.prerequisite, character);
+}
+
+export function getFeatRestrictionReason(character: Character, feat: Feat) {
+  if (!feat.prerequisite) return "";
+  if (!featPrerequisiteMet(feat.prerequisite, character)) return "Prerequisites not met";
+  return "";
 }
 
 export type SpellSlotSummary = {
