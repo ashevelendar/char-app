@@ -7,7 +7,7 @@ import { Badge, PageHeader, SectionCard } from "../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../context/CharacterContext";
 import { defaultCharacter } from "../../../lib/data";
-import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, Item, SpellEntry } from "../../../lib/types";
+import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, Item, Spell, SpellEntry } from "../../../lib/types";
 import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
