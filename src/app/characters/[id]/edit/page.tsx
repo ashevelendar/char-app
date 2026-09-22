@@ -264,6 +264,16 @@ function CharacterEditor({
   }, [form.className, character.skills, selectedClassRules]);
 
   useEffect(() => {
+    const subrace = catalogue.subraces.find((entry) => entry.name === form.subrace && entry.parentRace === form.race);
+    const fixedSkills = new Set(subrace?.skills?.fixed ?? []);
+    const fixedTools = new Set(subrace?.tools?.fixed ?? []);
+    const fixedLanguages = new Set(subrace?.languages?.fixed ?? []);
+    setSubraceSkillSelections(character.skills.filter((skill) => subrace?.skills?.choices.some((choice) => choice.options.includes(skill)) && !fixedSkills.has(skill)));
+    setSubraceToolSelections(character.tools.filter((tool) => subrace?.tools?.choices.some((choice) => choice.options.includes(tool)) && !fixedTools.has(tool)));
+    setSubraceLanguageSelections(character.languages.filter((language) => subrace?.languages?.choices.some((choice) => choice.options.includes(language)) && !fixedLanguages.has(language)));
+  }, [form.race, form.subrace, catalogue.subraces, character.skills, character.tools, character.languages]);
+
+  useEffect(() => {
     if (!catalogue.classes.length) return;
     setForm((current) => {
       const className = catalogue.classes.includes(current.className) ? current.className : catalogue.classes[0];
