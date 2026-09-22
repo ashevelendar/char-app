@@ -33,6 +33,7 @@ import type {
   SubraceDefinition,
   Feat,
   Feature,
+  HomebrewContent,
   Spell,
   SpellEntry,
 } from "../lib/types";
@@ -101,6 +102,7 @@ type ContentMaps = {
   spellCatalogue: Spell[];
   featureCatalogue: Feature[];
   featCatalogue: Feat[];
+  homebrewCatalogue: HomebrewContent[];
   itemCatalogue: Item[];
   optionalFeatureCatalogue: OptionalFeatureDefinition[];
   classRules: Record<string, ClassRules>;
@@ -137,6 +139,8 @@ type CharacterContextValue = {
   removeFeature: (characterId: string, featureId: string) => Promise<void>;
   addOptionalFeature: (characterId: string, optionalFeatureKey: string, override?: boolean) => Promise<boolean>;
   removeOptionalFeature: (characterId: string, optionalFeatureKey: string) => Promise<void>;
+  addHomebrew: (characterId: string, homebrewId: string, override?: boolean) => Promise<boolean>;
+  removeHomebrew: (characterId: string, homebrewId: string) => Promise<void>;
   revokeOverride: (characterId: string, type: ContentType, contentId: string) => Promise<void>;
   resetDemoData: () => Promise<void>;
   catalogue: Catalogue;
@@ -200,6 +204,7 @@ function normalizeCharacter(value: Character): Character {
     spells: normalizeSpells(value.spells),
     inventory: normalizeInventory(value.inventory),
     optionalFeatures: Array.isArray(value.optionalFeatures) ? value.optionalFeatures : [],
+    homebrew: Array.isArray(value.homebrew) ? value.homebrew : [],
     currency: {
       ...defaultCharacter.currency,
       ...(value.currency ?? {}),
@@ -971,6 +976,7 @@ function makeMaps(
     spellCatalogue,
     featureCatalogue,
     featCatalogue,
+    homebrewCatalogue,
     itemCatalogue,
     optionalFeatureCatalogue,
     classRules,
@@ -1224,6 +1230,7 @@ function toCharacter(
   featureRows: any[],
   itemRows: any[],
   optionalFeatureRows: any[],
+  homebrewRows: any[],
   overrideRows: any[],
   maps: ContentMaps,
 ): Character {
@@ -1255,6 +1262,11 @@ function toCharacter(
   const optionalFeaturesForCharacter = optionalFeatureRows
     .filter((entry) => entry.character_id === row.id)
     .map((entry) => entry.optional_feature_id)
+    .filter((id): id is string => typeof id === "string");
+
+  const homebrewForCharacter = homebrewRows
+    .filter((entry) => entry.character_id === row.id)
+    .map((entry) => entry.homebrew_content_id)
     .filter((id): id is string => typeof id === "string");
 
   const overrides = overrideRows
@@ -1323,6 +1335,7 @@ function toCharacter(
         }
       : { ...defaultCharacter.currency },
     optionalFeatures: optionalFeaturesForCharacter,
+    homebrew: homebrewForCharacter,
     features: featuresForCharacter,
     spells: spellsForCharacter,
     inventory: inventoryForCharacter,
@@ -1345,6 +1358,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [featureCatalogue, setFeatureCatalogue] = useState<Feature[]>([]);
   const [featCatalogue, setFeatCatalogue] = useState<Feat[]>([]);
   const [optionalFeatureCatalogue, setOptionalFeatureCatalogue] = useState<OptionalFeatureDefinition[]>([]);
+  const [homebrewCatalogue, setHomebrewCatalogue] = useState<HomebrewContent[]>([]);
   const [classRules, setClassRules] = useState<Record<string, ClassRules>>({});
   const [subclassOptionalFeatureProgression, setSubclassOptionalFeatureProgression] = useState<Record<string, ClassRules["optionalFeatureProgression"]>>({});
 
@@ -1363,6 +1377,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setFeatureCatalogue([]);
         setFeatCatalogue([]);
         setOptionalFeatureCatalogue([]);
+        setHomebrewCatalogue([]);
         setClassRules({});
         setSubclassOptionalFeatureProgression({});
         setHydrated(true);
@@ -1378,6 +1393,29 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       setDatabaseStatus("loading");
       try {
         const maps = await loadContentMaps();
+        const homebrewResult = await supabase!
+          .from("homebrew_content")
+          .select("id,name,content_type,description,source,edition,class_name,subclass_name,race_name,background_name,required_level,feature_types,prerequisites,data,is_published")
+          .order("name");
+        if (homebrewResult.error) throw homebrewResult.error;
+        const homebrewRows = homebrewResult.data ?? [];
+        setHomebrewCatalogue(homebrewRows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          contentType: row.content_type as HomebrewContent["contentType"],
+          description: row.description ?? "",
+          source: row.source ?? "Homebrew",
+          edition: (row.edition === "2014" || row.edition === "2024" ? row.edition : "custom") as HomebrewContent["edition"],
+          className: row.class_name ?? undefined,
+          subclassName: row.subclass_name ?? undefined,
+          raceName: row.race_name ?? undefined,
+          backgroundName: row.background_name ?? undefined,
+          requiredLevel: row.required_level ?? undefined,
+          featureTypes: Array.isArray(row.feature_types) ? row.feature_types.map(String) : [],
+          prerequisites: row.prerequisites ?? {},
+          data: row.data ?? {},
+          isPublished: Boolean(row.is_published),
+        })));
         setCatalogue(maps.catalogue);
         setRaceRules(maps.raceRules);
         setBackgroundRules(maps.backgroundRules);
@@ -1418,7 +1456,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
         const ids = (characterResult.data ?? []).map((row: any) => row.id);
 
-        const [spellResult, featureResult, itemResult, optionalFeatureResult, overrideResult] = await Promise.all([
+        const [spellResult, featureResult, itemResult, optionalFeatureResult, homebrewResult, overrideResult] = await Promise.all([
           ids.length
             ? supabase!.from("character_spells").select("character_id,spell_id,prepared").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
@@ -1432,11 +1470,14 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             ? supabase!.from("character_optional_features").select("character_id,optional_feature_id").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
           ids.length
+            ? supabase!.from("character_homebrew").select("character_id,homebrew_content_id").in("character_id", ids)
+            : Promise.resolve({ data: [], error: null }),
+          ids.length
             ? supabase!.from("character_overrides").select("character_id,content_type,content_id,reason").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
         ]);
 
-        for (const result of [spellResult, featureResult, itemResult, optionalFeatureResult, overrideResult]) {
+        for (const result of [spellResult, featureResult, itemResult, optionalFeatureResult, homebrewResult, overrideResult]) {
           if (result.error) throw result.error;
         }
 
@@ -1449,6 +1490,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             featureResult.data ?? [],
             itemResult.data ?? [],
             optionalFeatureResult.data ?? [],
+            homebrewResult.data ?? [],
             overrideResult.data ?? [],
             maps,
           ),
@@ -1555,6 +1597,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         resourceUses: input.resourceUses ?? {},
         currency: input.currency ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
         optionalFeatures: input.optionalFeatures ?? [],
+        homebrew: input.homebrew ?? [],
         features: [],
         spells: input.spells ?? [],
         accessOverrides: [],
@@ -1740,6 +1783,18 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
           if (inventoryRows.length) {
             const insertResult = await supabase.from("character_items").insert(inventoryRows);
+            if (insertResult.error) throw insertResult.error;
+          }
+        }
+
+        if (patch.homebrew !== undefined) {
+          const homebrewIds = Array.from(new Set(patch.homebrew.filter((homebrewId) => isUuid(homebrewId))));
+          const deleteResult = await supabase.from("character_homebrew").delete().eq("character_id", id);
+          if (deleteResult.error) throw deleteResult.error;
+          if (homebrewIds.length) {
+            const insertResult = await supabase.from("character_homebrew").insert(
+              homebrewIds.map((homebrewId) => ({ character_id: id, homebrew_content_id: homebrewId, dm_granted: false })),
+            );
             if (insertResult.error) throw insertResult.error;
           }
         }
@@ -2240,6 +2295,58 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       }
     },
 
+    addHomebrew: async (characterId, homebrewId, override = false) => {
+      const character = characters.find((entry) => entry.id === characterId);
+      const homebrew = homebrewCatalogue.find((entry) => entry.id === homebrewId);
+      if (!character || !homebrew) return false;
+      const normallyAvailable =
+        (!homebrew.requiredLevel || character.level >= homebrew.requiredLevel) &&
+        (!homebrew.className || homebrew.className === character.className) &&
+        (!homebrew.subclassName || homebrew.subclassName === character.subclass) &&
+        (!homebrew.raceName || homebrew.raceName === character.race) &&
+        (!homebrew.backgroundName || homebrew.backgroundName === character.background);
+      const allowed = normallyAvailable || (accessMode === "dm" && override);
+      if (!allowed) return false;
+
+      setCharacters((current) => current.map((entry) =>
+        entry.id === characterId && !entry.homebrew.includes(homebrewId)
+          ? { ...entry, homebrew: [...entry.homebrew, homebrewId] }
+          : entry,
+      ));
+
+      if (supabase && user && isUuid(characterId)) {
+        try {
+          const result = await supabase.from("character_homebrew").upsert({
+            character_id: characterId,
+            homebrew_content_id: homebrewId,
+            dm_granted: !normallyAvailable && accessMode === "dm" && override,
+          }, { onConflict: "character_id,homebrew_content_id" });
+          if (result.error) throw result.error;
+        } catch (error) {
+          console.error("Could not save homebrew:", error);
+          setDatabaseStatus("error");
+          return false;
+        }
+      }
+      return true;
+    },
+
+    removeHomebrew: async (characterId, homebrewId) => {
+      setCharacters((current) => current.map((entry) =>
+        entry.id === characterId ? { ...entry, homebrew: entry.homebrew.filter((id) => id !== homebrewId) } : entry,
+      ));
+      if (supabase && user && isUuid(characterId)) {
+        try {
+          const result = await supabase.from("character_homebrew").delete()
+            .eq("character_id", characterId).eq("homebrew_content_id", homebrewId);
+          if (result.error) throw result.error;
+        } catch (error) {
+          console.error("Could not remove homebrew:", error);
+          setDatabaseStatus("error");
+        }
+      }
+    },
+
     removeFeature: async (characterId, featureId) => {
       setCharacters((current) => current.map((character) =>
         character.id === characterId
@@ -2397,6 +2504,10 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     }] : [];
   });
 
+  const homebrewRows = character.homebrew.flatMap((homebrewId) =>
+    isUuid(homebrewId) ? [{ character_id: dbId, homebrew_content_id: homebrewId, dm_granted: false }] : [],
+  );
+
   const itemRows = character.inventory.flatMap((entry) => {
     const itemId = maps.itemByAppId.get(entry.itemId);
     return itemId ? [{
@@ -2415,6 +2526,11 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
 
   if (featureRows.length) {
     const insert = await supabase.from("character_features").insert(featureRows);
+    if (insert.error) throw insert.error;
+  }
+
+  if (homebrewRows.length) {
+    const insert = await supabase.from("character_homebrew").insert(homebrewRows);
     if (insert.error) throw insert.error;
   }
 
