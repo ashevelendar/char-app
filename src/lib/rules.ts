@@ -168,7 +168,7 @@ function normalizeRuleText(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function featPrerequisiteMet(prerequisite: unknown, character: Character): boolean {
+type FeatPrerequisiteCharacter = Pick<Character, "level" | "abilities" | "race" | "subrace" | "className" | "background" | "feats" | "skills" | "tools" | "languages">;\n\nfunction featPrerequisiteMet(prerequisite: unknown, character: FeatPrerequisiteCharacter): boolean {
   if (!prerequisite) return true;
   if (Array.isArray(prerequisite)) return prerequisite.every((entry) => featPrerequisiteMet(entry, character));
   if (typeof prerequisite !== "object") return true;
@@ -239,11 +239,11 @@ function featPrerequisiteMet(prerequisite: unknown, character: Character): boole
   return true;
 }
 
-export function isFeatAvailable(character: Character, feat: Feat) {
+export function isFeatAvailable(character: FeatPrerequisiteCharacter, feat: Feat) {
   return featPrerequisiteMet(feat.prerequisite, character);
 }
 
-export function getFeatRestrictionReason(character: Character, feat: Feat) {
+export function getFeatRestrictionReason(character: FeatPrerequisiteCharacter, feat: Feat) {
   if (!feat.prerequisite) return "";
   if (!featPrerequisiteMet(feat.prerequisite, character)) return "Prerequisites not met";
   return "";
