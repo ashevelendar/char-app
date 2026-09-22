@@ -20,6 +20,10 @@ alter table if exists public.characters
 -- Make the item columns required by the current app available even if
 -- the 5e.tools content-model migration was not applied yet.
 alter table if exists public.items
+  alter column weight type text using weight::text,
+  alter column value type text using value::text;
+
+alter table if exists public.items
   add column if not exists edition text not null default '2014',
   add column if not exists content_key text,
   add column if not exists source_code text,
