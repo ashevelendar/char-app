@@ -941,7 +941,7 @@ function SpellSelectionSection({ className, level, availableSpells, cantripsKnow
     if (limit !== null && count >= limit) return;
     onChange([...selectedSpells, { spellId, prepared: spell.level === 0 || !spellbook }]);
   }
-  return <SectionCard title="Spells" description={isWizard ? "Edit the spells in the Wizard spellbook." : "Edit the character's known or prepared spells."}>
+  return <SectionCard title="Spells" description={spellbook ? "Edit the spells in the character's spellbook." : "Edit the character's known or prepared spells."}>
     <div className="grid gap-5 lg:grid-cols-2">
       <SpellPicker title={"Cantrips (" + selectedCantrips.length + "/" + cantripsKnown + ")"} spells={availableSpells.filter((spell) => spell.level === 0)} selected={selectedSpells} remaining={remainingCantrips} onToggle={toggle} />
       {spellLimit !== null && <SpellPicker title={label + " (" + selectedLeveled.length + "/" + spellLimit + ")"} spells={availableSpells.filter((spell) => spell.level > 0)} selected={selectedSpells} remaining={remainingLeveled} onToggle={toggle} />}
