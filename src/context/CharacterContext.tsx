@@ -2317,7 +2317,8 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
 
   const dbId = result.data.id as string;
 
-  const spellRows = character.spells.flatMap((entry) => {
+  try {
+    const spellRows = character.spells.flatMap((entry) => {
     const spellId = maps.spellByDbId.get(entry.spellId) ?? maps.spellByAppId.get(entry.spellId);
     return spellId ? [{
       character_id: dbId,
@@ -2395,7 +2396,15 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     }
   }
 
-  return { ...character, id: dbId };
+    return { ...character, id: dbId };
+  } catch (error) {
+    try {
+      await supabase.from("characters").delete().eq("id", dbId);
+    } catch (rollbackError) {
+      console.error("Could not roll back incomplete character save:", rollbackError);
+    }
+    throw error;
+  }
 }
 
 export function useCharacters() {
