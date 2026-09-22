@@ -408,14 +408,16 @@ export default function NewCharacterPage() {
     ...(selectedBackgroundRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: "background-" + index })),
   ];
 
-  const equipmentChoicesComplete = equipmentMode === "gold" || equipmentGroups.every((group) => {
-    const optionIndex = startingEquipmentSelections[group.id];
-    const option = optionIndex === undefined ? undefined : group.options[optionIndex];
-    if (!option) return false;
-    return option.items.every((entry, entryIndex) =>
-      !entry.choiceType || Boolean(startingItemChoices[group.id + ":" + optionIndex + ":" + entryIndex]),
-    );
-  });
+  const equipmentChoicesComplete = equipmentMode === "gold"
+    ? Object.values(form.currency).some((value) => Number(value) > 0)
+    : equipmentGroups.every((group) => {
+      const optionIndex = startingEquipmentSelections[group.id];
+      const option = optionIndex === undefined ? undefined : group.options[optionIndex];
+      if (!option) return false;
+      return option.items.every((entry, entryIndex) =>
+        !entry.choiceType || Boolean(startingItemChoices[group.id + ":" + optionIndex + ":" + entryIndex]),
+      );
+    });
 
   const creationRequirements = {
     identity: Boolean(form.name.trim() && form.race && form.className && form.background),
