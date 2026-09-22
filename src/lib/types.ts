@@ -216,6 +216,9 @@ export interface Character {
   spells: SpellEntry[];
   inventory: InventoryEntry[];
   feats: string[];
+  asiHistory: AsiHistoryEntry[];
+  expertiseHistory: ExpertiseHistoryEntry[];
+  magicalSecretsHistory: MagicalSecretsHistoryEntry[];
   optionalFeatures: string[];
   homebrew: string[];
   accessOverrides: ContentOverride[];
@@ -251,6 +254,9 @@ export interface NewCharacterInput {
   optionalFeatures?: string[];
   homebrew?: string[];
   feats?: string[];
+  asiHistory?: AsiHistoryEntry[];
+  expertiseHistory?: ExpertiseHistoryEntry[];
+  magicalSecretsHistory?: MagicalSecretsHistoryEntry[];
   inventory?: InventoryEntry[];
   resourceUses?: Record<string, number>;
   currency?: Currency;
