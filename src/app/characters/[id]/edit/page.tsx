@@ -10,6 +10,30 @@ import { useCharacters } from "../../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry } from "../../../../lib/types";
 import { getExpectedHitDice, getExpectedMaxHp, getNewAbilityScoreImprovementLevels, getProficiencyBonus } from "../../../../lib/rules";
 
+function getOptionalChoiceGroups(classEntries: OptionalChoiceEntry[], subclassEntries: OptionalChoiceEntry[], level: number) {
+  const consolidate = (entries: OptionalChoiceEntry[]) => {
+    const groups = new Map<string, { id: string; title: string; count: number; featureTypes: string[] }>();
+    for (const entry of entries.filter((item) => item.level <= level && item.count > 0)) {
+      const key = entry.title + "::" + entry.featureTypes.join("|");
+      const current = groups.get(key);
+      if (current) current.count = Math.max(current.count, entry.count);
+      else groups.set(key, { id: key, title: entry.title, count: entry.count, featureTypes: entry.featureTypes });
+    }
+    return groups;
+  };
+
+  const classGroups = consolidate(classEntries);
+  const subclassGroups = consolidate(subclassEntries);
+  const merged = new Map<string, { id: string; title: string; count: number; featureTypes: string[] }>();
+  for (const group of [...classGroups.values(), ...subclassGroups.values()]) {
+    const current = merged.get(group.id);
+    if (current) current.count += group.count;
+    else merged.set(group.id, { ...group });
+  }
+  return [...merged.values()];
+}
+
+
 const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
 const abilityLabels: Record<AbilityKey, string> = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
 
@@ -119,6 +143,8 @@ function CharacterEditor({
   const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
   const [startingItemChoices, setStartingItemChoices] = useState<Record<string, string>>({});
   const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [equipmentMode, setEquipmentMode] = useState<"equipment" | "gold">("equipment");
+  const [currency, setCurrency] = useState<Currency>(character.currency ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 });
   const [step, setStep] = useState<BuilderStep>("class");
 
   const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className);
