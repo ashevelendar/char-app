@@ -188,18 +188,18 @@ export default function NewCharacterPage() {
   const preparedSpellLimit = getPreparedSpellCount(spellCharacter);
   const wizardSpellbookLimit = form.className === "Wizard" ? getWizardSpellbookProgression(form.level) : null;
   const knownSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : spellsKnown ?? preparedSpellLimit;
-  const magicalSecretCount = magicalSecretFeatures.length * 2;
+  const magicalSecretCount = featureCatalogue.filter((feature) => feature.name.toLowerCase().includes("magical secrets") && feature.className === form.className && feature.requiredLevel <= form.level).length * 2;
   const normalSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : knownSpellLimit === null ? null : Math.max(0, knownSpellLimit - magicalSecretCount);
 
   useEffect(() => {
     setSelectedSpells((current) => {
       const valid = current.filter((entry) => availableSpells.some((spell) => spell.id === entry.spellId));
       const cantrips = valid.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0).slice(0, cantripsKnown);
-      const leveled = valid.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level !== 0).slice(0, knownSpellLimit ?? 0);
+      const leveled = valid.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level !== 0).slice(0, normalSpellLimit ?? 0);
       const next = [...cantrips, ...leveled];
       return next.length === current.length && next.every((entry, index) => entry.spellId === current[index]?.spellId && entry.prepared === current[index]?.prepared) ? current : next;
     });
-  }, [availableSpells, cantripsKnown, knownSpellLimit]);
+  }, [availableSpells, cantripsKnown, normalSpellLimit]);
 
 
   const availableFeats = useMemo(
