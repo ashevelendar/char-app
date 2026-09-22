@@ -72,7 +72,7 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
   return <header className="mb-8 flex flex-col gap-4 border-b border-stone-800 pb-6 sm:flex-row sm:items-end sm:justify-between"><div>{eyebrow && <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-amber-400">{eyebrow}</p>}<h1 className="text-3xl font-bold tracking-tight text-stone-100 sm:text-4xl">{title}</h1>{description && <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">{description}</p>}</div>{actions}</header>;
 }
 
-export function SectionCard({ title, description, actions, children, className = "" }: { title: string; description?: string; actions?: ReactNode; children: ReactNode; className?: string }) {
+export function SectionCard({ title, description, actions, children, className = "" }: { title: string; description?: string; actions?: ReactNode; children?: ReactNode; className?: string }) {
   return <section className={`rounded-2xl border border-stone-800 bg-stone-900/70 p-5 shadow-[0_16px_50px_rgba(0,0,0,0.18)] sm:p-6 ${className}`}><div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-lg font-semibold text-stone-100">{title}</h2>{description && <p className="mt-1 text-sm text-stone-500">{description}</p>}</div>{actions && <div className="shrink-0">{actions}</div>}</div>{children}</section>;
 }
 
