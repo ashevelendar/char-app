@@ -1109,5 +1109,8 @@ function NumberField({ label, value, min, max, onChange }: { label: string; valu
 }
 
 function Select({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
-  return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100 outline-none focus:border-amber-400">{options.length === 0 ? <option value="">None</option> : options.map((option) => <option key={option}>{option}</option>)}</select></label>;
+  return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100 outline-none focus:border-amber-400">{options.length === 0 ? <option value="">None</option> : <>
+    <option value="">Choose an option...</option>
+    {options.map((option) => <option key={option}>{option}</option>)}
+  </>}</select></label>;
 }
