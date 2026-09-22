@@ -192,7 +192,7 @@ export default function NewCharacterPage() {
 
   const asiLevels = useMemo(
     () => getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules),
-    [form.className, form.level],
+    [form.className, form.level, classRules],
   );
 
   const expertiseLevels = useMemo(
@@ -266,7 +266,7 @@ export default function NewCharacterPage() {
   const magicalSecretSpellOptions = useMemo(() => {
     const maxLevel = getMaxSpellLevel(spellCharacter, classRules);
     return spellCatalogue.filter((spell) => spell.level <= maxLevel);
-  }, [spellCatalogue, spellCharacter]);
+  }, [spellCatalogue, spellCharacter, classRules]);
 
   const cantripsKnown = getCantripsKnown(form.className, form.level, classRules);
   const spellsKnown = getSpellsKnown(form.className, form.level, classRules);
