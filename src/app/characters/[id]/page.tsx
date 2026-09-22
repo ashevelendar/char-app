@@ -19,7 +19,7 @@ const tabs: { id: Tab; label: string }[] = [{ id: "overview", label: "Overview" 
 
 export default function CharacterPage() {
   const params = useParams<{ id: string }>();
-  const { characters, accessMode, databaseStatus, addSpell, removeSpell, toggleSpellPrepared, addInventoryItem, removeInventoryItem, changeInventoryQuantity, toggleInventoryEquipped, addFeature, removeFeature, revokeOverride, updateCharacter, spellCatalogue, featureCatalogue, featCatalogue, itemCatalogue, raceRules, backgroundRules, optionalFeatureCatalogue } = useCharacters();
+  const { characters, accessMode, databaseStatus, addSpell, removeSpell, toggleSpellPrepared, addInventoryItem, removeInventoryItem, changeInventoryQuantity, toggleInventoryEquipped, addFeature, removeFeature, revokeOverride, updateCharacter, spellCatalogue, featureCatalogue, featCatalogue, itemCatalogue, catalogue, raceRules, backgroundRules, optionalFeatureCatalogue } = useCharacters();
   const [tab, setTab] = useState<Tab>("overview");
   const character = characters.find((entry) => entry.id === params.id);
   const [showRestricted, setShowRestricted] = useState(false);
