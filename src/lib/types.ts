@@ -176,6 +176,7 @@ export interface NewCharacterInput {
   languages?: string[];
   optionalFeatures?: string[];
   feats?: string[];
+  inventory?: InventoryEntry[];
   resourceUses?: Record<string, number>;
 }
 
