@@ -399,8 +399,9 @@ export default function NewCharacterPage() {
       const required = magicalSecretFeatures.length * 2;
       const selected = magicalSecretSelections.slice(0, required);
       const allowed = new Set(magicalSecretSpellOptions.map((spell) => spell.id));
+      const normalSpellIds = new Set(effectiveSelectedSpells.map((entry) => entry.spellId));
       return selected.length === required
-        && selected.every((spellId) => Boolean(spellId) && allowed.has(spellId))
+        && selected.every((spellId) => Boolean(spellId) && allowed.has(spellId) && !normalSpellIds.has(spellId))
         && new Set(selected).size === required;
     })(),
     optionalFeatures: optionalChoiceGroups.every((group) => {
@@ -537,7 +538,7 @@ export default function NewCharacterPage() {
               )}
 
               {magicalSecretFeatures.length > 0 && (
-                <MagicalSecretsSection features={magicalSecretFeatures} spells={magicalSecretSpellOptions} selected={magicalSecretSelections} onChange={setMagicalSecretSelections} />
+                <MagicalSecretsSection features={magicalSecretFeatures} spells={magicalSecretSpellOptions} excluded={effectiveSelectedSpells.map((entry) => entry.spellId)} selected={magicalSecretSelections} onChange={setMagicalSecretSelections} />
               )}
 
               {optionalChoiceGroups.length > 0 && (
@@ -998,7 +999,7 @@ function ExpertiseSelectionSection({ levels, selected, onChange, skills }: { lev
   </SectionCard>;
 }
 
-function MagicalSecretsSection({ features, spells, selected, onChange }: { features: Array<{ id: string; name: string; requiredLevel: number }>; spells: Array<{ id: string; name: string; level: number; description: string }>; selected: string[]; onChange: (value: string[]) => void }) {
+function MagicalSecretsSection({ features, spells, excluded, selected, onChange }: { features: Array<{ id: string; name: string; requiredLevel: number }>; spells: Array<{ id: string; name: string; level: number; description: string }>; excluded: string[]; selected: string[]; onChange: (value: string[]) => void }) {
   let offset = 0;
   return <SectionCard title="Magical Secrets" description="Choose the spells from any class granted by each Magical Secrets feature. These choices count toward the class's spells known.">
     <div className="space-y-4">
@@ -1011,7 +1012,7 @@ function MagicalSecretsSection({ features, spells, selected, onChange }: { featu
               const next = [...selected]; next[slot] = event.target.value; onChange(next);
             }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
               <option value="">Choose a spell...</option>
-              {spells.filter((spell) => !selected.some((value, index) => index !== slot && value === spell.id)).map((spell) => <option key={spell.id} value={spell.id}>{spell.name} (Level {spell.level})</option>)}
+              {spells.filter((spell) => !excluded.includes(spell.id) && !selected.some((value, index) => index !== slot && value === spell.id)).map((spell) => <option key={spell.id} value={spell.id}>{spell.name} (Level {spell.level})</option>)}
             </select>)}
           </div>
         </div>;
