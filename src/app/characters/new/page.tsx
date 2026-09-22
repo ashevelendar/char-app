@@ -365,8 +365,9 @@ export default function NewCharacterPage() {
 
   const asiChoicesComplete = (() => {
     const next = { ...baseAbilityScoresWithRace };
-    return asiLevels.every((_, index) => {
-      if (asiChoices[index]) return true;
+    const selectedFeats = asiChoices.filter(Boolean);
+    return new Set(selectedFeats).size === selectedFeats.length && asiLevels.every((_, index) => {
+      if (asiChoices[index]) return availableFeats.some((feat) => feat.id === asiChoices[index]);
       const choice = asiAbilityChoices[index];
       if (!choice?.first) return false;
       if (choice.mode === "two") {
@@ -406,10 +407,21 @@ export default function NewCharacterPage() {
     backgroundLanguages: choiceSelectionsComplete(selectedBackgroundRules?.languageChoices ?? [], backgroundLanguageSelections),
     raceLanguages: choiceSelectionsComplete(selectedRaceRules?.languages.choices ?? [], raceLanguageSelections),
     asi: asiChoicesComplete,
-    expertise: expertiseSelections.length >= expertiseLevels.length * 2
-      && expertiseSelections.slice(0, expertiseLevels.length * 2).every(Boolean),
-    magicalSecrets: magicalSecretSelections.length >= magicalSecretFeatures.length * 2
-      && magicalSecretSelections.slice(0, magicalSecretFeatures.length * 2).every(Boolean),
+    expertise: (() => {
+      const required = expertiseLevels.length * 2;
+      const selected = expertiseSelections.slice(0, required);
+      return selected.length === required
+        && selected.every((skill) => Boolean(skill) && selectedSkills.includes(skill))
+        && new Set(selected).size === required;
+    })(),
+    magicalSecrets: (() => {
+      const required = magicalSecretFeatures.length * 2;
+      const selected = magicalSecretSelections.slice(0, required);
+      const allowed = new Set(magicalSecretSpellOptions.map((spell) => spell.id));
+      return selected.length === required
+        && selected.every((spellId) => Boolean(spellId) && allowed.has(spellId))
+        && new Set(selected).size === required;
+    })(),
     optionalFeatures: optionalChoiceGroups.every((group) => {
       const count = form.optionalFeatures.filter((id) =>
         optionalFeatureCatalogue.some((option) =>
