@@ -485,6 +485,9 @@ function parseEquipmentEntries(value: unknown): EquipmentEntry[] {
       armorMedium: "Choose medium armor",
       armorHeavy: "Choose heavy armor",
       instrumentMusical: "Choose a musical instrument",
+      focusSpellcastingArcane: "Choose an arcane focus",
+      focusSpellcastingDruidic: "Choose a druidic focus",
+      focusSpellcastingHoly: "Choose a holy symbol",
     };
     return [{
       name: labels[object.equipmentType] ?? `Choose ${object.equipmentType}`,
@@ -2032,14 +2035,21 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (error) {
-        const details = error && typeof error === "object"
-          ? {
-              message: "message" in error ? String(error.message ?? "") : "",
-              code: "code" in error ? String(error.code ?? "") : "",
-              details: "details" in error ? String(error.details ?? "") : "",
-              hint: "hint" in error ? String(error.hint ?? "") : "",
-            }
-          : { message: String(error ?? "") };
+        const details = (() => {
+          if (error instanceof Error) return { message: error.message, name: error.name, stack: error.stack };
+          if (error && typeof error === "object") {
+            const object = error as Record<string, unknown>;
+            return {
+              message: String(object.message ?? ""),
+              code: String(object.code ?? ""),
+              details: String(object.details ?? ""),
+              hint: String(object.hint ?? ""),
+              status: String(object.status ?? ""),
+              keys: Object.getOwnPropertyNames(error),
+            };
+          }
+          return { message: String(error ?? "") };
+        })();
         console.error("Could not update character:", details);
         if (currentCharacter) {
           setCharacters((current) =>
