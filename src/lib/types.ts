@@ -139,7 +139,7 @@ export interface InventoryEntry {
   notes?: string;
 }
 
-export type SpellGrantSource = "normal" | "magical-secrets" | "dm" | "legacy";
+export type SpellGrantSource = "normal" | "background" | "magical-secrets" | "dm" | "legacy";
 
 export interface SpellEntry {
   spellId: string;
