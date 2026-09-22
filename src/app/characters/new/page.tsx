@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Badge, PageHeader, SectionCard } from "../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../context/CharacterContext";
+import { defaultCharacter } from "../../../lib/data";
 import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, SpellEntry } from "../../../lib/types";
 import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getExpectedHitDice, getExpectedMaxHp, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getWizardSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
 
