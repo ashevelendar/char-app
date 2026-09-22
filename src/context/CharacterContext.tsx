@@ -80,6 +80,11 @@ type RaceRules = {
   conditionImmunities?: string[];
 };
 
+type BackgroundSpellRules = {
+  fixed: string[];
+  choices: Array<{ count: number; options: string[] }>;
+};
+
 type BackgroundRules = {
   description: string;
   skills: string[];
@@ -91,6 +96,7 @@ type BackgroundRules = {
   startingEquipment: EquipmentChoiceGroup[];
   featureName: string;
   featureDescription: string;
+  spells: BackgroundSpellRules;
 };
 
 type Catalogue = {
@@ -175,7 +181,7 @@ function normalizeSpells(value: unknown): SpellEntry[] {
     if (typeof entry === "string") return [{ spellId: entry, prepared: false, source: "legacy" as const }];
     if (entry && typeof entry === "object" && "spellId" in entry && typeof entry.spellId === "string") {
       const candidate = entry as Partial<SpellEntry> & { source?: unknown };
-      const source = candidate.source === "normal" || candidate.source === "magical-secrets" || candidate.source === "dm" || candidate.source === "legacy"
+      const source = candidate.source === "normal" || candidate.source === "background" || candidate.source === "magical-secrets" || candidate.source === "dm" || candidate.source === "legacy"
         ? candidate.source
         : "legacy" as const;
       return [{ spellId: candidate.spellId as string, prepared: Boolean(candidate.prepared), source }];
@@ -436,6 +442,73 @@ function extractProficiencyNames(raw: unknown, field: string): string[] {
     }
   }
   return [...new Set(names)];
+}
+
+function extractBackgroundSpellRules(raw: unknown): BackgroundSpellRules {
+  const fixed: string[] = [];
+  const choices: Array<{ count: number; options: string[] }> = [];
+  const ignoredKeys = new Set(["expanded", "fromClassList", "fromSubclass", "fromClassListVariant"]);
+
+  const cleanRef = (value: unknown) => {
+    if (typeof value !== "string") return "";
+    const rendered = cleanDisplayText(value).trim();
+    return rendered.split("|")[0].trim();
+  };
+
+  function visit(value: unknown, key = "", depth = 0) {
+    if (depth > 8 || value == null) return;
+    if (typeof value === "string") {
+      if (!ignoredKeys.has(key) && key !== "expanded") {
+        const ref = cleanRef(value);
+        if (ref) fixed.push(ref);
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((entry) => visit(entry, key, depth + 1));
+      return;
+    }
+    if (typeof value !== "object") return;
+    const object = value as Record<string, unknown>;
+
+    if (object.choose && typeof object.choose === "object") {
+      const choose = object.choose as Record<string, unknown>;
+      const from = Array.isArray(choose.from)
+        ? choose.from.map(cleanRef).filter(Boolean)
+        : [];
+      if (from.length) {
+        choices.push({ count: Math.max(1, Number(choose.count) || 1), options: [...new Set(from)] });
+      }
+    }
+
+    for (const [childKey, child] of Object.entries(object)) {
+      if (childKey === "expanded" || ignoredKeys.has(childKey)) continue;
+      if (childKey === "choose") continue;
+      if (childKey === "innate" || childKey === "known" || childKey === "prepared" || childKey === "daily" || childKey === "rest") {
+        visit(child, childKey, depth + 1);
+        continue;
+      }
+      if (childKey === "additionalSpells") {
+        visit(child, childKey, depth + 1);
+        continue;
+      }
+      if (childKey === "from") {
+        const refs = Array.isArray(child) ? child.map(cleanRef).filter(Boolean) : [];
+        if (refs.length) choices.push({ count: 1, options: [...new Set(refs)] });
+        continue;
+      }
+      if (typeof child === "object") visit(child, childKey, depth + 1);
+    }
+  }
+
+  const object = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  if (object.additionalSpells) visit(object.additionalSpells, "additionalSpells");
+  return {
+    fixed: [...new Set(fixed)],
+    choices: choices.filter((choice, index, all) =>
+      all.findIndex((candidate) => candidate.count === choice.count && candidate.options.join("|") === choice.options.join("|")) === index,
+    ),
+  };
 }
 
 function extractBackgroundFeature(raw: unknown): { name: string; description: string } {
@@ -802,6 +875,7 @@ function makeMaps(
       .map((row) => {
         const raw = row.raw_data && typeof row.raw_data === "object" ? row.raw_data as Record<string, unknown> : {};
         const feature = extractBackgroundFeature(raw);
+        const spellRules = extractBackgroundSpellRules(raw);
         const skillRules = extractProficiencyRules(raw, "skillProficiencies");
         const languageRules = extractProficiencyRules(raw, "languageProficiencies");
         const alternateLanguageRules = extractProficiencyRules(raw, "languages");
@@ -838,6 +912,7 @@ function makeMaps(
             startingEquipment: extractStartingEquipment(raw),
             featureName: feature.name,
             featureDescription: feature.description,
+            spells: spellRules,
           },
         ];
       }),
@@ -1485,8 +1560,10 @@ function toCharacter(
         ? "dm" as const
         : String(entry.source ?? "").toLowerCase().includes("magical")
           ? "magical-secrets" as const
-          : String(entry.source ?? "").toLowerCase().includes("normal")
-            ? "normal" as const
+          : String(entry.source ?? "").toLowerCase().includes("background")
+            ? "background" as const
+            : String(entry.source ?? "").toLowerCase().includes("normal")
+              ? "normal" as const
             : "legacy" as const,
     }] : [];
   });
@@ -2091,7 +2168,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             dm_granted: entry.source === "dm",
             source: entry.source === "magical-secrets"
               ? "Magical Secrets"
-              : entry.source === "normal"
+              : entry.source === "background"
+                ? "Background"
+                : entry.source === "normal"
                 ? "Normal"
                 : entry.source === "dm"
                   ? "DM Grant"
@@ -2850,7 +2929,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
       character_id: dbId,
       spell_id: spellId,
       prepared: entry.prepared,
-      source: entry.source === "magical-secrets" ? "Magical Secrets" : entry.source === "normal" ? "Normal" : entry.source === "dm" ? "DM Grant" : "Migrated",
+      source: entry.source === "magical-secrets" ? "Magical Secrets" : entry.source === "background" ? "Background" : entry.source === "normal" ? "Normal" : entry.source === "dm" ? "DM Grant" : "Migrated",
       dm_granted: entry.source === "dm",
     }] : [];
   });
