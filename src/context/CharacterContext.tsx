@@ -1351,15 +1351,11 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           const maps = await getMapsForWrite();
           const dbItemId =
             appIdToDbId(maps.itemByAppId, itemId) ??
-            (isUuid(itemId) ? itemId : null) ??
+            (isUuid(itemId) && itemCatalogue.some((item) => item.id === itemId) ? itemId : null) ??
             (foundItem
-              ? maps.itemByAppId.get(
-                  items.find((item) => item.id === itemId)?.id ?? itemId,
-                ) ?? maps.itemByDbId.get(
-                  itemCatalogue.find(
-                    (item) => item.name.trim().toLowerCase() === foundItem.name.trim().toLowerCase(),
-                  )?.id ?? "",
-                ) ?? null
+              ? itemCatalogue.find(
+                  (item) => item.name.trim().toLowerCase() === foundItem.name.trim().toLowerCase(),
+                )?.id ?? null
               : null);
           if (!dbItemId) throw new Error(`Item "${itemId}" is missing from the database catalogue.`);
 
