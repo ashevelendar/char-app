@@ -660,7 +660,7 @@ function makeMaps(
         const alternateLanguageRules = extractProficiencyRules(raw, "languages");
         const toolRules = extractProficiencyRules(raw, "toolProficiencies");
         const languageText = catalogueText(raw.entries);
-        const textLanguageMatch = languageText.match(/\\b(two|one|three|four|five|six)\\s+of\\s+your\\s+choice\\b/i);
+        const textLanguageMatch = languageText.match(/\b(two|one|three|four|five|six)\s+of\s+your\s+choice\b/i);
         const textLanguageCount = textLanguageMatch
           ? ({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 }[textLanguageMatch[1].toLowerCase()] ?? 0)
           : 0;
