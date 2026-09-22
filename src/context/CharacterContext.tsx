@@ -1016,10 +1016,8 @@ function toCharacter(
 
   const optionalFeaturesForCharacter = optionalFeatureRows
     .filter((entry) => entry.character_id === row.id)
-    .flatMap((entry) => {
-      const key = maps.optionalFeatureByDbId.get(entry.optional_feature_id);
-      return key ? [key] : [];
-    });
+    .map((entry) => entry.optional_feature_id)
+    .filter((id): id is string => typeof id === "string");
 
   const overrides = overrideRows
     .filter((entry) => entry.character_id === row.id)
@@ -1864,7 +1862,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (supabase && user && isUuid(characterId)) {
         try {
           const maps = await getMapsForWrite();
-          const dbOptionalFeatureId = maps.optionalFeatureByKey.get(optionalFeatureKey);
+          const dbOptionalFeatureId = isUuid(optionalFeatureKey) && maps.optionalFeatureByDbId.has(optionalFeatureKey)
+            ? optionalFeatureKey
+            : maps.optionalFeatureByKey.get(optionalFeatureKey);
           if (!dbOptionalFeatureId) {
             throw new Error(`Optional feature "${optionalFeatureKey}" is missing from the database catalogue.`);
           }
