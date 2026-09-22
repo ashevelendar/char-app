@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, PageHeader, SectionCard } from "../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../components/AbilityScoreBuilder";
@@ -15,7 +15,7 @@ const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
-type RequirementKey = "identity" | "nameClass" | "background" | "race" | "abilities" | "subclass" | "classSkills" | "classLanguages" | "backgroundSkills" | "backgroundTools" | "backgroundLanguages" | "raceLanguages" | "asi" | "expertise" | "magicalSecrets" | "optionalFeatures" | "spells" | "equipment";
+type RequirementKey = "identity" | "nameClass" | "background" | "race" | "abilities" | "subclass" | "classSkills" | "classLanguages" | "backgroundSkills" | "backgroundTools" | "backgroundLanguages" | "backgroundSpells" | "raceLanguages" | "asi" | "expertise" | "magicalSecrets" | "optionalFeatures" | "spells" | "equipment";
 
 function isOrdinaryStartingItem(item: Item) {
   const rarity = item.rarity.trim().toLowerCase();
@@ -134,6 +134,7 @@ export default function NewCharacterPage() {
   const [startingItemChoices, setStartingItemChoices] = useState<Record<string, string>>({});
   const [asiChoices, setAsiChoices] = useState<string[]>([]);
   const [selectedSpells, setSelectedSpells] = useState<SpellEntry[]>([]);
+  const [backgroundSpellSelections, setBackgroundSpellSelections] = useState<string[]>([]);
   const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>>([]);
   const [expertiseSelections, setExpertiseSelections] = useState<string[]>([]);
   const [magicalSecretSelections, setMagicalSecretSelections] = useState<string[]>([]);
@@ -149,6 +150,40 @@ export default function NewCharacterPage() {
   const selectedSubrace = catalogue.subraces.find((entry) => entry.name === form.subrace && entry.parentRace === form.race);
   const selectedBackgroundRules = backgroundRules[form.background];
   const selectedClassRules = classRules[form.className];
+
+  const backgroundSpellChoiceGroups = useMemo(() => {
+    if (!selectedBackgroundRules) return [];
+    return selectedBackgroundRules.spells.choices.map((choice) => ({
+      count: choice.count,
+      options: choice.options
+        .map((reference) => spellCatalogue.find((spell) => spell.name.trim().toLowerCase() === reference.trim().toLowerCase()))
+        .filter((spell): spell is Spell => Boolean(spell)),
+    }));
+  }, [selectedBackgroundRules, spellCatalogue]);
+
+  const backgroundSpellOptions = useMemo(
+    () => backgroundSpellChoiceGroups.flatMap((group) => group.options),
+    [backgroundSpellChoiceGroups],
+  );
+
+  const backgroundFixedSpellIds = useMemo(() => {
+    if (!selectedBackgroundRules) return [];
+    return selectedBackgroundRules.spells.fixed
+      .map((reference) => spellCatalogue.find((spell) => spell.name.trim().toLowerCase() === reference.trim().toLowerCase())?.id ?? "")
+      .filter(Boolean);
+  }, [selectedBackgroundRules, spellCatalogue]);
+
+  useEffect(() => {
+    setBackgroundSpellSelections([]);
+  }, [form.background]);
+
+  function selectBackgroundSpell(slot: number, spellId: string) {
+    setBackgroundSpellSelections((current) => {
+      const next = [...current];
+      next[slot] = spellId;
+      return next;
+    });
+  }
 
   const selectedSkills = useMemo(
     () => [...new Set([
@@ -326,6 +361,7 @@ export default function NewCharacterPage() {
     setBackgroundSkillSelections([]);
     setBackgroundToolSelections([]);
     setBackgroundLanguageSelections([]);
+    setBackgroundSpellSelections([]);
     setForm((current) => ({ ...current, background: value }));
   }
 
@@ -433,6 +469,11 @@ export default function NewCharacterPage() {
     backgroundSkills: choiceSelectionsComplete(selectedBackgroundRules?.skillChoices ?? [], backgroundSkillSelections),
     backgroundTools: choiceSelectionsComplete(selectedBackgroundRules?.toolChoices ?? [], backgroundToolSelections),
     backgroundLanguages: choiceSelectionsComplete(selectedBackgroundRules?.languageChoices ?? [], backgroundLanguageSelections),
+    backgroundSpells: (() => {
+      const required = selectedBackgroundRules?.spells.choices.reduce((total, choice) => total + choice.count, 0) ?? 0;
+      const selected = backgroundSpellSelections.filter((spellId) => backgroundSpellOptions.some((spell) => spell.id === spellId));
+      return selected.length === required && new Set(selected).size === selected.length;
+    })(),
     raceLanguages: choiceSelectionsComplete(selectedRaceRules?.languages.choices ?? [], raceLanguageSelections),
     asi: asiChoicesComplete,
     expertise: (() => {
@@ -487,6 +528,7 @@ export default function NewCharacterPage() {
     backgroundSkills: "Background skill choices",
     backgroundTools: "Background tool choices",
     backgroundLanguages: "Background language choices",
+    backgroundSpells: "Background spell choices",
     raceLanguages: "Species language choices",
     asi: "Ability Score Improvements / Feats",
     expertise: "Expertise choices",
@@ -501,7 +543,7 @@ export default function NewCharacterPage() {
 
   const stepRequirements: Record<BuilderStep, RequirementKey[]> = {
     class: ["nameClass", "subclass", "classSkills", "classLanguages", "asi", "expertise", "magicalSecrets", "optionalFeatures", "spells"],
-    background: ["background", "backgroundSkills", "backgroundTools", "backgroundLanguages"],
+    background: ["background", "backgroundSkills", "backgroundTools", "backgroundLanguages", "backgroundSpells"],
     species: ["race", "raceLanguages"],
     abilities: ["abilities"],
     equipment: ["equipment"],
@@ -539,6 +581,7 @@ export default function NewCharacterPage() {
       languages: selectedLanguages,
       spells: [
         ...effectiveSelectedSpells,
+        ...[...new Set([...backgroundFixedSpellIds, ...backgroundSpellSelections])].filter(Boolean).map((spellId) => ({ spellId, prepared: false, source: "background" as const })),
         ...magicalSecretSelections.filter(Boolean).filter((id) => !selectedSpells.some((entry) => entry.spellId === id)).map((spellId) => ({ spellId, prepared: true, source: "magical-secrets" as const })),
       ],
       inventory: equipmentMode === "equipment" ? equipmentSelections : [],
@@ -663,6 +706,20 @@ export default function NewCharacterPage() {
                   <ChoiceGroup title="Tool choices" choices={selectedBackgroundRules.toolChoices} value={backgroundToolSelections} onChange={setBackgroundToolSelections} />
                   {selectedBackgroundRules.languages.length > 0 && <p className="mt-4 text-sm text-stone-300"><b>Fixed languages:</b> {selectedBackgroundRules.languages.join(", ")}</p>}
                   <ChoiceGroup title="Language choices" choices={selectedBackgroundRules.languageChoices} value={backgroundLanguageSelections} onChange={setBackgroundLanguageSelections} />
+                  {backgroundFixedSpellIds.length > 0 && <p className="mt-4 text-sm text-stone-300"><b>Background spells:</b> {backgroundFixedSpellIds.map((id) => spellCatalogue.find((spell) => spell.id === id)?.name).filter(Boolean).join(", ")}</p>}
+                  {backgroundSpellChoiceGroups.length > 0 && <div className="mt-4 rounded-2xl border border-amber-900/50 bg-amber-950/20 p-4">
+                    <div className="text-sm font-semibold text-amber-300">Choose background spell{backgroundSpellChoiceGroups.reduce((total, group) => total + group.count, 0) > 1 ? "s" : ""}</div>
+                    {backgroundSpellChoiceGroups.flatMap((group, groupIndex) =>
+                      Array.from({ length: group.count }, (_, slotIndex) => {
+                        const slot = backgroundSpellChoiceGroups.slice(0, groupIndex).reduce((total, item) => total + item.count, 0) + slotIndex;
+                        const selected = backgroundSpellSelections[slot] ?? "";
+                        return <select key={slot} value={selected} onChange={(event) => selectBackgroundSpell(slot, event.target.value)} className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100">
+                          <option value="">Choose a spell...</option>
+                          {group.options.filter((spell) => !backgroundSpellSelections.includes(spell.id) || spell.id === selected).map((spell) => <option key={spell.id} value={spell.id}>{spell.name} (Level {spell.level})</option>)}
+                        </select>;
+                      }),
+                    )}
+                  </div>}
                   {selectedBackgroundRules.featureName && (
                     <div className="mt-5 rounded-2xl border border-amber-900/50 bg-amber-950/20 p-5">
                       <div className="text-xs font-semibold uppercase tracking-wider text-amber-500">Background Feature</div>
@@ -688,11 +745,8 @@ export default function NewCharacterPage() {
           {step === "species" && (
             <>
               <SectionCard title="Choose a species" description="Choose a race and, where available, expand it to choose its subrace.">
-                <RacePicker races={catalogue.races} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} />
+                <RacePicker races={catalogue.races.map((name) => ({ name, source: raceRules[name]?.source ?? "", description: raceRules[name]?.description ?? "" }))} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} />
               </SectionCard>
-
-              {selectedRaceRules && <InfoBox title={form.race} badge={selectedRaceRules.source} text={selectedRaceRules.description || "No species description is available for this entry."} />}
-              {selectedSubrace && <InfoBox title={selectedSubrace.name} badge={selectedSubrace.source} text={selectedSubrace.description || "No subrace description is available for this entry."} />}
 
               <SectionCard title="Species traits">
                 <div className="space-y-3">
@@ -986,25 +1040,76 @@ function BuilderFooter({ step, onStepChange, canCreate, missingRequirements }: {
   );
 }
 
-function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }: { races: string[]; subraces: Array<{ name: string; parentRace: string }>; selectedRace: string; selectedSubrace: string; onSelect: (race: string, subrace?: string) => void }) {
+function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }: {
+  races: Array<{ name: string; source: string; description: string }>;
+  subraces: Array<{ name: string; parentRace: string; source?: string; description?: string }>;
+  selectedRace: string;
+  selectedSubrace: string;
+  onSelect: (race: string, subrace?: string) => void;
+}) {
   const [expanded, setExpanded] = useState(selectedRace);
+  useEffect(() => setExpanded(selectedRace), [selectedRace]);
+
+  const normalizeSource = (source: string) => {
+    const value = source.trim();
+    if (!value) return "Other";
+    if (/^(?:PHB|Player.?s Handbook)$/i.test(value)) return "PHB";
+    if (/^(?:TCE|Tasha.?s Cauldron of Everything)$/i.test(value)) return "TCE";
+    if (/^(?:XGE|Xanathar.?s Guide to Everything)$/i.test(value)) return "XGE";
+    return value;
+  };
+
+  const groupedMap = new Map<string, typeof races>();
+  for (const race of races) {
+    const source = normalizeSource(race.source);
+    if (!groupedMap.has(source)) groupedMap.set(source, []);
+    groupedMap.get(source)!.push(race);
+  }
+
+  const grouped = [...groupedMap.entries()]
+    .sort(([a], [b]) => {
+      if (a === "PHB") return -1;
+      if (b === "PHB") return 1;
+      if (a === "TCE") return -1;
+      if (b === "TCE") return 1;
+      return a.localeCompare(b);
+    })
+    .map(([source, entries]) => ({ source, races: entries.sort((a, b) => a.name.localeCompare(b.name)) }));
+
   return <div>
     <div className="text-xs font-semibold uppercase tracking-wider text-stone-500">Race</div>
-    <div className="mt-2 space-y-2">
-      {races.map((race) => {
-        const children = subraces.filter((entry) => entry.parentRace === race);
-        const open = expanded === race;
-        const selected = selectedRace === race && !selectedSubrace;
-        return <div key={race} className="rounded-xl border border-stone-800 bg-stone-950/60 overflow-hidden">
-          <button type="button" onClick={() => { setExpanded(open ? "" : race); onSelect(race); }} className={`flex w-full items-center justify-between px-4 py-3 text-left ${selected ? "bg-stone-800 text-stone-100" : "text-stone-300"}`}>
-            <span className="font-semibold">{race}</span>
-            {children.length > 0 && <span className="text-xs text-stone-500">{children.length} subrace{children.length === 1 ? "" : "s"} {open ? "▴" : "▾"}</span>}
-          </button>
-          {open && children.length > 0 && <div className="border-t border-stone-800 p-2">
-            {children.map((entry) => <button key={entry.name} type="button" onClick={() => onSelect(race, entry.name)} className={`block w-full rounded-lg px-4 py-2 text-left text-sm ${selectedSubrace === entry.name ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-stone-900 hover:text-stone-200"}`}>{entry.name}</button>)}
-          </div>}
-        </div>;
-      })}
+    <div className="mt-3 space-y-6">
+      {grouped.map((group) => (
+        <section key={group.source}>
+          <div className="mb-2 flex items-center gap-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-amber-300">{group.source}</h3>
+            <div className="h-px flex-1 bg-stone-800" />
+          </div>
+          <div className="space-y-2">
+            {group.races.map((race) => {
+              const children = subraces.filter((entry) => entry.parentRace === race.name).sort((a, b) => a.name.localeCompare(b.name));
+              const open = expanded === race.name;
+              const selected = selectedRace === race.name;
+              return <div key={race.name} className="rounded-xl border border-stone-800 bg-stone-950/60 overflow-hidden">
+                <button type="button" onClick={() => { setExpanded(open ? "" : race.name); onSelect(race.name); }} className={"flex w-full items-center justify-between px-4 py-3 text-left " + (selected && !selectedSubrace ? "bg-stone-800 text-stone-100" : selected ? "bg-stone-900 text-stone-200" : "text-stone-300")}>
+                  <span className="font-semibold">{race.name}</span>
+                  {children.length > 0 && <span className="text-xs text-stone-500">{children.length} subrace{children.length === 1 ? "" : "s"} {open ? "▴" : "▾"}</span>}
+                </button>
+                {open && selected && <div className="border-t border-stone-800 bg-stone-950/40 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-amber-500">{race.source || "Species"}</div>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-400">{race.description || "No species description is available."}</p>
+                </div>}
+                {open && children.length > 0 && <div className="border-t border-stone-800 p-2">
+                  {children.map((entry) => <div key={entry.name}>
+                    <button type="button" onClick={() => { setExpanded(race.name); onSelect(race.name, entry.name); }} className={"block w-full rounded-lg px-4 py-2 text-left text-sm " + (selectedSubrace === entry.name && selectedRace === race.name ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-stone-900 hover:text-stone-200")}>{entry.name}</button>
+                    {selectedSubrace === entry.name && selectedRace === race.name && entry.description && <p className="px-4 pb-2 text-sm leading-6 text-stone-400">{entry.description}</p>}
+                  </div>)}
+                </div>}
+              </div>;
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   </div>;
 }
