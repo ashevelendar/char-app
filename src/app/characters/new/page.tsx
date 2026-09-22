@@ -424,11 +424,13 @@ export default function NewCharacterPage() {
                 <MagicalSecretsSection features={magicalSecretFeatures} spells={magicalSecretSpellOptions} selected={magicalSecretSelections} onChange={setMagicalSecretSelections} />
               )}
 
-              <SectionCard title="Class options" description="Choose Fighting Styles and other optional class features available at this level.">
-                {optionalChoiceGroups.length > 0 ? optionalChoiceGroups.map((group) => (
-                  <OptionalFeatureGroup key={group.id} title={group.title} count={group.count} featureTypes={group.featureTypes} catalogue={optionalFeatureCatalogue} selected={form.optionalFeatures} onChange={(next) => setForm((current) => ({ ...current, optionalFeatures: next }))} />
-                )) : <p className="text-sm text-stone-500">No selectable class options were found for this level.</p>}
-              </SectionCard>
+              {optionalChoiceGroups.length > 0 && (
+                <SectionCard title="Class options" description="Choose Fighting Styles and other optional class features available at this level.">
+                  {optionalChoiceGroups.map((group) => (
+                    <OptionalFeatureGroup key={group.id} title={group.title} count={group.count} featureTypes={group.featureTypes} catalogue={optionalFeatureCatalogue} selected={form.optionalFeatures} onChange={(next) => setForm((current) => ({ ...current, optionalFeatures: next }))} />
+                  ))}
+                </SectionCard>
+              )}
             </>
           )}
 
