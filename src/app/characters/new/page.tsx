@@ -149,6 +149,45 @@ export default function NewCharacterPage() {
     [form.className, form.level],
   );
 
+  const expertiseLevels = useMemo(
+    () => featureCatalogue
+      .filter((feature) => feature.name.toLowerCase() === "expertise" && feature.className === form.className && feature.requiredLevel <= form.level)
+      .sort((a, b) => a.requiredLevel - b.requiredLevel)
+      .map((feature) => feature.requiredLevel),
+    [featureCatalogue, form.className, form.level],
+  );
+
+  const magicalSecretFeatures = useMemo(
+    () => featureCatalogue
+      .filter((feature) => feature.name.toLowerCase().includes("magical secrets") && feature.className === form.className && feature.requiredLevel <= form.level)
+      .sort((a, b) => a.requiredLevel - b.requiredLevel),
+    [featureCatalogue, form.className, form.level],
+  );
+
+  const baseAbilityScoresWithRace = useMemo(
+    () => applyAbilityBonuses(
+      applyAbilityBonuses(baseAbilities, raceRules[form.race]?.abilityBonuses ?? {}),
+      selectedSubrace?.abilityBonuses ?? {},
+    ),
+    [baseAbilities, form.race, selectedSubrace, raceRules],
+  );
+
+  const asiBonusScores = useMemo(() => {
+    const next = { ...baseAbilityScoresWithRace };
+    asiLevels.forEach((_, index) => {
+      if (asiChoices[index]) return;
+      const choice = asiAbilityChoices[index];
+      if (!choice) return;
+      if (choice.mode === "two") {
+        next[choice.first] = Math.min(20, next[choice.first] + 2);
+      } else {
+        next[choice.first] = Math.min(20, next[choice.first] + 1);
+        if (choice.second !== choice.first) next[choice.second] = Math.min(20, next[choice.second] + 1);
+      }
+    });
+    return next;
+  }, [baseAbilityScoresWithRace, asiLevels, asiChoices, asiAbilityChoices]);
+
   const featPrerequisiteCharacter = useMemo(() => ({
     level: form.level,
     abilities: form.abilities,
