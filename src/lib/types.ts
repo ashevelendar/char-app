@@ -228,6 +228,7 @@ export interface ClassRuleData {
   cantripProgression?: number[];
   spellsKnownProgression?: number[];
   preparedSpells?: string | null;
+  spellbookProgression?: number[];
   spellSlots?: number[][];
   pactSlotProgression?: Array<{ count: number; level: number }>;
   subclassUnlockLevel?: number;
