@@ -101,10 +101,29 @@ export interface ContentOverride {
   reason?: string;
 }
 
+export interface SubraceDefinition {
+  id: string;
+  name: string;
+  parentRace: string;
+  description: string;
+  source: string;
+  abilityBonuses: Partial<AbilityScores>;
+}
+
+export interface OptionalFeatureDefinition {
+  id: string;
+  name: string;
+  description: string;
+  featureTypes: string[];
+  source: string;
+  contentKey?: string;
+}
+
 export interface Character {
   id: string;
   name: string;
   race: string;
+  subrace: string;
   className: string;
   subclass: string;
   level: number;
@@ -121,6 +140,7 @@ export interface Character {
   abilities: AbilityScores;
   savingThrows: AbilityKey[];
   skills: string[];
+  tools: string[];
   languages: string[];
   features: string[];
   spells: SpellEntry[];
@@ -135,6 +155,8 @@ export interface Character {
 export interface NewCharacterInput {
   name: string;
   race: string;
+  subrace?: string;
+  subrace: string;
   className: string;
   subclass: string;
   level: number;
@@ -150,7 +172,9 @@ export interface NewCharacterInput {
   abilities: AbilityScores;
   notes: string;
   skills?: string[];
+  tools?: string[];
   languages?: string[];
+  optionalFeatures?: string[];
   feats?: string[];
   resourceUses?: Record<string, number>;
 }
