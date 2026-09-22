@@ -509,10 +509,14 @@ export default function NewCharacterPage() {
 
   function goToStep(nextStep: BuilderStep) {
     if (nextStep === step) return;
-    const missing = missingRequirements(stepRequirements[step]);
-    if (missing.length) {
-      setCreationError("Complete the current step before moving on: " + missing.join("; ") + ".");
-      return;
+    const currentIndex = BUILDER_STEPS.indexOf(step);
+    const nextIndex = BUILDER_STEPS.indexOf(nextStep);
+    if (nextIndex > currentIndex) {
+      const missing = missingRequirements(stepRequirements[step]);
+      if (missing.length) {
+        setCreationError("Complete the current step before moving on: " + missing.join("; ") + ".");
+        return;
+      }
     }
     setCreationError("");
     setStep(nextStep);
