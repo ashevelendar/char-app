@@ -257,7 +257,7 @@ function CharacterEditor({
       });
       return current.every((value, index) => value === next[index]) && current.length === next.length ? current : next;
     });
-  }, [allAsiLevels, form.level, form.abilities, form.race, form.subrace, form.className, form.background, abilities, selectedSkills, selectedTools, selectedLanguages, featCatalogue]);
+  }, [allAsiLevels, form.level, abilities, form.race, form.subrace, form.className, form.background, selectedSkills, selectedTools, selectedLanguages, featCatalogue]);
 
 
 
