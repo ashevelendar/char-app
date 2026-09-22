@@ -341,14 +341,16 @@ function CharacterEditor({
 
   function selectRace(race: string, subrace = "") {
     const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
-    setForm((current) => ({ ...current, race, subrace }));
+    const speed = subraceRules?.speed ?? raceRules[race]?.speed ?? 30;
+    setForm((current) => ({ ...current, race, subrace, speed }));
     setRaceLanguageSelections([]);
     setAbilities(applyAbilityBonuses(applyAbilityBonuses(baseAbilities, raceRules[race]?.abilityBonuses ?? {}), subraceRules?.abilityBonuses ?? {}));
   }
 
   function setSubrace(value: string) {
     const subraceRules = catalogue.subraces.find((entry) => entry.name === value && entry.parentRace === form.race);
-    setForm((current) => ({ ...current, subrace: value }));
+    const speed = subraceRules?.speed ?? raceRules[form.race]?.speed ?? 30;
+    setForm((current) => ({ ...current, subrace: value, speed }));
     setAbilities(applyAbilityBonuses(applyAbilityBonuses(baseAbilities, raceRules[form.race]?.abilityBonuses ?? {}), subraceRules?.abilityBonuses ?? {}));
   }
 
