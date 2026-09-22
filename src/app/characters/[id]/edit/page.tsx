@@ -752,7 +752,26 @@ function CharacterEditor({
                             <option value="">Ability Score Improvement</option>
                             {choices.map((feat) => <option key={feat.id} value={feat.id}>{feat.name}</option>)}
                           </select>
-                          {selectedFeat && <article className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4"><div className="flex items-center gap-2"><h3 className="font-semibold text-amber-300">{selectedFeat.name}</h3>{selectedFeat.source && <Badge>{selectedFeat.source}</Badge>}</div><p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-300">{selectedFeat.description}</p></article>}
+                          {selectedFeat && <article className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4">
+                             <div className="flex items-center gap-2"><h3 className="font-semibold text-amber-300">{selectedFeat.name}</h3>{selectedFeat.source && <Badge>{selectedFeat.source}</Badge>}</div>
+                             <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-300">{selectedFeat.description}</p>
+                             {(() => {
+                               const abilityOptions = getFeatAbilityOptions(selectedFeat);
+                               if (!abilityOptions.length) return null;
+                               const grouped = [...new Map(abilityOptions.map((option) => [option.ability, option])).values()];
+                               const selectedAbility = featAbilityChoices[selectedFeat.id];
+                               const requiresChoice = grouped.length > 1;
+                               return <div className="mt-4 rounded-xl border border-stone-700 bg-stone-950/60 p-3">
+                                 <div className="text-xs font-semibold uppercase tracking-wider text-stone-400">Ability Score Effect</div>
+                                 {requiresChoice ? (
+                                   <select value={selectedAbility ?? ""} onChange={(event) => setFeatAbilityChoices((current) => ({ ...current, [selectedFeat.id]: event.target.value as AbilityKey }))} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100">
+                                     <option value="">Choose an ability...</option>
+                                     {grouped.map((option) => <option key={option.ability} value={option.ability}>+{option.amount} {option.ability.toUpperCase()}</option>)}
+                                   </select>
+                                 ) : <p className="mt-2 text-sm text-amber-300">+{grouped[0].amount} {grouped[0].ability.toUpperCase()}</p>}
+                               </div>;
+                             })()}
+                           </article>}
                         </div>
                       );
                     })}
