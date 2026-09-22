@@ -417,9 +417,17 @@ export default function NewCharacterPage() {
       ).length;
       return count >= group.count;
     }),
-    spells: effectiveSelectedSpells.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0).length === cantripsKnown
-      && (normalSpellLimit === null
-        || effectiveSelectedSpells.filter((entry) => (availableSpells.find((spell) => spell.id === entry.spellId)?.level ?? 0) > 0).length === normalSpellLimit),
+    spells: (() => {
+      const cantripCount = effectiveSelectedSpells.filter((entry) =>
+        availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0,
+      ).length;
+      const leveledCount = effectiveSelectedSpells.filter((entry) =>
+        (availableSpells.find((spell) => spell.id === entry.spellId)?.level ?? 0) > 0,
+      ).length;
+      if (cantripCount !== cantripsKnown) return false;
+      if (normalSpellLimit === null) return true;
+      return spellsKnown !== null ? leveledCount === normalSpellLimit : leveledCount <= normalSpellLimit;
+    })(),
     equipment: equipmentChoicesComplete,
   };
 
