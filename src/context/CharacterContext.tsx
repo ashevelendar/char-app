@@ -1502,7 +1502,7 @@ function toCharacter(
       const source = String(rowEntry?.source ?? "").toLowerCase();
       if (Boolean(rowEntry?.dm_granted) || source.includes("dm")) return { featureId, source: "dm" as const };
       if (source.includes("manual")) return { featureId, source: "manual" as const };
-      if (source.includes("automatic")) return { featureId, source: "automatic" as const };
+      if (source.includes("automatic")) return { featureId, source: "legacy" as const };
       return { featureId, source: "automatic" as const };
     }),
     spells: spellsForCharacter,
@@ -1901,7 +1901,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         localPatch.featureProvenance = localPatch.features.map((featureId) => ({
           featureId,
           source: preservedFeatures.includes(featureId)
-            ? (currentCharacter.featureProvenance.find((entry) => entry.featureId === featureId)?.source ?? "manual")
+            ? (currentCharacter.featureProvenance.find((entry) => entry.featureId === featureId)?.source ?? "legacy")
             : "automatic",
         }));
       }
