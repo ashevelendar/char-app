@@ -390,8 +390,18 @@ export function getPreparedSpellCount(character: Character, classCatalogue?: Rul
   return null;
 }
 
-export function getWizardSpellbookProgression(level: number) {
-  const safeLevel = Math.max(1, Math.min(20, level));  return 6 + (safeLevel - 1) * 2;
+export function getSpellbookProgression(className: string, level: number, classCatalogue?: RuleClassCatalogue) {
+  const safeLevel = Math.max(1, Math.min(20, level));
+  const progression = getDynamicClassRule(className, classCatalogue)?.spellbookProgression;
+  if (progression?.length) return progression[safeLevel - 1] ?? progression[safeLevel] ?? null;
+  return null;
+}
+
+export function getWizardSpellbookProgression(level: number, classCatalogue?: RuleClassCatalogue) {
+  const dynamic = getSpellbookProgression("Wizard", level, classCatalogue);
+  if (dynamic !== null) return dynamic;
+  const safeLevel = Math.max(1, Math.min(20, level));
+  return 6 + (safeLevel - 1) * 2;
 }
 
 export function getSpellSlotSummary(className: string, level: number, classCatalogue?: RuleClassCatalogue): SpellSlotSummary[] {
