@@ -21,6 +21,13 @@ export interface MagicalSecretsHistoryEntry {
   level: number;
   spellIds: string[];
 }
+
+export type FeatureGrantSource = "automatic" | "manual" | "dm";
+
+export interface FeatureGrantHistoryEntry {
+  featureId: string;
+  source: FeatureGrantSource;
+}
 export type SpellLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 export type AccessMode = "player" | "dm";
 export type ContentType = "spell" | "feature" | "item";
@@ -201,6 +208,7 @@ export interface Character {
   tools: string[];
   languages: string[];
   features: string[];
+  featureProvenance: FeatureGrantHistoryEntry[];
   spells: SpellEntry[];
   inventory: InventoryEntry[];
   feats: string[];
@@ -232,6 +240,7 @@ export interface NewCharacterInput {
   savingThrows?: AbilityKey[];
   notes: string;
   spells?: SpellEntry[];
+  featureProvenance?: FeatureGrantHistoryEntry[];
   skills?: string[];
   tools?: string[];
   languages?: string[];
