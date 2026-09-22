@@ -720,24 +720,38 @@ async function loadContentMaps(): Promise<ContentMaps> {
     console.warn("Feat catalogue unavailable; continuing without feats.", featsResult.error);
   }
 
-  const results = [
-    classesResult,
-    racesResult,
-    subclassesResult,    backgroundsResult,
-    spellsResult,
-    featuresResult,
-    itemsResult,
-    optionalFeaturesResult,
-    spellClassesResult,
-    spellSubclassesResult,
-    spellRacesResult,
-    classFeaturesResult,
-    subclassFeaturesResult,
-    featsResult,
-  ];
+  const namedResults = [
+    ["classes", classesResult],
+    ["races", racesResult],
+    ["subclasses", subclassesResult],
+    ["backgrounds", backgroundsResult],
+    ["spells", spellsResult],
+    ["features", featuresResult],
+    ["items", itemsResult],
+    ["optional_features", safeOptionalFeaturesResult],
+    ["spell_classes", spellClassesResult],
+    ["spell_subclasses", spellSubclassesResult],
+    ["spell_races", spellRacesResult],
+    ["class_features", classFeaturesResult],
+    ["subclass_features", subclassFeaturesResult],
+    ["feats", safeFeatsResult],
+  ] as const;
 
-  const failed = results.find((result) => result.error);
-  if (failed?.error) throw failed.error;
+  const failed = namedResults.find(([, result]) => result.error);
+  if (failed?.[1].error) {
+    const error = failed[1].error;
+    const message = error && typeof error === "object" && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : String(error ?? "");
+    const code = error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+    throw new Error(
+      "Supabase catalogue query failed for \"" + failed[0] + "\"" +
+      (code ? " (" + code + ")" : "") + ": " +
+      (message || "unknown database error"),
+    );
+  }
 
   const rows = {
     classes: classesResult.data ?? [],
