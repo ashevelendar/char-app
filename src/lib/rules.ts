@@ -364,9 +364,7 @@ export function getPreparedSpellCount(character: Character, classCatalogue?: Rul
     let expression = formula
       .replaceAll("<$level$>", String(level))
       .replace(/<\$([a-z]+_mod)\$>/g, (_, token: string) => String(abilityModifierByToken[token] ?? 0))
-      .replace(/floor\(([^)]+)\)/gi, "$1")
-      .replace(/max\(\s*([^,]+)\s*,\s*([^)]+)\)/gi, "$1")
-      .replace(/min\(\s*([^,]+)\s*,\s*([^)]+)\)/gi, "$1");
+      .replace(/floor\(([^)]+)\)/gi, "$1");
     if (/^[0-9+*/().\s-]+$/.test(expression)) {
       const terms = expression.split("+").map((term) => term.trim()).filter(Boolean);
       const value = terms.reduce((sum, term) => {
