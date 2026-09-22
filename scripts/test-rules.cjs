@@ -170,12 +170,11 @@ test("Expertise validation enforces two proficient, unique skills", () => {
 test("inventory weight and carrying capacity use Strength", () => {
   const c = character({ abilities: { str: 12, dex: 10, con: 10, int: 10, wis: 10, cha: 10 } });
   const item = { id: "heavy", name: "Heavy Item", category: "Adventuring Gear", rarity: "Common", description: "", weight: "20 lb" };
-  assert.equal(rules.getInventoryWeight(c), 0);
-  c.inventory = [{ itemId: "heavy", quantity: 2, equipped: false }];
-  assert.equal(rules.getInventoryWeight(c, [item]), 40);
+  const inventory = [{ itemId: "heavy", quantity: 2, equipped: false }];
+  assert.equal(rules.getInventoryWeight(c, [item]), 0);
+  assert.equal(rules.getInventoryWeight({ ...c, inventory }, [item]), 40);
   assert.equal(rules.getCarryingCapacity(c), 180);
-  c.inventory = [{ itemId: "heavy", quantity: 10, equipped: false }];
-  assert.equal(rules.isItemOverCarryingCapacity(c, c.inventory, [item]), true);
+  assert.equal(rules.isItemOverCarryingCapacity({ ...c, inventory: [{ itemId: "heavy", quantity: 10, equipped: false }] }, [item]), true);
 });
 
 console.log("\nAll rules tests passed.\n");
