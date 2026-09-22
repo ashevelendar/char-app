@@ -206,7 +206,7 @@ function CharacterEditor({
   }, [character.notes]);
 
   const initialAsiHistory = useMemo(() => {
-    const parsed = parseAsiHistory(character.notes);
+    const parsed = character.asiHistory?.length ? character.asiHistory : parseAsiHistory(character.notes);
     if (parsed.length) return parsed;
     const levels = getAbilityScoreImprovementLevelsUpTo(character.className, character.level, classRules);
     return levels.map((level, index) => {
@@ -239,7 +239,7 @@ function CharacterEditor({
   const [languages, setLanguages] = useState<string[]>(character.languages);
   const [asiHistory, setAsiHistory] = useState<AsiHistoryEntry[]>(initialAsiHistory);
   const [featAbilityChoices, setFeatAbilityChoices] = useState<Record<string, AbilityKey>>(initialFeatAbilityChoices);
-  const magicalSecretHistoryFromNotes = useMemo(() => parseMagicalSecretsHistory(character.notes), [character.notes]);
+  const magicalSecretHistoryFromNotes = useMemo(() => character.magicalSecretsHistory?.length ? character.magicalSecretsHistory : parseMagicalSecretsHistory(character.notes), [character.magicalSecretsHistory, character.notes]);
   const [magicalSecretHistory, setMagicalSecretHistory] = useState<MagicalSecretsHistoryEntry[]>(magicalSecretHistoryFromNotes);
   const magicalSecretSelections = magicalSecretHistory.flatMap((entry) => entry.spellIds);
   const [selectedSpells, setSelectedSpells] = useState<SpellEntry[]>(() =>
@@ -452,7 +452,7 @@ function CharacterEditor({
   );
 
   const initialExpertiseHistory = useMemo(() => {
-    const parsed = parseExpertiseHistory(character.notes);
+    const parsed = character.expertiseHistory?.length ? character.expertiseHistory : parseExpertiseHistory(character.notes);
     if (parsed.length) return parsed;
     const legacyMatch = character.notes.match(/^Expertise:\s*(.+)$/m);
     const legacySkills = legacyMatch?.[1]?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
@@ -701,6 +701,9 @@ function CharacterEditor({
             .map((spellId) => ({ spellId, prepared: true, source: "magical-secrets" as const })),
         ],
         optionalFeatures,
+        asiHistory,
+        expertiseHistory,
+        magicalSecretsHistory: magicalSecretHistory,
         notes: [
           form.notes,
           expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
@@ -1438,7 +1441,7 @@ function SpellSelectionSection({ className, level, availableSpells, cantripsKnow
     const count = spell.level === 0 ? selectedCantrips.length : selectedLeveled.length;
     const limit = spell.level === 0 ? cantripsKnown : spellLimit;
     if (limit !== null && count >= limit) return;
-    onChange([...selectedSpells, { spellId, prepared: spell.level === 0 || !spellbook }]);
+    onChange([...selectedSpells, { spellId, prepared: spell.level === 0 || !spellbook, source: "normal" }]);
   }
   return <SectionCard title="Spells" description={spellbook ? "Edit the spells in the character's spellbook." : "Edit the character's known or prepared spells."}>
     <div className="grid gap-5 lg:grid-cols-2">
