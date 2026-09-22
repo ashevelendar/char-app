@@ -2067,12 +2067,12 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
               .insert(
                 dbFeatureIds.map((featureId) => {
                   const appFeatureId = maps.featureByDbId.get(featureId) ?? featureId;
-                  const provenance = localPatch.featureProvenance?.find((entry) => entry.featureId === appFeatureId)?.source ?? "automatic";
+                  const provenance = localPatch.featureProvenance?.find((entry) => entry.featureId === appFeatureId)?.source ?? "legacy";
                   return {
                     character_id: id,
                     feature_id: featureId,
                     dm_granted: provenance === "dm",
-                    source: provenance === "dm" ? "DM Grant" : provenance === "manual" ? "Manual" : "Automatic",
+                    source: provenance === "dm" ? "DM Grant" : provenance === "manual" ? "Manual" : provenance === "automatic" ? "Automatic" : "Legacy",
                   };
                 }),
               );
