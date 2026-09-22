@@ -66,6 +66,7 @@ export interface Feature {
   backgroundName?: string;
   featId?: string;
   requiresFeatureId?: string;
+  requiresFeatureIds?: string[];
 }
 
 
