@@ -7,7 +7,7 @@ import type { FormEvent } from "react";
 import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, Character } from "../../../../lib/types";
+import type { AbilityKey, AbilityScores, Character, InventoryEntry } from "../../../../lib/types";
 import { getExpectedHitDice, getExpectedMaxHp, getNewAbilityScoreImprovementLevels, getProficiencyBonus } from "../../../../lib/rules";
 
 const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
@@ -27,6 +27,7 @@ export default function EditCharacterPage() {
     classRules,
     subclassOptionalFeatureProgression,
     optionalFeatureCatalogue,
+    itemCatalogue,
   } = useCharacters();
   const character = characters.find((entry) => entry.id === params.id);
 
@@ -112,6 +113,12 @@ function CharacterEditor({
   const [backgroundSkillSelections, setBackgroundSkillSelections] = useState<string[]>([]);
   const [backgroundToolSelections, setBackgroundToolSelections] = useState<string[]>([]);
   const [backgroundLanguageSelections, setBackgroundLanguageSelections] = useState<string[]>([]);
+  const [classLanguageSelections, setClassLanguageSelections] = useState<string[]>([]);
+  const [raceLanguageSelections, setRaceLanguageSelections] = useState<string[]>([]);
+  const [equipmentSelections, setEquipmentSelections] = useState<InventoryEntry[]>(character.inventory);
+  const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
+  const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [step, setStep] = useState<BuilderStep>("class");
 
   const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className);
   const selectedSubclass = subclassOptions.find((entry) => entry.name === form.subclass);
@@ -135,10 +142,25 @@ function CharacterEditor({
     const classOptions = new Set(classChoices.flatMap((choice) => choice.options));
     const classSelected = character.skills.filter((skill) => classOptions.has(skill)).slice(0, classChoices.reduce((sum, choice) => sum + choice.count, 0));
     setClassSkillSelections(classSelected);
+    setClassLanguageSelections(character.languages.filter((language) => (selectedClassRules?.languages.choices ?? []).some((choice) => choice.options.includes(language))));
     setBackgroundSkillSelections([]);
     setBackgroundToolSelections([]);
-    setBackgroundLanguageSelections([]);
+    setBackgroundLanguageSelections(character.languages.filter((language) => (selectedBackgroundRules?.languageChoices ?? []).some((choice) => choice.options.includes(language))));
+    setRaceLanguageSelections(character.languages.filter((language) => (raceRules[character.race]?.languages.choices ?? []).some((choice) => choice.options.includes(language))));
   }, [form.className, character.skills, selectedClassRules]);
+
+  useEffect(() => {
+    setClassLanguageSelections([]);
+  }, [form.className]);
+
+  useEffect(() => {
+    setBackgroundToolSelections([]);
+    setBackgroundLanguageSelections([]);
+  }, [form.background]);
+
+  useEffect(() => {
+    setRaceLanguageSelections([]);
+  }, [form.race]);
 
   useEffect(() => {
     if (!catalogue.classes.length) return;
@@ -169,7 +191,9 @@ function CharacterEditor({
 
   const selectedLanguages = useMemo(() => [...new Set([
     ...(raceRules[form.race]?.languages.fixed ?? []),
+    ...raceLanguageSelections.filter(Boolean),
     ...(selectedClassRules?.languages.fixed ?? []),
+    ...classLanguageSelections.filter(Boolean),
     ...(selectedBackgroundRules?.languages ?? []),
     ...backgroundLanguageSelections.filter(Boolean),
   ])], [selectedClassRules, selectedBackgroundRules, backgroundLanguageSelections]);
@@ -183,7 +207,7 @@ function CharacterEditor({
     for (const entry of entries) {
       const key = entry.title + "::" + entry.featureTypes.join("|");
       const current = grouped.get(key);
-      if (current) current.count += entry.count;
+      if (current) current.count = Math.max(current.count, entry.count);
       else grouped.set(key, { id: key, title: entry.title, count: entry.count, featureTypes: entry.featureTypes });
     }
     return [...grouped.values()];
@@ -215,6 +239,7 @@ function CharacterEditor({
       skills: selectedSkills,
       tools: selectedTools,
       languages: selectedLanguages,
+      inventory: equipmentSelections,
       feats,
       optionalFeatures,
       features: Array.from(new Set([...(character.features ?? []), ...unlockedFeatureIds])),
@@ -222,110 +247,254 @@ function CharacterEditor({
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <PageHeader eyebrow="Character Editor" title={`Edit ${character.name}`} description="Change the information stored on this character." actions={<Link href={`/characters/${character.id}`} className="rounded-xl border border-stone-700 px-4 py-2.5 text-sm text-stone-300 hover:bg-stone-800">Cancel</Link>} />
-      <form onSubmit={submit} className="space-y-6">
-        <SectionCard title="Identity">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Character name" value={form.name} onChange={(value) => setForm((current) => ({ ...current, name: value }))} required />
-            <div className="sm:col-span-2 lg:col-span-3"><RacePicker races={catalogue.races} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} /></div>
-            <SelectField label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
-              const next = catalogue.subclasses.filter((entry) => entry.className === value);
-              setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "" }));
-            }} />
-            <SelectField label="Subclass" value={form.subclass} options={subclassOptions.map((entry) => entry.name)} onChange={(value) => setForm((current) => ({ ...current, subclass: value }))} />
-            <SelectField label="Background" value={form.background} options={catalogue.backgrounds} onChange={(value) => setForm((current) => ({ ...current, background: value }))} />
-            <Field label="Player name" value={form.playerName} onChange={(value) => setForm((current) => ({ ...current, playerName: value }))} />
-            <NumberField label="Level" value={form.level} onChange={(value) => setForm((current) => ({ ...current, level: value }))} min={1} max={20} />
-            <Field label="Alignment" value={form.alignment} onChange={(value) => setForm((current) => ({ ...current, alignment: value }))} />
-          </div>
-          {selectedSubrace && <InfoBox title={selectedSubrace.name} badge={selectedSubrace.source} text={selectedSubrace.description || "No subrace description is available."} />}
-          {selectedSubclass && <InfoBox title={selectedSubclass.name} badge={selectedSubclass.source} text={selectedSubclass.description || "No subclass description is available."} />}
-        </SectionCard>
+    <div className="min-h-[calc(100vh-120px)] bg-stone-950">
+      <BuilderStepNav step={step} onStepChange={setStep} />
 
-        <SectionCard title="Proficiencies">
-          {selectedClassRules && <div className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
-            <h3 className="font-semibold">Class proficiencies</h3>
-            {selectedClassRules.savingThrows.length > 0 && <p className="mt-2 text-sm text-stone-300"><b>Saving Throws:</b> {selectedClassRules.savingThrows.join(", ")}</p>}
-            {selectedClassRules.skills.fixed.length > 0 && <p className="mt-2 text-sm text-stone-300"><b>Fixed Skills:</b> {selectedClassRules.skills.fixed.join(", ")}</p>}
-            <ChoiceGroup title="Choose class skills" choices={selectedClassRules.skills.choices} value={classSkillSelections} onChange={setClassSkillSelections} />
-          </div>}
-          {selectedBackgroundRules && <div className="mt-5 rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
-            <h3 className="font-semibold">Background proficiencies</h3>
-            {selectedBackgroundRules.skills.length > 0 && <p className="mt-2 text-sm text-stone-300"><b>Fixed Skills:</b> {selectedBackgroundRules.skills.join(", ")}</p>}
-            <ChoiceGroup title="Choose background skills" choices={selectedBackgroundRules.skillChoices} value={backgroundSkillSelections} onChange={setBackgroundSkillSelections} exclude={[...(selectedClassRules?.skills.fixed ?? []), ...classSkillSelections]} />
-            {selectedBackgroundRules.tools.length > 0 && <p className="mt-2 text-sm text-stone-300"><b>Fixed Tools:</b> {selectedBackgroundRules.tools.join(", ")}</p>}
-            <ChoiceGroup title="Choose background tools" choices={selectedBackgroundRules.toolChoices} value={backgroundToolSelections} onChange={setBackgroundToolSelections} />
-            {selectedBackgroundRules.languages.length > 0 && <p className="mt-2 text-sm text-stone-300"><b>Fixed Languages:</b> {selectedBackgroundRules.languages.join(", ")}</p>}
-            <ChoiceGroup title="Choose background languages" choices={selectedBackgroundRules.languageChoices} value={backgroundLanguageSelections} onChange={setBackgroundLanguageSelections} />
-          </div>}
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
-            <ProficiencySummary title="Skills" values={selectedSkills} />
-            <ProficiencySummary title="Tools" values={selectedTools} />
-            <ProficiencySummary title="Languages" values={selectedLanguages} />
-          </div>
-        </SectionCard>
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+        <PageHeader
+          eyebrow={`Character Editor • ${STEP_META[step].number} of ${BUILDER_STEPS.length}`}
+          title={`Edit ${character.name}`}
+          description={STEP_META[step].description}
+          actions={<Link href={`/characters/${character.id}`} className="rounded-xl border border-stone-700 px-4 py-2.5 text-sm text-stone-300 hover:bg-stone-800">Cancel</Link>}
+        />
 
-        <SectionCard title="Class Options">
-          {optionalChoiceGroups.length ? optionalChoiceGroups.map((group) => <OptionalFeatureGroup key={group.id} title={group.title} count={group.count} featureTypes={group.featureTypes} catalogue={optionalFeatureCatalogue} selected={optionalFeatures} onChange={setOptionalFeatures} />) : <p className="text-sm text-stone-500">No selectable class options were found for this level.</p>}
-        </SectionCard>
+        <form onSubmit={submit} className="space-y-5">
+          {step === "class" && (
+            <>
+              <SectionCard title="Character identity" description="Change the character's class, subclass and player identity.">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Character name" value={form.name} onChange={(value) => setForm((current) => ({ ...current, name: value }))} required />
+                  <Field label="Player name" value={form.playerName} onChange={(value) => setForm((current) => ({ ...current, playerName: value }))} />
+                  <SelectField label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
+                    const next = catalogue.subclasses.filter((entry) => entry.className === value);
+                    setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "" }));
+                  }} />
+                  <SelectField label="Subclass" value={form.subclass} options={subclassOptions.map((entry) => entry.name)} onChange={(value) => setForm((current) => ({ ...current, subclass: value }))} />
+                </div>
+              </SectionCard>
+              {selectedSubclass && <InfoBox title={selectedSubclass.name} badge={selectedSubclass.source} text={selectedSubclass.description || "No subclass description is available."} />}
+              <SectionCard title="Class proficiencies">
+                {selectedClassRules && <>
+                  {selectedClassRules.savingThrows.length > 0 && <p className="text-sm text-stone-300"><b>Saving Throws:</b> {selectedClassRules.savingThrows.join(", ")}</p>}
+                  {selectedClassRules.skills.fixed.length > 0 && <p className="mt-2 text-sm text-stone-300"><b>Fixed Skills:</b> {selectedClassRules.skills.fixed.join(", ")}</p>}
+                  <ChoiceGroup title="Choose class skills" choices={selectedClassRules.skills.choices} value={classSkillSelections} onChange={setClassSkillSelections} />
+                  <ChoiceGroup title="Choose class languages" choices={selectedClassRules.languages.choices} value={classLanguageSelections} onChange={setClassLanguageSelections} />
+                </>}
+              </SectionCard>
+              <SectionCard title="Class Options" description="All optional features available at the character's current level are selectable here, including options gained at earlier levels.">
+                {optionalChoiceGroups.length ? optionalChoiceGroups.map((group) => <OptionalFeatureGroup key={group.id} title={group.title} count={group.count} featureTypes={group.featureTypes} catalogue={optionalFeatureCatalogue} selected={optionalFeatures} onChange={setOptionalFeatures} />) : <p className="text-sm text-stone-500">No selectable class options were found for this level.</p>}
+              </SectionCard>
+            </>
+          )}
 
-        <SectionCard title="Core stats">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <NumberField label="Current HP" value={form.hp} onChange={(value) => setForm((current) => ({ ...current, hp: value }))} min={0} />
-            <NumberField label="Maximum HP" value={form.maxHp} onChange={() => undefined} min={1} />
-            <NumberField label="Temporary HP" value={form.tempHp} onChange={(value) => setForm((current) => ({ ...current, tempHp: value }))} min={0} />
-            <NumberField label="Armor Class" value={form.ac} onChange={() => undefined} min={0} />
-            <NumberField label="Speed" value={form.speed} onChange={(value) => setForm((current) => ({ ...current, speed: value }))} min={0} />
-            <Field label="Hit Dice" value={form.hitDice} onChange={() => undefined} />
-            <NumberField label="Proficiency Bonus" value={form.proficiencyBonus} onChange={() => undefined} min={0} />
-          </div>
-        </SectionCard>
+          {step === "background" && (
+            <>
+              <SectionCard title="Background" description="Choose the background and all proficiency choices it grants.">
+                <SelectField label="Background" value={form.background} options={catalogue.backgrounds} onChange={(value) => setForm((current) => ({ ...current, background: value }))} />
+                {selectedBackgroundRules?.description && <p className="mt-5 whitespace-pre-line text-sm leading-7 text-stone-400">{selectedBackgroundRules.description}</p>}
+              </SectionCard>
+              {selectedBackgroundRules && <SectionCard title="Background benefits">
+                {selectedBackgroundRules.skills.length > 0 && <p className="text-sm text-stone-300"><b>Fixed skills:</b> {selectedBackgroundRules.skills.join(", ")}</p>}
+                <ChoiceGroup title="Skill choices" choices={selectedBackgroundRules.skillChoices} value={backgroundSkillSelections} onChange={setBackgroundSkillSelections} exclude={[...(selectedClassRules?.skills.fixed ?? []), ...classSkillSelections]} />
+                {selectedBackgroundRules.tools.length > 0 && <p className="mt-4 text-sm text-stone-300"><b>Fixed tools:</b> {selectedBackgroundRules.tools.join(", ")}</p>}
+                <ChoiceGroup title="Tool choices" choices={selectedBackgroundRules.toolChoices} value={backgroundToolSelections} onChange={setBackgroundToolSelections} />
+                {selectedBackgroundRules.languages.length > 0 && <p className="mt-4 text-sm text-stone-300"><b>Fixed languages:</b> {selectedBackgroundRules.languages.join(", ")}</p>}
+                <ChoiceGroup title="Language choices" choices={selectedBackgroundRules.languageChoices} value={backgroundLanguageSelections} />
+                {selectedBackgroundRules.featureName && <div className="mt-5 rounded-2xl border border-amber-900/50 bg-amber-950/20 p-5"><div className="text-xs font-semibold uppercase tracking-wider text-amber-500">Background Feature</div><h3 className="mt-1 text-lg font-semibold text-amber-300">{selectedBackgroundRules.featureName}</h3><p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-300">{selectedBackgroundRules.featureDescription}</p></div>}
+              </SectionCard>}
+            </>
+          )}
 
-        <SectionCard title="Ability scores">
-          <AbilityScoreBuilder
-            baseScores={baseAbilities}
-            onBaseScoresChange={(next) => {
-              setBaseAbilities(next);
-              setAbilities(applyAbilityBonuses(applyAbilityBonuses(next, raceRules[form.race]?.abilityBonuses ?? {}), selectedSubrace?.abilityBonuses ?? {}));
-            }}
-            raceBonuses={{ ...(raceRules[form.race]?.abilityBonuses ?? {}), ...(selectedSubrace?.abilityBonuses ?? {}) }}
-            raceLabel={[form.race, form.subrace].filter(Boolean).join(" / ")}
-            method={abilityMethod}
-            onMethodChange={setAbilityMethod}
-          />
-        </SectionCard>
+          {step === "species" && (
+            <>
+              <SectionCard title="Species" description="Change the race or subrace and review the associated traits.">
+                <RacePicker races={catalogue.races} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} />
+              </SectionCard>
+              {raceRules[form.race] && <InfoBox title={form.race} badge={raceRules[form.race].source} text={raceRules[form.race].description || "No species description is available."} />}
+              {selectedSubrace && <InfoBox title={selectedSubrace.name} badge={selectedSubrace.source} text={selectedSubrace.description || "No subrace description is available."} />}
+              <SectionCard title="Species traits">
+                <ChoiceGroup title="Choose species languages" choices={raceRules[form.race]?.languages.choices ?? []} value={raceLanguageSelections} onChange={setRaceLanguageSelections} />
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <ProficiencySummary title="Languages" values={selectedLanguages} />
+                  <ProficiencySummary title="Ability bonuses" values={Object.entries(selectedSubrace?.abilityBonuses ?? raceRules[form.race]?.abilityBonuses ?? {}).map(([key, value]) => `${key.toUpperCase()} ${value >= 0 ? "+" : ""}${value}`)} />
+                </div>
+              </SectionCard>
+            </>
+          )}
 
-        <SectionCard title="Level Progression">
-          <div className="space-y-4">
-            {featureCatalogue.filter((feature) => feature.requiredLevel > character.level && feature.requiredLevel <= form.level && feature.className === form.className && (!feature.subclassName || feature.subclassName === form.subclass)).map((feature) => (
-              <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Level {feature.requiredLevel}</Badge><Badge tone="warn">{feature.sourceType === "subclass" ? "Subclass" : "Class"}</Badge></div><p className="mt-3 whitespace-pre-line text-sm leading-6 text-stone-400">{feature.description}</p></article>
-            ))}
-            {asiLevels.length > 0 && <div className="rounded-xl border border-amber-900/60 bg-amber-950/20 p-4"><h3 className="font-semibold text-amber-300">Ability Score Improvement / Feat</h3><p className="mt-2 text-sm text-stone-400">ASI levels reached: {asiLevels.join(", ")}.</p></div>}
-          </div>
-        </SectionCard>
+          {step === "abilities" && (
+            <>
+              <SectionCard title="Ability scores" description="Adjust the character's base scores. Race and subrace bonuses are applied automatically.">
+                <AbilityScoreBuilder
+                  baseScores={baseAbilities}
+                  onBaseScoresChange={(next) => {
+                    setBaseAbilities(next);
+                    setAbilities(applyAbilityBonuses(applyAbilityBonuses(next, raceRules[form.race]?.abilityBonuses ?? {}), selectedSubrace?.abilityBonuses ?? {}));
+                  }}
+                  raceBonuses={{ ...(raceRules[form.race]?.abilityBonuses ?? {}), ...(selectedSubrace?.abilityBonuses ?? {}) }}
+                  raceLabel={[form.race, form.subrace].filter(Boolean).join(" / ")}
+                  method={abilityMethod}
+                  onMethodChange={setAbilityMethod}
+                />
+              </SectionCard>
+              <SectionCard title="Proficiency summary">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <ProficiencySummary title="Skills" values={selectedSkills} />
+                  <ProficiencySummary title="Tools" values={selectedTools} />
+                  <ProficiencySummary title="Languages" values={selectedLanguages} />
+                  <ProficiencySummary title="Saving Throws" values={selectedClassRules?.savingThrows ?? []} />
+                </div>
+              </SectionCard>
+            </>
+          )}
 
-        <SectionCard title="Feats">
-          <div className="space-y-4">
-            {feats.map((id) => {
-              const feat = featCatalogue.find((entry) => entry.id === id);
-              return feat ? <article key={id} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-4"><div className="flex items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feat.name}</h3>{feat.source && <Badge>{feat.source}</Badge>}</div><p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-400">{feat.description}</p></div><button type="button" onClick={() => setFeats((current) => current.filter((entry) => entry !== id))} className="rounded-xl border border-red-950 px-3 py-2 text-sm text-red-400">Remove</button></div></article> : null;
-            })}
-            <select onChange={(event) => { if (event.target.value) { setFeats((current) => [...current, event.target.value]); event.target.value = ""; } }} className="w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100">
-              <option value="">Add a feat...</option>
-              {featCatalogue.filter((feat) => !feats.includes(feat.id)).map((feat) => <option key={feat.id} value={feat.id}>{feat.name}</option>)}
-            </select>
-          </div>
-        </SectionCard>
+          {step === "equipment" && (
+            <>
+              <SectionCard title="Starting Equipment" description="Use the same starting-equipment choices available in the builder. Changing a choice updates only items previously marked as coming from that choice.">
+                <div className="space-y-4">
+                  {[
+                    ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `class-${index}`, heading: "Class equipment" })),
+                    ...(selectedBackgroundRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `background-${index}`, heading: "Background equipment" })),
+                  ].map((group) => (
+                    <div key={group.id} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
+                      <div className="mb-3 flex flex-wrap items-center gap-2"><h3 className="font-semibold">{group.heading}</h3><Badge>{group.label}</Badge></div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {group.options.map((option, optionIndex) => {
+                          const selected = startingEquipmentSelections[group.id] === optionIndex;
+                          return <button key={optionIndex} type="button" onClick={() => {
+                            setStartingEquipmentSelections((current) => ({ ...current, [group.id]: optionIndex }));
+                            const marker = `starting:${group.id}:`;
+                            setEquipmentSelections((current) => {
+                              const withoutGroup = current.filter((entry) => !entry.notes?.startsWith(marker));
+                              const additions = option.items.flatMap((entry) => {
+                                const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\\s+/i, "").replace(/[.,]/g, "").trim();
+                                const item = itemCatalogue.find((candidate) => {
+                                  const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
+                                  return name === normalized || name.includes(normalized) || normalized.includes(name);
+                                });
+                                return item ? [{ itemId: item.id, quantity: Math.max(1, entry.quantity), equipped: false, notes: marker + optionIndex }] : [];
+                              });
+                              const merged = [...withoutGroup];
+                              for (const addition of additions) {
+                                const existing = merged.find((entry) => entry.itemId === addition.itemId);
+                                if (existing) existing.quantity += addition.quantity;
+                                else merged.push(addition);
+                              }
+                              return merged;
+                            });
+                          }} className={`rounded-xl border p-4 text-left transition ${selected ? "border-amber-500 bg-amber-950/30" : "border-stone-800 bg-stone-950/50 hover:border-stone-600"}`}>
+                            <div className="flex items-center gap-2"><span className={`h-4 w-4 rounded-full border-2 ${selected ? "border-amber-400 bg-amber-400" : "border-stone-600"}`} /><span className="font-semibold">{option.label}</span></div>
+                            <p className="mt-2 text-xs leading-5 text-stone-500">{option.items.map((entry) => `${entry.quantity > 1 ? entry.quantity + "× " : ""}${entry.name}`).join(", ") || "No item records parsed"}</p>
+                          </button>;
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  {!((selectedClassRules?.startingEquipment?.length ?? 0) + (selectedBackgroundRules?.startingEquipment?.length ?? 0)) && <p className="text-sm text-stone-500">No parsed starting-equipment bundles were found.</p>}
+                </div>
+              </SectionCard>
 
-        <SectionCard title="Character notes">
-          <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={10} className="w-full rounded-xl border border-stone-700 bg-stone-950 px-4 py-3 text-sm leading-6 text-stone-100 outline-none focus:border-amber-400" />
-        </SectionCard>
+              <SectionCard title={`Current Inventory (${equipmentSelections.length})`} description="Manage the inventory that will be saved with this character.">
+                <div className="space-y-2">
+                  {equipmentSelections.length === 0 ? <p className="text-sm text-stone-500">Nothing carried.</p> : equipmentSelections.map((entry) => {
+                    const item = itemCatalogue.find((candidate) => candidate.id === entry.itemId);
+                    return item ? <div key={entry.itemId} className="flex flex-col gap-3 rounded-xl border border-stone-800 bg-stone-950/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div><div className="font-semibold">{item.name}</div><div className="text-xs text-stone-500">{item.category}</div></div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" onClick={() => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, quantity: Math.max(1, candidate.quantity - 1) } : candidate))} className="rounded-lg border border-stone-700 px-2 py-1">−</button>
+                        <span className="w-8 text-center text-sm">{entry.quantity}</span>
+                        <button type="button" onClick={() => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, quantity: candidate.quantity + 1 } : candidate))} className="rounded-lg border border-stone-700 px-2 py-1">+</button>
+                        <label className="flex items-center gap-2 text-sm text-stone-300"><input type="checkbox" checked={entry.equipped} onChange={(event) => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, equipped: event.target.checked } : candidate))} /> Equip</label>
+                        <button type="button" onClick={() => setEquipmentSelections((current) => current.filter((candidate) => candidate.itemId !== entry.itemId))} className="rounded-lg border border-red-900/60 px-2 py-1 text-red-400">Remove</button>
+                      </div>
+                    </div> : null;
+                  })}
+                </div>
+              </SectionCard>
 
-        <div className="flex justify-end"><button type="submit" className="rounded-xl bg-stone-100 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-300">Save Character</button></div>
-      </form>
+              <SectionCard title="Add Items" description="Search the imported 2014 catalogue and add anything else.">
+                <div className="mb-4 flex gap-3"><input value={equipmentSearch} onChange={(event) => setEquipmentSearch(event.target.value)} placeholder="Search equipment..." className="flex-1 rounded-xl border border-stone-700 bg-stone-950 px-4 py-2.5 text-sm text-stone-100 outline-none focus:border-amber-400" /><Badge>{itemCatalogue.length} items</Badge></div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {itemCatalogue.filter((item) => `${item.name} ${item.category}`.toLowerCase().includes(equipmentSearch.toLowerCase())).slice(0, 40).map((item) => <div key={item.id} className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/60 p-3"><div><div className="font-medium">{item.name}</div><div className="text-xs text-stone-600">{item.category}</div></div><button type="button" onClick={() => setEquipmentSelections((current) => current.some((entry) => entry.itemId === item.id) ? current : [...current, { itemId: item.id, quantity: 1, equipped: false }])} className="rounded-lg border border-stone-700 px-3 py-1.5 text-sm">Add</button></div>)}
+                </div>
+              </SectionCard>
+            </>
+          )}
+
+          {step === "whats-next" && (
+            <>
+              <SectionCard title="Final details">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <NumberField label="Level" value={form.level} onChange={(value) => setForm((current) => ({ ...current, level: value }))} min={1} max={20} />
+                  <Field label="Alignment" value={form.alignment} onChange={(value) => setForm((current) => ({ ...current, alignment: value }))} />
+                  <NumberField label="Speed" value={form.speed} onChange={(value) => setForm((current) => ({ ...current, speed: value }))} min={0} />
+                  <NumberField label="Current HP" value={form.hp} onChange={(value) => setForm((current) => ({ ...current, hp: value }))} min={0} />
+                  <NumberField label="Maximum HP" value={form.maxHp} onChange={() => undefined} min={1} />
+                  <NumberField label="Temporary HP" value={form.tempHp} onChange={(value) => setForm((current) => ({ ...current, tempHp: value }))} min={0} />
+                  <NumberField label="Armor Class" value={form.ac} onChange={() => undefined} min={0} />
+                  <Field label="Hit Dice" value={form.hitDice} onChange={() => undefined} />
+                  <NumberField label="Proficiency Bonus" value={form.proficiencyBonus} onChange={() => undefined} min={0} />
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Level Progression">
+                <div className="space-y-4">
+                  {featureCatalogue.filter((feature) => feature.requiredLevel > character.level && feature.requiredLevel <= form.level && feature.className === form.className && (!feature.subclassName || feature.subclassName === form.subclass)).map((feature) => <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Level {feature.requiredLevel}</Badge><Badge tone="warn">{feature.sourceType === "subclass" ? "Subclass" : "Class"}</Badge></div><p className="mt-3 whitespace-pre-line text-sm leading-6 text-stone-400">{feature.description}</p></article>)}
+                  {asiLevels.length > 0 && <div className="rounded-xl border border-amber-900/60 bg-amber-950/20 p-4"><h3 className="font-semibold text-amber-300">Ability Score Improvement / Feat</h3><p className="mt-2 text-sm text-stone-400">ASI levels reached: {asiLevels.join(", ")}.</p></div>}
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Feats">
+                {feats.length > 0 ? <div className="space-y-3">{feats.map((id) => { const feat = featCatalogue.find((entry) => entry.id === id); return feat ? <article key={id} className="rounded-xl border border-amber-900/50 bg-amber-950/20 p-4"><div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold text-amber-300">{feat.name}</h3><p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-300">{feat.description}</p></div><button type="button" onClick={() => setFeats((current) => current.filter((entry) => entry !== id))} className="rounded-lg border border-red-900/60 px-3 py-1.5 text-xs text-red-400">Remove</button></div></article> : null; })}</div> : <p className="text-sm text-stone-500">No feats selected.</p>}
+                <select className="mt-4 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100" defaultValue="" onChange={(event) => { if (event.target.value) { setFeats((current) => [...current, event.target.value]); event.target.value = ""; } }}>
+                  <option value="">Add a feat...</option>
+                  {featCatalogue.filter((feat) => !feats.includes(feat.id)).map((feat) => <option key={feat.id} value={feat.id}>{feat.name}</option>)}
+                </select>
+              </SectionCard>
+
+              <SectionCard title="Review">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <ProficiencySummary title="Character" values={[form.name || "Unnamed", form.className, form.subclass, form.race, form.subrace, form.background].filter(Boolean)} />
+                  <ProficiencySummary title="Abilities" values={Object.entries(abilities).map(([key, value]) => `${key.toUpperCase()} ${value}`)} />
+                  <ProficiencySummary title="Skills" values={selectedSkills} />
+                  <ProficiencySummary title="Languages" values={selectedLanguages} />
+                  <ProficiencySummary title="Equipment" values={equipmentSelections.map((entry) => itemCatalogue.find((item) => item.id === entry.itemId)?.name ?? entry.itemId)} />
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Notes">
+                <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={8} className="w-full rounded-xl border border-stone-700 bg-stone-950 px-4 py-3 text-sm leading-6 text-stone-100 outline-none focus:border-amber-400" />
+              </SectionCard>
+
+              <div className="flex justify-end"><button type="submit" className="rounded-xl bg-stone-100 px-6 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-300">Save Character</button></div>
+            </>
+          )}
+
+          <BuilderFooter step={step} onStepChange={setStep} />
+        </form>
+      </div>
     </div>
   );
+type BuilderStep = "class" | "background" | "species" | "abilities" | "equipment" | "whats-next";
+const BUILDER_STEPS: BuilderStep[] = ["class", "background", "species", "abilities", "equipment", "whats-next"];
+const STEP_META: Record<BuilderStep, { number: number; title: string; description: string }> = {
+  class: { number: 1, title: "Class", description: "Choose the class, subclass and all level-appropriate class options." },
+  background: { number: 2, title: "Background", description: "Choose the background and its proficiency choices." },
+  species: { number: 3, title: "Species", description: "Choose race, subrace and species traits." },
+  abilities: { number: 4, title: "Abilities", description: "Adjust ability scores and review derived proficiencies." },
+  equipment: { number: 5, title: "Equipment", description: "Manage starting equipment and the character's inventory." },
+  "whats-next": { number: 6, title: "What's Next", description: "Finish the character, review everything and save." },
+};
+
+function BuilderStepNav({ step, onStepChange }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void }) {
+  return <div className="border-b border-stone-800 bg-stone-950/95"><div className="mx-auto max-w-5xl overflow-x-auto px-4 sm:px-6 lg:px-8"><nav className="flex min-w-max items-stretch gap-1">{BUILDER_STEPS.map((entry) => { const active = entry === step; return <button key={entry} type="button" onClick={() => onStepChange(entry)} className={`relative px-4 py-4 text-left ${active ? "text-stone-100" : "text-stone-500 hover:text-stone-300"}`}><span className="mr-2 text-[10px] font-bold text-stone-600">{STEP_META[entry].number}.</span><span className="text-xs font-semibold uppercase tracking-wider">{STEP_META[entry].title}</span>{active && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-amber-400" />}</button>; })}</nav></div></div>;
+}
+
+function BuilderFooter({ step, onStepChange }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void }) {
+  const index = BUILDER_STEPS.indexOf(step);
+  const previous = index > 0 ? BUILDER_STEPS[index - 1] : null;
+  const next = index < BUILDER_STEPS.length - 1 ? BUILDER_STEPS[index + 1] : null;
+  return <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-stone-800 bg-stone-950/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3"><button type="button" disabled={!previous} onClick={() => previous && onStepChange(previous)} className="rounded-xl border border-stone-700 px-5 py-2.5 text-sm font-semibold text-stone-300 hover:bg-stone-900 disabled:opacity-30">Back</button><div className="text-xs text-stone-600">{index + 1} / {BUILDER_STEPS.length}</div>{next ? <button type="button" onClick={() => onStepChange(next)} className="rounded-xl bg-stone-100 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300">Next: {STEP_META[next].title}</button> : <button type="submit" className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300">Save Character</button>}</div></div>;
 }
 
 function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }: { races: string[]; subraces: Array<{ name: string; parentRace: string }>; selectedRace: string; selectedSubrace: string; onSelect: (race: string, subrace?: string) => void }) {
