@@ -704,14 +704,7 @@ function CharacterEditor({
         asiHistory,
         expertiseHistory,
         magicalSecretsHistory: magicalSecretHistory,
-        notes: [
-          form.notes,
-          expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
-          expertiseHistory.length ? "Expertise History: " + JSON.stringify(expertiseHistory) : "",
-          magicalSecretHistory.length ? "Magical Secrets History: " + JSON.stringify(magicalSecretHistory) : "",
-          asiHistory.length ? "ASI History: " + JSON.stringify(asiHistory) : "",
-          Object.keys(featAbilityChoices).length ? "Feat Ability Choices: " + JSON.stringify(featAbilityChoices) : "",
-        ].filter(Boolean).join("\n\n"),
+        notes: stripManagedNotes(form.notes),
       });
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : String(error ?? "Could not save this character."));
