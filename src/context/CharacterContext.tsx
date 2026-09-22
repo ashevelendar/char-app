@@ -1041,6 +1041,7 @@ function makeMaps(
     description: row.description ?? "",
     source: row.source ?? row.source_code ?? "",
     abilityBonuses: extractAbilityBonuses(row.raw_data),
+    speed: getSpeedValue(row.raw_data),
   })).filter((row) => row.name && row.parentRace);
 
   const subraceKey = (parentRace: string, name: string) => parentRace.trim().toLowerCase() + "::" + name.trim().toLowerCase();
