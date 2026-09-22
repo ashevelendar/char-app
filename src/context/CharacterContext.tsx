@@ -667,6 +667,17 @@ function makeMaps(
     });
   }
 
+  const getSpeedValue = (raw: unknown) => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const speed = (raw as Record<string, unknown>).speed;
+    if (typeof speed === "number" && Number.isFinite(speed)) return speed;
+    if (speed && typeof speed === "object") {
+      const walk = Number((speed as Record<string, unknown>).walk);
+      if (Number.isFinite(walk) && walk > 0) return walk;
+    }
+    return undefined;
+  };
+
   const raceRules = Object.fromEntries(
     preferredRows(raceRows)
       .filter((row, index, rows) => rows.findIndex((candidate) => candidate.name === row.name) === index)
@@ -680,20 +691,10 @@ function makeMaps(
           languages: extractProficiencyRules(row.raw_data, "languageProficiencies"),
           skills: extractProficiencyRules(row.raw_data, "skillProficiencies"),
           tools: extractProficiencyRules(row.raw_data, "toolProficiencies"),
+          speed: getSpeedValue(row.raw_data),
         },
       ]),
   ) as Record<string, RaceRules>;
-
-  const getSpeedValue = (raw: unknown) => {
-    if (!raw || typeof raw !== "object") return undefined;
-    const speed = (raw as Record<string, unknown>).speed;
-    if (typeof speed === "number" && Number.isFinite(speed)) return speed;
-    if (speed && typeof speed === "object") {
-      const walk = Number((speed as Record<string, unknown>).walk);
-      if (Number.isFinite(walk) && walk > 0) return walk;
-    }
-    return undefined;
-  };
 
   const backgroundRules = Object.fromEntries(
     preferredRows(backgroundRows)
