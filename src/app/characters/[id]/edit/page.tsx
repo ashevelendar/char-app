@@ -295,7 +295,7 @@ function CharacterEditor({
   const magicalSecretSpellOptions = useMemo(() => {
     const maxLevel = getMaxSpellLevel(spellCharacter, classRules);
     return spellCatalogue.filter((spell) => spell.level <= maxLevel);
-  }, [spellCatalogue, spellCharacter]);
+  }, [spellCatalogue, spellCharacter, classRules]);
 
   const cantripsKnown = getCantripsKnown(form.className, form.level, classRules);
   const spellsKnown = getSpellsKnown(form.className, form.level, classRules);
