@@ -538,7 +538,7 @@ function CharacterEditor({
 
   return (
     <div className="min-h-[calc(100vh-120px)] bg-stone-950">
-      <BuilderStepNav step={step} onStepChange={setStep} />
+      <BuilderStepNav step={step} onStepChange={setStep} canAdvance={canAdvanceFromStep(step)} />
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <PageHeader
@@ -925,10 +925,18 @@ const STEP_META: Record<BuilderStep, { number: number; title: string; descriptio
   "whats-next": { number: 6, title: "What's Next", description: "Finish the character, review everything and save." },
 };
 
-function BuilderStepNav({ step, onStepChange }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void }) {
-  return <div className="border-b border-stone-800 bg-stone-950/95"><div className="mx-auto max-w-5xl overflow-x-auto px-4 sm:px-6 lg:px-8"><nav className="flex min-w-max items-stretch gap-1">{BUILDER_STEPS.map((entry) => { const active = entry === step; return <button key={entry} type="button" onClick={() => onStepChange(entry)} className={`relative px-4 py-4 text-left ${active ? "text-stone-100" : "text-stone-500 hover:text-stone-300"}`}><span className="mr-2 text-[10px] font-bold text-stone-600">{STEP_META[entry].number}.</span><span className="text-xs font-semibold uppercase tracking-wider">{STEP_META[entry].title}</span>{active && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-amber-400" />}</button>; })}</nav></div></div>;
+function BuilderStepNav({ step, onStepChange, canAdvance }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void; canAdvance: boolean }) {
+  const currentIndex = BUILDER_STEPS.indexOf(step);
+  return <div className="border-b border-stone-800 bg-stone-950/95"><div className="mx-auto max-w-5xl overflow-x-auto px-4 sm:px-6 lg:px-8"><nav className="flex min-w-max items-stretch gap-1">{BUILDER_STEPS.map((entry, entryIndex) => {
+    const active = entry === step;
+    const reachable = entryIndex <= currentIndex || (entryIndex === currentIndex + 1 && canAdvance);
+    return <button key={entry} type="button" disabled={!reachable} onClick={() => reachable && onStepChange(entry)} className={`relative px-4 py-4 text-left ${active ? "text-stone-100" : "text-stone-500 hover:text-stone-300"} disabled:cursor-not-allowed disabled:opacity-30`}>
+      <span className="mr-2 text-[10px] font-bold text-stone-600">{STEP_META[entry].number}.</span>
+      <span className="text-xs font-semibold uppercase tracking-wider">{STEP_META[entry].title}</span>
+      {active && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-amber-400" />}
+    </button>;
+  })}</nav></div></div>;
 }
-
 function BuilderFooter({ step, onStepChange, canAdvance, saving }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void; canAdvance: boolean; saving: boolean }) {
   const index = BUILDER_STEPS.indexOf(step);
   const previous = index > 0 ? BUILDER_STEPS[index - 1] : null;
