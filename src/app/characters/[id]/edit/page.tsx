@@ -186,20 +186,14 @@ function CharacterEditor({
     ...backgroundLanguageSelections.filter(Boolean),
   ])], [selectedClassRules, selectedBackgroundRules, backgroundLanguageSelections]);
 
-  const optionalChoiceGroups = useMemo(() => {
-    const entries = [
-      ...(selectedClassRules?.optionalFeatureProgression ?? []),
-      ...(subclassOptionalFeatureProgression[form.subclass] ?? []),
-    ].filter((entry) => entry.level <= form.level && entry.count > 0);
-    const grouped = new Map<string, { id: string; title: string; count: number; featureTypes: string[] }>();
-    for (const entry of entries) {
-      const key = entry.title + "::" + entry.featureTypes.join("|");
-      const current = grouped.get(key);
-      if (current) current.count = Math.max(current.count, entry.count);
-      else grouped.set(key, { id: key, title: entry.title, count: entry.count, featureTypes: entry.featureTypes });
-    }
-    return [...grouped.values()];
-  }, [selectedClassRules, subclassOptionalFeatureProgression, form.subclass, form.level]);
+  const optionalChoiceGroups = useMemo(
+    () => getOptionalChoiceGroups(
+      selectedClassRules?.optionalFeatureProgression ?? [],
+      subclassOptionalFeatureProgression[form.subclass] ?? [],
+      form.level,
+    ),
+    [selectedClassRules, subclassOptionalFeatureProgression, form.subclass, form.level],
+  );
 
   const asiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level);
 
@@ -319,6 +313,19 @@ function CharacterEditor({
                   <ChoiceGroup title="Choose class languages" choices={selectedClassRules.languages.choices} value={classLanguageSelections} onChange={setClassLanguageSelections} />
                 </>}
               </SectionCard>
+              <SectionCard title="Class Features" description="All class and subclass features unlocked by the selected level are shown here.">
+                <div className="space-y-3">
+                  {featureCatalogue
+                    .filter((feature) => feature.requiredLevel <= form.level && feature.className === form.className && (!feature.subclassName || feature.subclassName === form.subclass))
+                    .map((feature) => (
+                      <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4">
+                        <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Level {feature.requiredLevel}</Badge><Badge tone={feature.sourceType === "subclass" ? "warn" : "neutral"}>{feature.sourceType === "subclass" ? "Subclass" : "Class"}</Badge></div>
+                        <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-400">{feature.description}</p>
+                      </article>
+                    ))}
+                </div>
+              </SectionCard>
+
               <SectionCard title="Class Options" description="All optional features available at the character's current level are selectable here, including options gained at earlier levels.">
                 {optionalChoiceGroups.length ? optionalChoiceGroups.map((group) => <OptionalFeatureGroup key={group.id} title={group.title} count={group.count} featureTypes={group.featureTypes} catalogue={optionalFeatureCatalogue} selected={optionalFeatures} onChange={setOptionalFeatures} />) : <p className="text-sm text-stone-500">No selectable class options were found for this level.</p>}
               </SectionCard>
