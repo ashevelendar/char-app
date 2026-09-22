@@ -45,11 +45,15 @@ type DatabaseStatus = "loading" | "connected" | "error" | "local-only";
 
 type ProficiencyChoice = { count: number; options: string[] };
 type ProficiencyRules = { fixed: string[]; choices: ProficiencyChoice[] };
+type EquipmentEntry = { name: string; quantity: number };
+type EquipmentBundle = { label: string; items: EquipmentEntry[] };
+type EquipmentChoiceGroup = { label: string; options: EquipmentBundle[] };
 type ClassRules = {
   savingThrows: AbilityKey[];
   skills: ProficiencyRules;
   tools: ProficiencyRules;
   languages: ProficiencyRules;
+  startingEquipment: EquipmentChoiceGroup[];
   optionalFeatureProgression: Array<{ title: string; featureTypes: string[]; count: number; level: number }>;
 };
 
@@ -71,6 +75,7 @@ type BackgroundRules = {
   languageChoices: ProficiencyChoice[];
   tools: string[];
   toolChoices: ProficiencyChoice[];
+  startingEquipment: EquipmentChoiceGroup[];
   featureName: string;
   featureDescription: string;
 };
@@ -279,6 +284,32 @@ function abilityKeyFromName(value: string): AbilityKey | null {
   return aliases[normalized] ?? null;
 }
 
+const LANGUAGE_OPTIONS_2014 = [
+  "Common", "Dwarvish", "Elvish", "Giant", "Gnomish", "Goblin", "Halfling", "Orc",
+  "Abyssal", "Celestial", "Draconic", "Deep Speech", "Infernal", "Primordial",
+  "Sylvan", "Undercommon",
+];
+const SKILL_OPTIONS_2014 = [
+  "Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception", "History",
+  "Insight", "Intimidation", "Investigation", "Medicine", "Nature", "Perception",
+  "Performance", "Persuasion", "Religion", "Sleight Of Hand", "Stealth", "Survival",
+];
+const TOOL_OPTIONS_2014 = [
+  "Alchemist's Supplies", "Brewer's Supplies", "Calligrapher's Supplies", "Carpenter's Tools",
+  "Cobbler's Tools", "Cook's Utensils", "Glassblower's Tools", "Jeweler's Tools",
+  "Leatherworker's Tools", "Mason's Tools", "Painter's Supplies", "Potter's Tools",
+  "Smith's Tools", "Tinker's Tools", "Weaver's Tools", "Woodcarver's Tools",
+  "Disguise Kit", "Forgery Kit", "Herbalism Kit", "Navigator's Tools", "Poisoner's Kit",
+  "Thieves' Tools", "Vehicles (Land)", "Vehicles (Water)", "Musical Instrument",
+];
+
+function proficiencyChoiceOptions(field: string, key: string): string[] {
+  if (field.toLowerCase().includes("language")) return LANGUAGE_OPTIONS_2014;
+  if (field.toLowerCase().includes("skill")) return SKILL_OPTIONS_2014;
+  if (field.toLowerCase().includes("tool")) return TOOL_OPTIONS_2014;
+  return [];
+}
+
 function extractProficiencyRules(raw: unknown, field: string): ProficiencyRules {
   const fixed: string[] = [];
   const choices: ProficiencyChoice[] = [];
@@ -289,6 +320,16 @@ function extractProficiencyRules(raw: unknown, field: string): ProficiencyRules 
   for (const entry of value) {
     if (!entry || typeof entry !== "object") continue;
     const object = entry as Record<string, unknown>;
+    for (const [key, enabled] of Object.entries(object)) {
+      if (key === "any" || key.startsWith("any")) {
+        const count = typeof enabled === "number" && enabled > 0 ? enabled : 1;
+        choices.push({
+          count,
+          options: proficiencyChoiceOptions(field, key),
+        });
+      }
+    }
+
     const choose = object.choose;
     if (choose && typeof choose === "object") {
       const choice = choose as Record<string, unknown>;
@@ -363,6 +404,55 @@ function extractBackgroundFeature(raw: unknown): { name: string; description: st
   }
   visit(entries);
   return found;
+}
+
+function cleanEquipmentName(value: string) {
+  return catalogueText(value)
+    .replace(/^(?:a|an|one)\\s+/i, "")
+    .replace(/\\b(?:set of|pair of)\\b/gi, "")
+    .trim();
+}
+
+function parseEquipmentEntries(value: unknown): EquipmentEntry[] {
+  if (Array.isArray(value)) return value.flatMap(parseEquipmentEntries);
+  if (typeof value === "string") {
+    const name = cleanEquipmentName(value);
+    return name ? [{ name, quantity: 1 }] : [];
+  }
+  if (!value || typeof value !== "object") return [];
+  const object = value as Record<string, unknown>;
+  if (typeof object.item === "string") {
+    return [{ name: cleanEquipmentName(object.item), quantity: Math.max(1, Number(object.quantity) || 1) }];
+  }
+  if (typeof object.special === "string") {
+    return [{ name: cleanEquipmentName(object.special), quantity: 1 }];
+  }
+  const nested = ["items", "equipment", "entries", "entry"].flatMap((key) => key in object ? parseEquipmentEntries(object[key]) : []);
+  return nested;
+}
+
+function extractStartingEquipment(raw: unknown): EquipmentChoiceGroup[] {
+  if (!raw || typeof raw !== "object") return [];
+  const starting = (raw as Record<string, unknown>).startingEquipment;
+  if (!Array.isArray(starting)) return [];
+  return starting.flatMap((group, groupIndex) => {
+    if (!group || typeof group !== "object") return [];
+    const object = group as Record<string, unknown>;
+    const optionEntries = Object.entries(object).filter(([key]) => /^[a-z]+$/.test(key));
+    if (optionEntries.length > 1) {
+      return [{
+        label: `Starting Equipment ${groupIndex + 1}`,
+        options: optionEntries.map(([key, value]) => ({
+          label: `Option ${key.toUpperCase()}`,
+          items: parseEquipmentEntries(value),
+        })),
+      }];
+    }
+    const items = parseEquipmentEntries(group);
+    return items.length
+      ? [{ label: `Starting Equipment ${groupIndex + 1}`, options: [{ label: "Included", items }] }]
+      : [];
+  });
 }
 
 function extractFeatureUses(raw: unknown): { max: number; recovery: string } | undefined {
@@ -535,6 +625,7 @@ function makeMaps(
             languageChoices: extractProficiencyRules(row.raw_data, "languageProficiencies").choices,
             tools: extractProficiencyRules(row.raw_data, "toolProficiencies").fixed,
             toolChoices: extractProficiencyRules(row.raw_data, "toolProficiencies").choices,
+            startingEquipment: extractStartingEquipment(row.raw_data),
             featureName: feature.name,
             featureDescription: feature.description,
           },
@@ -693,6 +784,7 @@ function makeMaps(
         skills: extractProficiencyRules(starting, "skills"),
         tools: extractProficiencyRules(starting, "tools"),
         languages: extractProficiencyRules(starting, "languages"),
+        startingEquipment: extractStartingEquipment(row.raw_data),
         optionalFeatureProgression: progression,
       }];
     }),
