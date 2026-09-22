@@ -2265,6 +2265,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             await upsertOverride(characterId, "item", dbItemId, "Granted by DM");          }
         } catch (error) {
           console.error("Could not save inventory item:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2288,6 +2289,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Could not remove inventory item:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2320,6 +2322,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Could not change inventory quantity:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2352,6 +2355,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           if (result.error) throw result.error;
         } catch (error) {
           console.error("Could not update equipped state:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2414,6 +2418,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Could not save spell:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2438,6 +2443,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Could not remove spell:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2468,6 +2474,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           const result = await supabase.from("character_spells").update({ prepared: nextPrepared }).eq("character_id", characterId).eq("spell_id", dbSpellId);
           if (result.error) throw result.error;
         } catch (error) {          console.error("Could not update prepared state:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2516,6 +2523,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Could not save feature:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2567,6 +2575,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           if (result.error) throw result.error;
         } catch (error) {
           console.error("Could not save optional feature:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2597,6 +2606,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Could not remove optional feature:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2631,6 +2641,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           if (result.error) throw result.error;
         } catch (error) {
           console.error("Could not save homebrew:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
           return false;
         }
@@ -2649,6 +2660,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           if (result.error) throw result.error;
         } catch (error) {
           console.error("Could not remove homebrew:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2675,6 +2687,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Could not remove feature:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
@@ -2705,6 +2718,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Could not revoke override:", error);
+          setCharacters((current) => current.map((entry) => entry.id === characterId ? character : entry));
           setDatabaseStatus("error");
         }
       }
