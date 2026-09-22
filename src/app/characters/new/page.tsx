@@ -262,7 +262,7 @@ export default function NewCharacterPage() {
     languages: selectedLanguages,
   } as Character), [form.level, form.abilities, form.race, form.subrace, form.className, form.subclass, form.background, asiChoices, selectedSkills, selectedTools, selectedLanguages]);
 
-  const availableSpells = useMemo(() => spellCatalogue.filter((spell) => isSpellNormallyAvailable(spellCharacter, spell)), [spellCatalogue, spellCharacter]);
+  const availableSpells = useMemo(() => spellCatalogue.filter((spell) => isSpellNormallyAvailable(spellCharacter, spell, classRules)), [spellCatalogue, spellCharacter]);
   const magicalSecretSpellOptions = useMemo(() => {
     const maxLevel = getMaxSpellLevel(spellCharacter, classRules);
     return spellCatalogue.filter((spell) => spell.level <= maxLevel);
