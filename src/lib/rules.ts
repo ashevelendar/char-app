@@ -540,6 +540,32 @@ export function isFeatureNormallyAvailable(character: Character, feature: Featur
   return false;
 }
 
+export function getAutomaticallyGrantedFeatureIds(character: Character, featureCatalogue: Feature[]) {
+  const granted = new Set(character.features);
+  const candidates = featureCatalogue
+    .filter((feature) =>
+      feature.requiredLevel <= character.level &&
+      (feature.sourceType === "class" || feature.sourceType === "subclass" || feature.sourceType === "race" || feature.sourceType === "background") &&
+      isFeatureNormallyAvailable(character, feature) &&
+      !/gain a feature from your|gain a feature from the|optional feature/i.test(feature.description),
+    )
+    .sort((a, b) => a.requiredLevel - b.requiredLevel || a.name.localeCompare(b.name));
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const feature of candidates) {
+      if (feature.requiresFeatureId && !granted.has(feature.requiresFeatureId)) continue;
+      if (!granted.has(feature.id)) {
+        granted.add(feature.id);
+        changed = true;
+      }
+    }
+  }
+
+  return candidates.filter((feature) => granted.has(feature.id)).map((feature) => feature.id);
+}
+
 export function getFeatureRestrictionReason(character: Character, feature: Feature) {
   if (feature.requiredLevel > character.level) return `Requires level ${feature.requiredLevel}`;
   if (feature.sourceType === "class" && feature.className !== character.className) return `Belongs to the ${feature.className} class`;
