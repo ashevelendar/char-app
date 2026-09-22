@@ -220,6 +220,9 @@ function CharacterEditor({
   const [backgroundLanguageSelections, setBackgroundLanguageSelections] = useState<string[]>([]);
   const [classLanguageSelections, setClassLanguageSelections] = useState<string[]>([]);
   const [raceLanguageSelections, setRaceLanguageSelections] = useState<string[]>([]);
+  const [subraceSkillSelections, setSubraceSkillSelections] = useState<string[]>([]);
+  const [subraceToolSelections, setSubraceToolSelections] = useState<string[]>([]);
+  const [subraceLanguageSelections, setSubraceLanguageSelections] = useState<string[]>([]);
   const [equipmentSelections, setEquipmentSelections] = useState<InventoryEntry[]>(character.inventory);
   const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
   const [startingItemChoices, setStartingItemChoices] = useState<Record<string, string>>({});
@@ -276,26 +279,35 @@ function CharacterEditor({
   }, [catalogue]);
 
   const selectedSkills = useMemo(() => [...new Set([
+    ...(raceRules[form.race]?.skills.fixed ?? []),
+    ...raceRules[form.race]?.skills.choices.flatMap((choice) => choice.options.filter((option) => raceLanguageSelections.includes(option))) ?? [],
+    ...(selectedSubrace?.skills?.fixed ?? []),
+    ...selectedSubrace?.skills?.choices.flatMap((choice) => choice.options.filter((option) => subraceSkillSelections.includes(option))) ?? [],
     ...(selectedClassRules?.skills.fixed ?? []),
     ...classSkillSelections.filter(Boolean),
     ...(selectedBackgroundRules?.skills ?? []),
     ...backgroundSkillSelections.filter(Boolean),
-  ])], [selectedClassRules, classSkillSelections, selectedBackgroundRules, backgroundSkillSelections]);
+  ])], [raceRules, form.race, selectedSubrace, subraceSkillSelections, selectedClassRules, classSkillSelections, selectedBackgroundRules, backgroundSkillSelections, raceLanguageSelections]);
 
   const selectedTools = useMemo(() => [...new Set([
+    ...(raceRules[form.race]?.tools.fixed ?? []),
+    ...(selectedSubrace?.tools?.fixed ?? []),
+    ...selectedSubrace?.tools?.choices.flatMap((choice) => choice.options.filter((option) => subraceToolSelections.includes(option))) ?? [],
     ...(selectedClassRules?.tools.fixed ?? []),
     ...(selectedBackgroundRules?.tools ?? []),
     ...backgroundToolSelections.filter(Boolean),
-  ])], [selectedClassRules, selectedBackgroundRules, backgroundToolSelections]);
+  ])], [raceRules, form.race, selectedSubrace, subraceToolSelections, selectedClassRules, selectedBackgroundRules, backgroundToolSelections]);
 
   const selectedLanguages = useMemo(() => [...new Set([
     ...(raceRules[form.race]?.languages.fixed ?? []),
     ...raceLanguageSelections.filter(Boolean),
+    ...(selectedSubrace?.languages?.fixed ?? []),
+    ...selectedSubrace?.languages?.choices.flatMap((choice) => choice.options.filter((option) => subraceLanguageSelections.includes(option))) ?? [],
     ...(selectedClassRules?.languages.fixed ?? []),
     ...classLanguageSelections.filter(Boolean),
     ...(selectedBackgroundRules?.languages ?? []),
     ...backgroundLanguageSelections.filter(Boolean),
-  ])], [selectedClassRules, selectedBackgroundRules, backgroundLanguageSelections]);
+  ])], [raceRules, form.race, raceLanguageSelections, selectedSubrace, subraceLanguageSelections, selectedClassRules, classLanguageSelections, selectedBackgroundRules, backgroundLanguageSelections]);
 
   const optionalChoiceGroups = useMemo(
     () => getOptionalChoiceGroups(
