@@ -1135,7 +1135,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setItemCatalogue(maps.itemCatalogue);
         setFeatureCatalogue(maps.featureCatalogue);
         setFeatCatalogue(maps.featCatalogue);
-        setItemCatalogue(maps.itemCatalogue);
         setOptionalFeatureCatalogue(maps.optionalFeatureCatalogue);
         setClassRules(maps.classRules);
         setSubclassOptionalFeatureProgression(maps.subclassOptionalFeatureProgression);
@@ -2060,21 +2059,6 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     const insert = await supabase.from("character_items").insert(itemRows);
     if (insert.error) throw insert.error;
   }
-
-  const optionalRows = character.optionalFeatures.flatMap((optionalFeatureId) => {
-    const dbId = maps.optionalFeatureByDbId.has(optionalFeatureId)
-      ? optionalFeatureId
-      : maps.optionalFeatureByKey.get(optionalFeatureId);
-    return dbId ? [{ character_id: dbId === optionalFeatureId ? dbId : dbId }] : [];
-  });
-
-  const optionalFeatureInsertRows = character.optionalFeatures.flatMap((optionalFeatureId) => {
-    const dbId = maps.optionalFeatureByKey.get(optionalFeatureId) ?? optionalFeatureId;
-    return isUuid(dbId) ? [{
-      character_id: dbId,
-      optional_feature_id: dbId,
-    }] : [];
-  });
 
   if (optionalFeatureRows.length) {
     const insert = await supabase.from("character_optional_features").insert(optionalFeatureRows);
