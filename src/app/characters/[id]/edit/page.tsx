@@ -290,7 +290,6 @@ function CharacterEditor({
 
   const allAsiLevels = getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules);
   const newAsiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level, classRules);
-  const existingAsiLevels = allAsiLevels.filter((level) => level <= character.level);
   const asiChoices = allAsiLevels.map((level) => asiHistory.find((entry) => entry.level === level)?.featId ?? "");
 
   useEffect(() => {
@@ -658,7 +657,6 @@ function CharacterEditor({
               {allAsiLevels.length > 0 && (
                 <AsiSelectionSection
                   levels={allAsiLevels}
-                  allAsiLevels={allAsiLevels}
                   characterLevel={character.level}
                   asiHistory={asiHistory}
                   onAsiChange={updateAsiHistory}
