@@ -7,7 +7,7 @@ import { Badge, PageHeader, SectionCard } from "../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, Currency, InventoryEntry } from "../../../lib/types";
-import { getExpectedHitDice, getExpectedMaxHp, getProficiencyBonus } from "../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getExpectedHitDice, getExpectedMaxHp, getProficiencyBonus, isFeatAvailable } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
 
@@ -89,6 +89,7 @@ export default function NewCharacterPage() {
   const [equipmentSelections, setEquipmentSelections] = useState<InventoryEntry[]>([]);
   const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
   const [startingItemChoices, setStartingItemChoices] = useState<Record<string, string>>({});
+  const [asiChoices, setAsiChoices] = useState<string[]>([]);
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [equipmentMode, setEquipmentMode] = useState<"equipment" | "gold">("equipment");
   const [step, setStep] = useState<BuilderStep>("class");
@@ -139,6 +140,43 @@ export default function NewCharacterPage() {
     ),
     [selectedClassRules, subclassOptionalFeatureProgression, form.subclass, form.level],
   );
+
+  const asiLevels = useMemo(
+    () => getAbilityScoreImprovementLevelsUpTo(form.className, form.level),
+    [form.className, form.level],
+  );
+
+  const featPrerequisiteCharacter = useMemo(() => ({
+    level: form.level,
+    abilities: form.abilities,
+    race: form.race,
+    subrace: form.subrace,
+    className: form.className,
+    background: form.background,
+    feats: form.feats,
+    skills: selectedSkills,
+    tools: selectedTools,
+    languages: selectedLanguages,
+  }), [form.level, form.abilities, form.race, form.subrace, form.className, form.background, form.feats, selectedSkills, selectedTools, selectedLanguages]);
+
+  const availableFeats = useMemo(
+    () => featCatalogue.filter((feat) => isFeatAvailable(featPrerequisiteCharacter, feat)),
+    [featCatalogue, featPrerequisiteCharacter],
+  );
+
+  useEffect(() => {
+    setAsiChoices((current) => {
+      const next = asiLevels.map((_, index) => current[index] ?? "");
+      return current.length === next.length && current.every((value, index) => value === next[index]) ? current : next;
+    });
+  }, [asiLevels]);
+
+  useEffect(() => {
+    const nextFeats = asiChoices.filter(Boolean);
+    setForm((current) => current.feats.length === nextFeats.length && current.feats.every((value, index) => value === nextFeats[index])
+      ? current
+      : { ...current, feats: nextFeats });
+  }, [asiChoices]);
 
   useEffect(() => {
     const nextMaxHp = getExpectedMaxHp(form.className, form.level, form.abilities.con);
@@ -547,16 +585,44 @@ export default function NewCharacterPage() {
                 </div>
               </SectionCard>
 
-              <SectionCard title="Feats">
-                <select value={form.feats[0] ?? ""} onChange={(event) => setForm((current) => ({ ...current, feats: event.target.value ? [event.target.value] : [] }))} className="w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100">
-                  <option value="">Choose a feat...</option>
-                  {featCatalogue.map((feat) => <option key={feat.id} value={feat.id}>{feat.name}</option>)}
-                </select>
-                {form.feats.map((id) => {
-                  const feat = featCatalogue.find((entry) => entry.id === id);
-                  return feat ? <article key={id} className="mt-4 rounded-2xl border border-amber-900/60 bg-amber-950/20 p-5"><div className="flex items-center gap-2"><h3 className="font-semibold text-amber-300">{feat.name}</h3>{feat.source && <Badge>{feat.source}</Badge>}</div><p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-300">{feat.description}</p></article> : null;
-                })}
-              </SectionCard>
+              {asiLevels.length > 0 && (
+                <SectionCard title="Ability Score Improvements / Feats" description="At each class Ability Score Improvement level, choose the normal ability score improvement or replace it with a feat you qualify for.">
+                  <div className="space-y-4">
+                    {asiLevels.map((asiLevel, index) => {
+                      const selectedFeatId = asiChoices[index] ?? "";
+                      const choices = availableFeats.filter((feat) => !asiChoices.includes(feat.id) || feat.id === selectedFeatId);
+                      const selectedFeat = featCatalogue.find((feat) => feat.id === selectedFeatId);
+                      return (
+                        <div key={asiLevel} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold">Level {asiLevel}</h3>
+                            <Badge>ASI / Feat</Badge>
+                          </div>
+                          <select
+                            value={selectedFeatId}
+                            onChange={(event) => setAsiChoices((current) => {
+                              const next = [...current];
+                              next[index] = event.target.value;
+                              return next;
+                            })}
+                            className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100"
+                          >
+                            <option value="">Ability Score Improvement</option>
+                            {choices.map((feat) => <option key={feat.id} value={feat.id}>{feat.name}</option>)}
+                          </select>
+                          {selectedFeat && (
+                            <article className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4">
+                              <div className="flex items-center gap-2"><h3 className="font-semibold text-amber-300">{selectedFeat.name}</h3>{selectedFeat.source && <Badge>{selectedFeat.source}</Badge>}</div>
+                              <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-300">{selectedFeat.description}</p>
+                            </article>
+                          )}
+                          {!choices.length && <p className="mt-3 text-sm text-stone-500">No eligible feats are available for this slot.</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </SectionCard>
+              )}
 
               <SectionCard title="Review">
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
