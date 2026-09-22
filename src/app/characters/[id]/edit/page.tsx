@@ -168,6 +168,7 @@ function CharacterEditor({
   ])], [selectedClassRules, selectedBackgroundRules, backgroundToolSelections]);
 
   const selectedLanguages = useMemo(() => [...new Set([
+    ...(raceRules[form.race]?.languages.fixed ?? []),
     ...(selectedClassRules?.languages.fixed ?? []),
     ...(selectedBackgroundRules?.languages ?? []),
     ...backgroundLanguageSelections.filter(Boolean),
