@@ -905,7 +905,7 @@ function AsiSelectionSection({ levels, choices, onChoicesChange, abilityChoices,
   choices: string[];
   onChoicesChange: (value: string[]) => void;
   abilityChoices: Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>;
-  onAbilityChoicesChange: (value: Array<{ mode: "two" | "one"; first: AbilityKey; second: AbilityKey }>) => void;
+  onAbilityChoicesChange: (value: Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>) => void;
   availableFeats: Array<{ id: string; name: string; description: string; source: string }>;
   featCatalogue: Array<{ id: string; name: string; description: string; source: string }>;
 }) {
