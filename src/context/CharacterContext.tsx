@@ -1445,38 +1445,36 @@ function relationName(value: unknown) {
   return typeof name === "string" ? name : "";
 }
 
+function groupRowsByCharacter<T extends { character_id: string }>(rows: T[]) {
+  const grouped = new Map<string, T[]>();
+  for (const entry of rows) {
+    const existing = grouped.get(entry.character_id);
+    if (existing) existing.push(entry);
+    else grouped.set(entry.character_id, [entry]);
+  }
+  return grouped;
+}
+
 function toCharacter(
   row: any,
-  spellRows: any[],
-  featureRows: any[],
-  itemRows: any[],
-  optionalFeatureRows: any[],
-  homebrewRows: any[],
-  overrideRows: any[],
-  progressionRows: any[],
+  spellRows: Map<string, any[]>,
+  featureRows: Map<string, any[]>,
+  itemRows: Map<string, any[]>,
+  optionalFeatureRows: Map<string, any[]>,
+  homebrewRows: Map<string, any[]>,
+  overrideRows: Map<string, any[]>,
+  progressionRows: Map<string, any[]>,
   maps: ContentMaps,
 ): Character {
   const characterId = row.id;
 
-  // Index the already-loaded child rows once. This avoids repeatedly scanning
-  // every character's rows and keeps hydration close to O(total child rows).
-  const byCharacter = <T extends { character_id: string }>(rows: T[]) => {
-    const grouped = new Map<string, T[]>();
-    for (const entry of rows) {
-      const existing = grouped.get(entry.character_id);
-      if (existing) existing.push(entry);
-      else grouped.set(entry.character_id, [entry]);
-    }
-    return grouped;
-  };
-
-  const characterSpells = byCharacter(spellRows).get(characterId) ?? [];
-  const characterFeatures = byCharacter(featureRows).get(characterId) ?? [];
-  const characterItems = byCharacter(itemRows).get(characterId) ?? [];
-  const characterOptionalFeatures = byCharacter(optionalFeatureRows).get(characterId) ?? [];
-  const characterHomebrew = byCharacter(homebrewRows).get(characterId) ?? [];
-  const characterOverrides = byCharacter(overrideRows).get(characterId) ?? [];
-  const characterProgression = byCharacter(progressionRows).get(characterId) ?? [];
+  const characterSpells = spellRows.get(characterId) ?? [];
+  const characterFeatures = featureRows.get(characterId) ?? [];
+  const characterItems = itemRows.get(characterId) ?? [];
+  const characterOptionalFeatures = optionalFeatureRows.get(characterId) ?? [];
+  const characterHomebrew = homebrewRows.get(characterId) ?? [];
+  const characterOverrides = overrideRows.get(characterId) ?? [];
+  const characterProgression = progressionRows.get(characterId) ?? [];
 
   const spellsForCharacter = characterSpells.flatMap((entry) => {
     const appId = maps.spellByDbId.get(entry.spell_id);
@@ -1758,16 +1756,24 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
         if (cancelled) return;
 
+        const spellRowsByCharacter = groupRowsByCharacter(spellResult.data ?? []);
+        const featureRowsByCharacter = groupRowsByCharacter(featureResult.data ?? []);
+        const itemRowsByCharacter = groupRowsByCharacter(itemResult.data ?? []);
+        const optionalFeatureRowsByCharacter = groupRowsByCharacter(optionalFeatureResult.data ?? []);
+        const homebrewRowsByCharacter = groupRowsByCharacter(homebrewResult.data ?? []);
+        const overrideRowsByCharacter = groupRowsByCharacter(overrideResult.data ?? []);
+        const progressionRowsByCharacter = groupRowsByCharacter(progressionResult.data ?? []);
+
         let nextCharacters = (characterResult.data ?? []).map((row: any) =>
           toCharacter(
             row,
-            spellResult.data ?? [],
-            featureResult.data ?? [],
-            itemResult.data ?? [],
-            optionalFeatureResult.data ?? [],
-            homebrewResult.data ?? [],
-            overrideResult.data ?? [],
-            progressionResult.data ?? [],
+            spellRowsByCharacter,
+            featureRowsByCharacter,
+            itemRowsByCharacter,
+            optionalFeatureRowsByCharacter,
+            homebrewRowsByCharacter,
+            overrideRowsByCharacter,
+            progressionRowsByCharacter,
             maps,
           ),
         );
