@@ -693,6 +693,29 @@ async function loadContentMaps(): Promise<ContentMaps> {
     supabase.from("subclass_features").select("subclass_id,feature_id,required_level"),
     supabase.from("feats").select("id,name,description,prerequisite,ability,source,source_code,edition,content_key").eq("edition", "2014").is("owner_id", null),
   ]);
+  // Feats and optional features were added after the original catalogue. Treat a missing
+  // optional table/column/permission as an empty optional catalogue so one migration
+  // cannot make the entire database-backed catalogue disappear.
+  const isOptionalCatalogueError = (error: unknown) => {
+    if (!error || typeof error !== "object") return false;
+    const code = "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
+    return code === "42P01" || code === "42703" || code === "42501";
+  };
+
+  const optionalFeaturesData = optionalFeaturesResult.error && isOptionalCatalogueError(optionalFeaturesResult.error)
+    ? []
+    : (optionalFeaturesResult.data ?? []);
+  const featsData = featsResult.error && isOptionalCatalogueError(featsResult.error)
+    ? []
+    : (featsResult.data ?? []);
+
+  if (optionalFeaturesResult.error && optionalFeaturesData.length === 0) {
+    console.warn("Optional feature catalogue unavailable; continuing without optional features.", optionalFeaturesResult.error);
+  }
+  if (featsResult.error && featsData.length === 0) {
+    console.warn("Feat catalogue unavailable; continuing without feats.", featsResult.error);
+  }
+
   const results = [
     classesResult,
     racesResult,
@@ -720,13 +743,13 @@ async function loadContentMaps(): Promise<ContentMaps> {
     spells: spellsResult.data ?? [],
     features: featuresResult.data ?? [],
     items: itemsResult.data ?? [],
-    optionalFeatures: optionalFeaturesResult.data ?? [],
+    optionalFeatures: optionalFeaturesData,
     spellClasses: spellClassesResult.data ?? [],
     spellSubclasses: spellSubclassesResult.data ?? [],
     spellRaces: spellRacesResult.data ?? [],
     classFeatures: classFeaturesResult.data ?? [],
     subclassFeatures: subclassFeaturesResult.data ?? [],
-    feats: featsResult.data ?? [],
+    feats: featsData,
   };
 
   if (
@@ -735,10 +758,13 @@ async function loadContentMaps(): Promise<ContentMaps> {
     rows.subclasses.length === 0 ||
     rows.backgrounds.length === 0 ||
     rows.spells.length === 0 ||
-    rows.features.length === 0 ||
-    rows.items.length === 0
+    rows.features.length === 0
   ) {
-    throw new Error("The Supabase content library is empty. Run supabase/002_seed_and_permissions.sql first.");
+    throw new Error("The core Supabase content library is empty or inaccessible. Check the catalogue grants/RLS and run the seed/import migrations.");
+  }
+
+  if (rows.items.length === 0) {
+    console.warn("Supabase item catalogue returned 0 rows. Check public.items grants/RLS and run supabase/009_catalogue_access_repair.sql.");
   }
 
   return makeMaps(
