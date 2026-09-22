@@ -684,7 +684,11 @@ function makeMaps(
             : textLanguageCount > 0
               ? [{ count: textLanguageCount, options: LANGUAGE_OPTIONS_2014 }]
               : [];
-        const lore = row.description?.trim()
+        const storedDescription = row.description?.trim();
+        const usableDescription = storedDescription && !/^Built-in background catalogue entry\\.?$/i.test(storedDescription)
+          ? storedDescription
+          : "";
+        const lore = usableDescription
           || catalogueText(raw.fluff)
           || catalogueText(raw.entries);
         return [
