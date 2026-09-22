@@ -37,7 +37,7 @@ export default function CharacterPage() {
 
   const accessibleSpells = getAvailableSpells(character, true, librarySpells);
   const accessibleFeatures = featureCatalogue.length ? featureCatalogue.filter((feature) => isFeatureNormallyAvailable(character, feature) || hasOverride(character, "feature", feature.id)) : getAvailableFeatures(character);
-  const accessibleItems = getAvailableItems(character, true, itemCatalogue.length ? itemCatalogue : items);
+  const accessibleItems = getAvailableItems(character, true, libraryItems);
   const maxSpellLevel = getMaxSpellLevel(character);
   const castingMode = getSpellcastingMode(character);
   const spellSummary = getSpellcastingSummary(character);
