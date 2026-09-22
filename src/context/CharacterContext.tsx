@@ -2051,6 +2051,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           return { message: String(error ?? "") };
         })();
         console.error("Could not update character:", details);
+        const diagnostic = [details.code, details.message, details.details, details.hint].filter(Boolean).join(" · ");
         if (currentCharacter) {
           setCharacters((current) =>
             current.map((character) => character.id === id ? currentCharacter : character),
