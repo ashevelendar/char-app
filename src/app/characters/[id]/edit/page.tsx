@@ -188,7 +188,6 @@ function CharacterEditor({
   const [languages, setLanguages] = useState<string[]>(character.languages);
   const [asiHistory, setAsiHistory] = useState<AsiHistoryEntry[]>(initialAsiHistory);
   const [featAbilityChoices, setFeatAbilityChoices] = useState<Record<string, AbilityKey>>(initialFeatAbilityChoices);
-  const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one" | "feat"; first?: AbilityKey; second?: AbilityKey }>>([]);
   const [expertiseSelections, setExpertiseSelections] = useState<string[]>(() => {
     const match = character.notes.match(/^Expertise:\s*(.+)$/m);
     return match?.[1]?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
@@ -288,9 +287,34 @@ function CharacterEditor({
     [selectedClassRules, subclassOptionalFeatureProgression, form.subclass, form.level],
   );
 
-  const asiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level, classRules);
   const allAsiLevels = getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules);
   const newAsiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level, classRules);
+  const existingAsiLevels = allAsiLevels.filter((level) => level <= character.level);
+  const asiChoices = allAsiLevels.map((level) => asiHistory.find((entry) => entry.level === level)?.featId ?? "");
+
+  useEffect(() => {
+    setAsiHistory((current) => {
+      const next = allAsiLevels.map((level) => current.find((entry) => entry.level === level) ?? { level, mode: "two" as const });
+      return next.filter((entry) => entry.level <= form.level);
+    });
+  }, [allAsiLevels.join(","), form.level]);
+
+  function updateAsiHistory(level: number, entry: AsiHistoryEntry | undefined) {
+    const previous = asiHistory.find((item) => item.level === level);
+    const previousBonuses = getAsiAbilityBonuses(previous);
+    const nextBonuses = getAsiAbilityBonuses(entry);
+    setAsiHistory((current) => {
+      const without = current.filter((item) => item.level !== level);
+      return entry ? [...without, { ...entry, level }].sort((a, b) => a.level - b.level) : without;
+    });
+    setBaseAbilities((current) => {
+      const next = { ...current };
+      for (const key of abilityKeys) {
+        next[key] = Math.max(1, next[key] + (previousBonuses[key] ?? 0) - (nextBonuses[key] ?? 0));
+      }
+      return next;
+    });
+  }
 
   const progressionAbilities = useMemo(() => {
     const next = applyAbilityBonuses(
@@ -298,30 +322,25 @@ function CharacterEditor({
       selectedSubrace?.abilityBonuses ?? {},
     );
 
-    asiChoices.filter(Boolean).forEach((featId) => {
-      const feat = featCatalogue.find((entry) => entry.id === featId);
-      if (!feat) return;
-      const bonuses = getFeatAbilityBonuses(feat, featAbilityChoices[featId]);
-      (Object.keys(bonuses) as AbilityKey[]).forEach((key) => {
-        next[key] = Math.min(20, next[key] + (bonuses[key] ?? 0));
-      });
-    });
-
-    newAsiLevels.forEach((level, index) => {
-      const absoluteIndex = allAsiLevels.indexOf(level);
-      if (absoluteIndex >= 0 && asiChoices[absoluteIndex]) return;
-      const choice = asiAbilityChoices[index];
-      if (!choice?.first) return;
-      if (choice.mode === "two") {
-        next[choice.first] = Math.min(20, next[choice.first] + 2);
-      } else if (choice.second && choice.second !== choice.first) {
-        next[choice.first] = Math.min(20, next[choice.first] + 1);
-        next[choice.second] = Math.min(20, next[choice.second] + 1);
+    asiHistory.forEach((entry) => {
+      if (entry.mode === "feat" && entry.featId) {
+        const feat = featCatalogue.find((candidate) => candidate.id === entry.featId);
+        if (feat) {
+          const bonuses = getFeatAbilityBonuses(feat, entry.featAbility ?? featAbilityChoices[entry.featId]);
+          (Object.keys(bonuses) as AbilityKey[]).forEach((key) => {
+            next[key] = Math.min(20, next[key] + (bonuses[key] ?? 0));
+          });
+        }
+      } else {
+        const bonuses = getAsiAbilityBonuses(entry);
+        (Object.keys(bonuses) as AbilityKey[]).forEach((key) => {
+          next[key] = Math.min(20, next[key] + (bonuses[key] ?? 0));
+        });
       }
     });
 
     return next;
-  }, [baseAbilities, form.race, selectedSubrace, raceRules, newAsiLevels, allAsiLevels, asiAbilityChoices, asiChoices, featCatalogue, featAbilityChoices]);
+  }, [baseAbilities, form.race, selectedSubrace, raceRules, asiHistory, featCatalogue, featAbilityChoices]);
 
   const expertiseLevels = useMemo(
     () => featureCatalogue
