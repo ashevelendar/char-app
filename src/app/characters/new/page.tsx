@@ -62,6 +62,7 @@ export default function NewCharacterPage() {
   const [raceLanguageSelections, setRaceLanguageSelections] = useState<string[]>([]);
   const [equipmentSelections, setEquipmentSelections] = useState<InventoryEntry[]>([]);
   const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
+  const [startingItemChoices, setStartingItemChoices] = useState<Record<string, string>>({});
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [equipmentMode, setEquipmentMode] = useState<"equipment" | "gold">("equipment");
   const [step, setStep] = useState<BuilderStep>("class");
@@ -182,6 +183,51 @@ export default function NewCharacterPage() {
 
   function setBackground(value: string) {
     setForm((current) => ({ ...current, background: value }));
+  }
+
+  function equipmentChoiceOptions(choiceType: string) {
+    const type = choiceType.toLowerCase();
+    return itemCatalogue.filter((item) => {
+      if (type === "weaponmartial") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("martial"));
+      if (type === "weaponsimple") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("simple"));
+      if (type === "armorlight") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("light"));
+      if (type === "armormedium") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("medium"));
+      if (type === "armorheavy") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("heavy"));
+      if (type === "instrumentmusical") return item.name.toLowerCase().includes("instrument");
+      return true;
+    });
+  }
+
+  function applyStartingEquipment(
+    groupId: string,
+    optionIndex: number,
+    option: { items: Array<{ name: string; quantity: number; choiceType?: string; special?: boolean }> },
+    choiceOverrides: Record<string, string> = {},
+  ) {
+    const marker = `starting:${groupId}:`;
+    setEquipmentSelections((current) => {
+      const withoutGroup = current.filter((entry) => !entry.notes?.startsWith(marker));
+      const additions = option.items.flatMap((entry, entryIndex) => {
+        const choiceKey = `${groupId}:${optionIndex}:${entryIndex}`;
+        const choiceId = choiceOverrides[choiceKey] ?? startingItemChoices[choiceKey];
+        const chosen = entry.choiceType ? itemCatalogue.find((item) => item.id === choiceId) : undefined;
+        if (entry.choiceType && !chosen) return [];
+        if (entry.special) return [];
+        const item = chosen ?? itemCatalogue.find((candidate) => {
+          const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\s+//i, "").replace(/[.,]/g, "").trim();
+          const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
+          return name === normalized || name.includes(normalized) || normalized.includes(name);
+        });
+        return item ? [{ itemId: item.id, quantity: Math.max(1, entry.quantity), equipped: false, notes: marker + optionIndex }] : [];
+      });
+      const merged = [...withoutGroup];
+      for (const addition of additions) {
+        const existing = merged.find((entry) => entry.itemId === addition.itemId);
+        if (existing) existing.quantity += addition.quantity;
+        else merged.push(addition);
+      }
+      return merged;
+    });
   }
 
   function submit() {
@@ -349,7 +395,7 @@ export default function NewCharacterPage() {
                     </div>
                   </div>
                 )}
-                <div className="space-y-4">
+                {equipmentMode === "equipment" && <div className="space-y-4">
                   {[
                     ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `class-${index}`, heading: "Class equipment" })),
                     ...(selectedBackgroundRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `background-${index}`, heading: "Background equipment" })),
@@ -363,43 +409,38 @@ export default function NewCharacterPage() {
                         {group.options.map((option, optionIndex) => {
                           const selected = startingEquipmentSelections[group.id] === optionIndex;
                           return (
-                            <button
+                            <div
                               key={optionIndex}
-                              type="button"
-                              onClick={() => {
-                                setStartingEquipmentSelections((current) => ({ ...current, [group.id]: optionIndex }));
-                                const marker = `starting:${group.id}:`;
-                                setEquipmentSelections((current) => {
-                                  const manual = current.filter((entry) => !entry.notes?.startsWith(marker));
-                                  const additions = option.items.flatMap((entry) => {
-                                    const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\\s+/i, "").replace(/[.,]/g, "").trim();
-                                    const item = itemCatalogue.find((candidate) => {
-                                      const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
-                                      return name === normalized || name.includes(normalized) || normalized.includes(name);
-                                    });
-                                    return item ? [{ itemId: item.id, quantity: Math.max(1, entry.quantity), equipped: false, notes: marker + optionIndex }] : [];
-                                  });
-                                  const merged = [...manual];
-                                  for (const addition of additions) {
-                                    const existing = merged.find((entry) => entry.itemId === addition.itemId);
-                                    if (existing) existing.quantity += addition.quantity;
-                                    else merged.push(addition);
-                                  }
-                                  return merged;
-                                });
-                              }}
-                              className={`rounded-xl border p-4 text-left transition ${selected ? "border-amber-500 bg-amber-950/30" : "border-stone-800 bg-stone-950/50 hover:border-stone-600"}`}
+                              className={`rounded-xl border p-4 transition ${selected ? "border-amber-500 bg-amber-950/30" : "border-stone-800 bg-stone-950/50 hover:border-stone-600"}`}
                             >
-                              <div className="flex items-center gap-2">
-                                <span className={`h-4 w-4 rounded-full border-2 ${selected ? "border-amber-400 bg-amber-400" : "border-stone-600"}`} />
+                              <button type="button" onClick={() => {
+                                setStartingEquipmentSelections((current) => ({ ...current, [group.id]: optionIndex }));
+                                applyStartingEquipment(group.id, optionIndex, option);
+                              }} className="flex w-full items-start gap-3 text-left">
+                                <span className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 ${selected ? "border-amber-400 bg-amber-400" : "border-stone-600"}`} />
                                 <span className="font-semibold">{option.label}</span>
-                              </div>
+                              </button>
                               {option.items.length > 0 && (
-                                <p className="mt-2 text-xs leading-5 text-stone-500">
-                                  {option.items.map((entry) => `${entry.quantity > 1 ? entry.quantity + "× " : ""}${entry.name}`).join(", ")}
-                                </p>
+                                <div className="mt-3 space-y-2 pl-7">
+                                  {option.items.map((entry, entryIndex) => {
+                                    if (!entry.choiceType) return <p key={entryIndex} className="text-xs leading-5 text-stone-500">{entry.quantity > 1 ? entry.quantity + "× " : ""}{entry.special ? "Other possession: " : ""}{entry.name}</p>;
+                                    const choiceKey = `${group.id}:${optionIndex}:${entryIndex}`;
+                                    const choiceItems = equipmentChoiceOptions(entry.choiceType);
+                                    return <label key={entryIndex} className="block text-xs text-stone-400">
+                                      {entry.name}
+                                      <select value={startingItemChoices[choiceKey] ?? ""} onChange={(event) => {
+                                        const value = event.target.value;
+                                        setStartingItemChoices((current) => ({ ...current, [choiceKey]: value }));
+                                        if (selected) applyStartingEquipment(group.id, optionIndex, option, { [choiceKey]: value });
+                                      }} className="mt-1 w-full rounded-lg border border-stone-700 bg-stone-950 px-3 py-2 text-sm text-stone-100">
+                                        <option value="">Choose...</option>
+                                        {choiceItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                                      </select>
+                                    </label>;
+                                  })}
+                                </div>
                               )}
-                            </button>
+                            </div>
                           );
                         })}
                       </div>
@@ -408,7 +449,7 @@ export default function NewCharacterPage() {
                   {!((selectedClassRules?.startingEquipment?.length ?? 0) + (selectedBackgroundRules?.startingEquipment?.length ?? 0)) && (
                     <p className="text-sm text-stone-500">No parsed starting-equipment bundles were found. You can still add items manually below.</p>
                   )}
-                </div>
+                </div>}
               </SectionCard>
 
               {equipmentMode === "equipment" && <SectionCard title={`Current Inventory (${equipmentSelections.length})`} description="This is the equipment that will be placed on the character.">
