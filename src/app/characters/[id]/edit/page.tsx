@@ -39,7 +39,7 @@ function getOptionalChoiceGroups(classEntries: OptionalChoiceEntry[], subclassEn
 const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
 const abilityLabels: Record<AbilityKey, string> = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
 function getAsiAbilityBonuses(entry?: AsiHistoryEntry): Partial<AbilityScores> {
-  if (!entry || entry.mode === "feat") return {};
+  if (!entry || entry.mode === "feat" || entry.mode === "legacy") return {};
   if (!entry.first) return {};
   if (entry.mode === "two") return { [entry.first]: 2 };
   if (!entry.second || entry.second === entry.first) return {};
@@ -63,7 +63,7 @@ function parseAsiHistory(notes: string): AsiHistoryEntry[] {
     return parsed.filter((entry): entry is AsiHistoryEntry => {
       if (!entry || typeof entry !== "object") return false;
       const value = entry as Record<string, unknown>;
-      return typeof value.level === "number" && (value.mode === "two" || value.mode === "one" || value.mode === "feat");
+      return typeof value.level === "number" && (value.mode === "two" || value.mode === "one" || value.mode === "feat" || value.mode === "legacy");
     }).sort((a, b) => a.level - b.level);
   } catch {
     return [];
@@ -165,7 +165,17 @@ function CharacterEditor({
     try { return JSON.parse(match[1]) as Record<string, AbilityKey>; } catch { return {} as Record<string, AbilityKey>; }
   }, [character.notes]);
 
-  const initialAsiHistory = useMemo(() => parseAsiHistory(character.notes), [character.notes]);
+  const initialAsiHistory = useMemo(() => {
+    const parsed = parseAsiHistory(character.notes);
+    if (parsed.length) return parsed;
+    const levels = getAbilityScoreImprovementLevelsUpTo(character.className, character.level, classRules);
+    return levels.map((level, index) => {
+      const featId = character.feats[index];
+      return featId
+        ? { level, mode: "feat" as const, featId, featAbility: initialFeatAbilityChoices[featId] }
+        : { level, mode: "legacy" as const };
+    });
+  }, [character.notes, character.className, character.level, character.feats, classRules, initialFeatAbilityChoices]);
   const initialAsiBonuses = getAsiHistoryBonusTotal(initialAsiHistory);
 
   const getExistingFeatBonus = (ability: AbilityKey) => initialAsiHistory.reduce((total, entry) => {
@@ -295,7 +305,10 @@ function CharacterEditor({
   useEffect(() => {
     const currentAsiLevels = getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules);
     setAsiHistory((current) => {
-      const next = currentAsiLevels.map((level) => current.find((entry) => entry.level === level) ?? { level, mode: "two" as const });
+      const next = currentAsiLevels.map((level) => current.find((entry) => entry.level === level) ?? {
+        level,
+        mode: level <= character.level ? "legacy" as const : "two" as const,
+      });
       return next.filter((entry) => entry.level <= form.level);
     });
   }, [form.className, form.level, classRules]);
@@ -1064,7 +1077,7 @@ function AsiSelectionSection({
           <select
             value={mode}
             onChange={(event) => {
-              const nextMode = event.target.value as "two" | "one" | "feat";
+              const nextMode = event.target.value as "two" | "one" | "feat" | "legacy";
               onAsiChange(level, {
                 level,
                 mode: nextMode,
