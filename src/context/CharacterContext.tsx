@@ -348,7 +348,8 @@ function extractNaturalArmor(raw: unknown): { base: number; dexMax?: number | nu
 
 function calculateArmorClass(character: Pick<Character, "abilities" | "inventory" | "race">, itemCatalogue: Item[], raceRules: Record<string, RaceRules>): number {
   const dex = Math.floor((character.abilities.dex - 10) / 2);
-  const equipped = character.inventory.filter((entry) => entry.equipped).map((entry) => itemCatalogue.find((item) => item.id === entry.itemId)).filter((item): item is Item => Boolean(item));
+  const availableItems = [...itemCatalogue, ...items.filter((fallback) => !itemCatalogue.some((item) => item.id === fallback.id || item.name.toLowerCase() === fallback.name.toLowerCase()))];
+  const equipped = character.inventory.filter((entry) => entry.equipped).map((entry) => availableItems.find((item) => item.id === entry.itemId)).filter((item): item is Item => Boolean(item));
   const armor = equipped.find((item) => item.isArmor && !item.isShield);
   const shield = equipped.find((item) => item.isShield);
   const natural = raceRules[character.race]?.naturalArmor;
@@ -984,7 +985,15 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setCharacters(nextCharacters);
         setDatabaseStatus("connected");
       } catch (error) {
-        console.error("Supabase load failed:", error);
+        const details = error && typeof error === "object"
+          ? {
+              message: "message" in error ? String(error.message ?? "") : "",
+              code: "code" in error ? String(error.code ?? "") : "",
+              details: "details" in error ? String(error.details ?? "") : "",
+              hint: "hint" in error ? String(error.hint ?? "") : "",
+            }
+          : { message: String(error ?? "") };
+        console.error("Supabase load failed:", details);
         setDatabaseStatus("error");
 
         try {
@@ -1276,7 +1285,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
     addInventoryItem: async (characterId, itemId, quantity = 1, override = false) => {
       const character = characters.find((entry) => entry.id === characterId);
-      const foundItem = items.find((entry) => entry.id === itemId);
+      const foundItem = itemCatalogue.find((entry) => entry.id === itemId) ?? items.find((entry) => entry.id === itemId);
       const allowed = character && foundItem ? isItemNormallyAvailable(character, foundItem) : false;
 
       if (!character || (!allowed && !(accessMode === "dm" && override))) return false;
