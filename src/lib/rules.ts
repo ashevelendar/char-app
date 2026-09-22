@@ -1,5 +1,5 @@
 import { classDefinitions, features, items, races, spells, subclasses } from "./data";
-import type { AbilityKey, AbilityScores, Character, ClassRuleData, ContentType, Feat, Feature, Item, Spell } from "./types";
+import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, ClassRuleData, ContentType, ExpertiseHistoryEntry, Feat, Feature, Item, MagicalSecretsHistoryEntry, Spell } from "./types";
 
 type RuleClassCatalogue = Record<string, ClassRuleData>;
 
@@ -206,6 +206,162 @@ export function getAbilityScoreImprovementLevels(className: string, classCatalog
 
 export function getNewAbilityScoreImprovementLevels(className: string, oldLevel: number, newLevel: number, classCatalogue?: RuleClassCatalogue) {
   return getAbilityScoreImprovementLevels(className, classCatalogue).filter((level) => level > oldLevel && level <= newLevel);
+}
+
+export function validateAsiHistory(
+  entries: AsiHistoryEntry[],
+  className: string,
+  level: number,
+  featCatalogue: Feat[] = [],
+  classCatalogue?: RuleClassCatalogue,
+): string[] {
+  const errors: string[] = [];
+  const expectedLevels = getAbilityScoreImprovementLevelsUpTo(className, level, classCatalogue);
+  const seenLevels = new Set<number>();
+
+  for (const entry of entries) {
+    if (seenLevels.has(entry.level)) {
+      errors.push(`Ability Score Improvement level ${entry.level} is recorded more than once.`);
+      continue;
+    }
+    seenLevels.add(entry.level);
+
+    if (!expectedLevels.includes(entry.level)) {
+      errors.push(`Ability Score Improvement level ${entry.level} is not valid for a level ${level} ${className}.`);
+    }
+
+    if (entry.mode === "legacy") continue;
+
+    if (entry.mode === "two") {
+      if (!entry.first) errors.push(`Level ${entry.level}: choose an ability for the +2 improvement.`);
+      if (entry.second) errors.push(`Level ${entry.level}: a +2 improvement cannot also contain a second ability.`);
+    } else if (entry.mode === "one") {
+      if (!entry.first || !entry.second) errors.push(`Level ${entry.level}: choose two abilities for the +1/+1 improvement.`);
+      if (entry.first && entry.second && entry.first === entry.second) errors.push(`Level ${entry.level}: the two +1 abilities must be different.`);
+    } else if (entry.mode === "feat") {
+      if (!entry.featId) {
+        errors.push(`Level ${entry.level}: choose a feat.`);
+        continue;
+      }
+      const feat = featCatalogue.find((candidate) => candidate.id === entry.featId);
+      if (!feat) {
+        errors.push(`Level ${entry.level}: the selected feat is no longer available in the catalogue.`);
+        continue;
+      }
+      const options = getFeatAbilityOptions(feat);
+      if (options.length > 1 && !entry.featAbility) {
+        errors.push(`Level ${entry.level}: choose the ability granted by ${feat.name}.`);
+      } else if (entry.featAbility && options.length && !options.some((option) => option.ability === entry.featAbility)) {
+        errors.push(`Level ${entry.level}: the selected ability is not a valid choice for ${feat.name}.`);
+      }
+      if (entry.first || entry.second) errors.push(`Level ${entry.level}: a feat choice cannot also contain an ASI allocation.`);
+    } else {
+      errors.push(`Level ${entry.level}: unknown ASI choice mode.`);
+    }
+  }
+
+  for (const expectedLevel of expectedLevels) {
+    if (!entries.some((entry) => entry.level === expectedLevel)) {
+      errors.push(`Ability Score Improvement level ${expectedLevel} is missing.`);
+    }
+  }
+
+  return errors;
+}
+
+export function validateExpertiseHistory(
+  entries: ExpertiseHistoryEntry[],
+  expectedLevels: number[],
+  availableSkills: string[],
+): string[] {
+  const errors: string[] = [];
+  const seenLevels = new Set<number>();
+  const seenSkills = new Set<string>();
+  const available = new Set(availableSkills.map((skill) => skill.trim().toLowerCase()).filter(Boolean));
+
+  for (const entry of entries) {
+    if (seenLevels.has(entry.level)) {
+      errors.push(`Expertise level ${entry.level} is recorded more than once.`);
+      continue;
+    }
+    seenLevels.add(entry.level);
+
+    if (!expectedLevels.includes(entry.level)) {
+      errors.push(`Expertise level ${entry.level} is not a valid Expertise level for this character.`);
+    }
+
+    const skills = entry.skills.map((skill) => skill.trim()).filter(Boolean);
+    if (skills.length !== 2) {
+      errors.push(`Expertise level ${entry.level} must contain exactly two skills.`);
+    }
+    if (new Set(skills.map((skill) => skill.toLowerCase())).size !== skills.length) {
+      errors.push(`Expertise level ${entry.level} contains a duplicate skill.`);
+    }
+
+    for (const skill of skills) {
+      const key = skill.toLowerCase();
+      if (!available.has(key)) errors.push(`Expertise level ${entry.level}: ${skill} is not one of the character's proficient skills.`);
+      if (seenSkills.has(key)) errors.push(`Expertise level ${entry.level}: ${skill} was already selected for Expertise.`);
+      seenSkills.add(key);
+    }
+  }
+
+  for (const expectedLevel of expectedLevels) {
+    if (!entries.some((entry) => entry.level === expectedLevel)) {
+      errors.push(`Expertise level ${expectedLevel} is missing.`);
+    }
+  }
+
+  return errors;
+}
+
+export function validateMagicalSecretsHistory(
+  entries: MagicalSecretsHistoryEntry[],
+  featureLevels: number[],
+  spellCatalogue: Spell[],
+  character: Character,
+  classCatalogue?: RuleClassCatalogue,
+): string[] {
+  const errors: string[] = [];
+  const seenLevels = new Set<number>();
+  const spellById = new Map(spellCatalogue.map((spell) => [spell.id, spell]));
+
+  for (const entry of entries) {
+    if (seenLevels.has(entry.level)) {
+      errors.push(`Magical Secrets level ${entry.level} is recorded more than once.`);
+      continue;
+    }
+    seenLevels.add(entry.level);
+
+    if (!featureLevels.includes(entry.level)) {
+      errors.push(`Magical Secrets level ${entry.level} is not a valid feature level for this character.`);
+    }
+    if (entry.spellIds.length !== 2) {
+      errors.push(`Magical Secrets level ${entry.level} must contain exactly two spells.`);
+    }
+    if (new Set(entry.spellIds).size !== entry.spellIds.length) {
+      errors.push(`Magical Secrets level ${entry.level} contains a duplicate spell.`);
+    }
+
+    for (const spellId of entry.spellIds) {
+      const spell = spellById.get(spellId);
+      if (!spell) {
+        errors.push(`Magical Secrets level ${entry.level}: a selected spell is no longer in the spell catalogue.`);
+        continue;
+      }
+      if (spell.level > getMaxSpellLevel(character, classCatalogue)) {
+        errors.push(`Magical Secrets level ${entry.level}: ${spell.name} is above the character's current maximum spell level.`);
+      }
+    }
+  }
+
+  for (const featureLevel of featureLevels) {
+    if (!entries.some((entry) => entry.level === featureLevel)) {
+      errors.push(`Magical Secrets level ${featureLevel} is missing.`);
+    }
+  }
+
+  return errors;
 }
 
 export function getAbilityScoreImprovementLevelsUpTo(className: string, level: number, classCatalogue?: RuleClassCatalogue) {
