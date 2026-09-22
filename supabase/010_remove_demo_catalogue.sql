@@ -76,7 +76,7 @@ where cf.feature_id = d.id;
 delete from public.character_overrides co
 using demo_items d
 where co.content_type = 'item'
-  and co.content_id = d.id::text;
+  and co.content_id::text = d.id::text;
 
 delete from public.character_overrides co
 using demo_spells d
