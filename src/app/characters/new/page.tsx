@@ -142,7 +142,7 @@ export default function NewCharacterPage() {
   const [step, setStep] = useState<BuilderStep>("class");
   const [creationError, setCreationError] = useState("");
 
-  const subclassUnlockLevel = getClassDefinition(form.className)?.subclassUnlockLevel ?? 1;
+  const subclassUnlockLevel = getClassDefinition(form.className, classRules)?.subclassUnlockLevel ?? 1;
   const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className && form.level >= subclassUnlockLevel);
   const selectedSubclass = subclassOptions.find((entry) => entry.name === form.subclass);
   const selectedRaceRules = raceRules[form.race];
@@ -191,7 +191,7 @@ export default function NewCharacterPage() {
   );
 
   const asiLevels = useMemo(
-    () => getAbilityScoreImprovementLevelsUpTo(form.className, form.level),
+    () => getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules),
     [form.className, form.level],
   );
 
@@ -264,13 +264,13 @@ export default function NewCharacterPage() {
 
   const availableSpells = useMemo(() => spellCatalogue.filter((spell) => isSpellNormallyAvailable(spellCharacter, spell)), [spellCatalogue, spellCharacter]);
   const magicalSecretSpellOptions = useMemo(() => {
-    const maxLevel = getMaxSpellLevel(spellCharacter);
+    const maxLevel = getMaxSpellLevel(spellCharacter, classRules);
     return spellCatalogue.filter((spell) => spell.level <= maxLevel);
   }, [spellCatalogue, spellCharacter]);
 
-  const cantripsKnown = getCantripsKnown(form.className, form.level);
-  const spellsKnown = getSpellsKnown(form.className, form.level);
-  const preparedSpellLimit = getPreparedSpellCount(spellCharacter);
+  const cantripsKnown = getCantripsKnown(form.className, form.level, classRules);
+  const spellsKnown = getSpellsKnown(form.className, form.level, classRules);
+  const preparedSpellLimit = getPreparedSpellCount(spellCharacter, classRules);
   const wizardSpellbookLimit = form.className === "Wizard" ? getWizardSpellbookProgression(form.level) : null;
   const knownSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : spellsKnown ?? preparedSpellLimit;
   const magicalSecretCount = featureCatalogue.filter((feature) => feature.name.toLowerCase().includes("magical secrets") && feature.className === form.className && feature.requiredLevel <= form.level).length * 2;
@@ -311,7 +311,7 @@ export default function NewCharacterPage() {
   }
 
   function setLevel(value: number) {
-    const unlockLevel = getClassDefinition(form.className)?.subclassUnlockLevel ?? 1;
+    const unlockLevel = getClassDefinition(form.className, classRules)?.subclassUnlockLevel ?? 1;
     const available = catalogue.subclasses.filter((entry) => entry.className === form.className && value >= unlockLevel);
     setForm((current) => ({
       ...current,
@@ -371,8 +371,8 @@ export default function NewCharacterPage() {
     });
   }
 
-  const expectedMaxHp = getExpectedMaxHp(form.className, form.level, asiBonusScores.con);
-  const expectedHitDice = getExpectedHitDice(form.className, form.level);
+  const expectedMaxHp = getExpectedMaxHp(form.className, form.level, asiBonusScores.con, classRules);
+  const expectedHitDice = getExpectedHitDice(form.className, form.level, classRules);
   const expectedProficiencyBonus = getProficiencyBonus(form.level);
 
   const requiredChoiceCount = (choices: Array<{ count: number }>) =>
@@ -543,7 +543,7 @@ export default function NewCharacterPage() {
       currency: form.currency,
       maxHp,
       hp: Math.max(0, Math.min(maxHp, form.hp || maxHp)),
-      hitDice: getExpectedHitDice(form.className, form.level),
+      hitDice: getExpectedHitDice(form.className, form.level, classRules),
       proficiencyBonus: getProficiencyBonus(form.level),
       notes: [
         form.notes,
@@ -578,7 +578,7 @@ export default function NewCharacterPage() {
                   <Field label="Player name" value={form.playerName} onChange={(value) => setForm((current) => ({ ...current, playerName: value }))} />
                   <NumberField label="Level" value={form.level} min={1} max={20} onChange={setLevel} />
                   <Select label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
-                    const unlockLevel = getClassDefinition(value)?.subclassUnlockLevel ?? 1;
+                    const unlockLevel = getClassDefinition(value, classRules)?.subclassUnlockLevel ?? 1;
                     const next = catalogue.subclasses.filter((entry) => entry.className === value && form.level >= unlockLevel);
                     setClassSkillSelections([]);
                     setClassLanguageSelections([]);
