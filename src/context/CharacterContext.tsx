@@ -1349,7 +1349,18 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (supabase && user && isUuid(characterId)) {
         try {
           const maps = await getMapsForWrite();
-          const dbItemId = appIdToDbId(maps.itemByAppId, itemId);
+          const dbItemId =
+            appIdToDbId(maps.itemByAppId, itemId) ??
+            (isUuid(itemId) ? itemId : null) ??
+            (foundItem
+              ? maps.itemByAppId.get(
+                  items.find((item) => item.id === itemId)?.id ?? itemId,
+                ) ?? maps.itemByDbId.get(
+                  itemCatalogue.find(
+                    (item) => item.name.trim().toLowerCase() === foundItem.name.trim().toLowerCase(),
+                  )?.id ?? "",
+                ) ?? null
+              : null);
           if (!dbItemId) throw new Error(`Item "${itemId}" is missing from the database catalogue.`);
 
           const existingResult = await supabase
