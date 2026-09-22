@@ -899,7 +899,6 @@ function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }
               const open = expanded === race.name;
               const selected = selectedRace === race.name;
               const buttonClass = "flex w-full items-center justify-between px-4 py-3 text-left " + (selected && !selectedSubrace ? "bg-stone-800 text-stone-100" : selected ? "bg-stone-900 text-stone-200" : "text-stone-300");
-              const subraceClass = "block w-full rounded-lg px-4 py-2 text-left text-sm " + (selectedSubrace === entry.name && selectedRace === race.name ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-stone-900 hover:text-stone-200");
               return <div key={race.name} className="rounded-xl border border-stone-800 bg-stone-950/60 overflow-hidden">
                 <button type="button" onClick={() => { setExpanded(open ? "" : race.name); onSelect(race.name); }} className={buttonClass}>
                   <span className="font-semibold">{race.name}</span>
