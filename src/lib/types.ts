@@ -1,5 +1,16 @@
 export type AbilityKey = "str" | "dex" | "con" | "int" | "wis" | "cha";
 export type AbilityScores = Record<AbilityKey, number>;
+
+export type AsiChoiceMode = "two" | "one" | "feat";
+
+export interface AsiHistoryEntry {
+  level: number;
+  mode: AsiChoiceMode;
+  first?: AbilityKey;
+  second?: AbilityKey;
+  featId?: string;
+  featAbility?: AbilityKey;
+}
 export type SpellLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 export type AccessMode = "player" | "dm";
 export type ContentType = "spell" | "feature" | "item";
