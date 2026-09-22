@@ -1,24 +1,70 @@
 import { classDefinitions, features, items, races, spells, subclasses } from "./data";
-import type { Character, ContentType, Feat, Feature, Item, Spell } from "./types";
+import type { Character, ClassRuleData, ContentType, Feat, Feature, Item, Spell } from "./types";
 
-export function getClassDefinition(className: string) {
-  return classDefinitions.find((entry) => entry.name === className);
+type RuleClassCatalogue = Record<string, ClassRuleData>;
+
+function getDynamicClassRule(className: string, classCatalogue?: RuleClassCatalogue) {
+  return classCatalogue?.[className];
+}
+
+function spellcastingModeFromRule(rule?: ClassRuleData) {
+  if (!rule) return undefined;
+  if (rule.casterProgression === "none") return "none" as const;
+  if (rule.preparedSpells) return "prepared" as const;
+  if (rule.spellsKnownProgression?.length || rule.casterProgression === "pact") return "known" as const;
+  if (rule.casterProgression) return "prepared" as const;
+  return undefined;
+}
+
+function maxSpellLevelsFromRule(rule?: ClassRuleData) {
+  if (!rule) return undefined;
+  if (rule.pactSlotProgression?.length) return [0, ...rule.pactSlotProgression.map((entry) => entry.level)];
+  if (rule.spellSlots?.length) {
+    return [0, ...rule.spellSlots.map((row) =>
+      row.reduce((highest, count, index) => count > 0 ? index + 1 : highest, 0),
+    )];
+  }
+  return undefined;
+}
+
+export type SpellcastingRuleCatalogue = RuleClassCatalogue;
+
+
+
+export function getClassDefinition(className: string, classCatalogue?: RuleClassCatalogue) {
+  const fallback = classDefinitions.find((entry) => entry.name === className);
+  const rule = getDynamicClassRule(className, classCatalogue);
+  if (!rule) return fallback;
+
+  const spellcasting = spellcastingModeFromRule(rule) ?? fallback?.spellcasting ?? "none";
+  const maxSpellLevelByCharacterLevel = maxSpellLevelsFromRule(rule) ?? fallback?.maxSpellLevelByCharacterLevel ?? Array(21).fill(0);
+
+  return {
+    id: fallback?.id ?? className.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    name: className,
+    spellcasting,
+    maxSpellLevelByCharacterLevel,
+    subclassUnlockLevel: rule.subclassUnlockLevel ?? fallback?.subclassUnlockLevel ?? 1,
+  };
 }
 
 export function getSubclassDefinition(subclassName: string) {
   return subclasses.find((entry) => entry.name === subclassName);
 }
 
-export function getMaxSpellLevel(character: Character) {
-  const definition = getClassDefinition(character.className);
+export function getMaxSpellLevel(character: Character, classCatalogue?: RuleClassCatalogue) {
+  const definition = getClassDefinition(character.className, classCatalogue);
   return definition?.maxSpellLevelByCharacterLevel[Math.max(1, Math.min(20, character.level))] ?? 0;
 }
 
-export function getSpellcastingMode(character: Character) {
-  return getClassDefinition(character.className)?.spellcasting ?? "none";
+export function getSpellcastingMode(character: Character, classCatalogue?: RuleClassCatalogue) {
+  return getClassDefinition(character.className, classCatalogue)?.spellcasting ?? "none";
 }
 
-export function getHitDieSize(className: string) {
+export function getHitDieSize(className: string, classCatalogue?: RuleClassCatalogue) {
+  const dynamic = getDynamicClassRule(className, classCatalogue)?.hitDie;
+  if (typeof dynamic === "number" && dynamic > 0) return dynamic;
+
   const sizes: Record<string, number> = {
     Barbarian: 12,
     Bard: 8,
@@ -46,18 +92,18 @@ export function getProficiencyBonus(level: number) {
   return 2 + Math.floor((safeLevel - 1) / 4);
 }
 
-export function getExpectedMaxHp(className: string, level: number, constitution: number) {
+export function getExpectedMaxHp(className: string, level: number, constitution: number, classCatalogue?: RuleClassCatalogue) {
   const safeLevel = Math.max(1, Math.min(20, level));
-  const hitDie = getHitDieSize(className);
+  const hitDie = getHitDieSize(className, classCatalogue);
   const averageGain = Math.floor(hitDie / 2) + 1;
   const conMod = getAbilityModifier(constitution);
   const perLevelGain = Math.max(1, averageGain + conMod);
   return Math.max(1, hitDie + conMod + Math.max(0, safeLevel - 1) * perLevelGain);
 }
 
-export function getExpectedHitDice(className: string, level: number) {
+export function getExpectedHitDice(className: string, level: number, classCatalogue?: RuleClassCatalogue) {
   const safeLevel = Math.max(1, Math.min(20, level));
-  return `${safeLevel}d${getHitDieSize(className)}`;
+  return safeLevel + "d" + getHitDieSize(className, classCatalogue);
 }
 
 
@@ -150,18 +196,20 @@ const SPELLS_KNOWN: Record<string, number[]> = {
   Warlock: [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15],
 };
 
-export function getAbilityScoreImprovementLevels(className: string) {
+export function getAbilityScoreImprovementLevels(className: string, classCatalogue?: RuleClassCatalogue) {
+  const dynamic = getDynamicClassRule(className, classCatalogue)?.asiLevels;
+  if (dynamic?.length) return dynamic;
   if (className === "Fighter") return [4, 6, 8, 12, 14, 16, 19];
   if (className === "Rogue") return [4, 8, 10, 12, 16, 19];
   return [4, 8, 12, 16, 19];
 }
 
-export function getNewAbilityScoreImprovementLevels(className: string, oldLevel: number, newLevel: number) {
-  return getAbilityScoreImprovementLevels(className).filter((level) => level > oldLevel && level <= newLevel);
+export function getNewAbilityScoreImprovementLevels(className: string, oldLevel: number, newLevel: number, classCatalogue?: RuleClassCatalogue) {
+  return getAbilityScoreImprovementLevels(className, classCatalogue).filter((level) => level > oldLevel && level <= newLevel);
 }
 
-export function getAbilityScoreImprovementLevelsUpTo(className: string, level: number) {
-  return getAbilityScoreImprovementLevels(className).filter((asiLevel) => asiLevel <= level);
+export function getAbilityScoreImprovementLevelsUpTo(className: string, level: number, classCatalogue?: RuleClassCatalogue) {
+  return getAbilityScoreImprovementLevels(className, classCatalogue).filter((asiLevel) => asiLevel <= level);
 }
 
 function normalizeRuleText(value: unknown) {
