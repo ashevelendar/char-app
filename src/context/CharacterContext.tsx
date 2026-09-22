@@ -408,8 +408,8 @@ function extractBackgroundFeature(raw: unknown): { name: string; description: st
 
 function cleanEquipmentName(value: string) {
   return catalogueText(value)
-    .replace(/^(?:a|an|one)\\s+/i, "")
-    .replace(/\\b(?:set of|pair of)\\b/gi, "")
+    .replace(/^(?:a|an|one)\s+/i, "")
+    .replace(/\b(?:set of|pair of)\b/gi, "")
     .trim();
 }
 
@@ -417,7 +417,10 @@ function parseEquipmentEntries(value: unknown): EquipmentEntry[] {
   if (Array.isArray(value)) return value.flatMap(parseEquipmentEntries);
   if (typeof value === "string") {
     const name = cleanEquipmentName(value);
-    return name ? [{ name, quantity: 1 }] : [];
+    const quantityMatch = name.match(/^(\d+)\s+(.+)$/);
+    const quantity = quantityMatch ? Math.max(1, Number(quantityMatch[1])) : 1;
+    const itemName = quantityMatch?.[2] ?? name;
+    return itemName ? [{ name: itemName, quantity }] : [];
   }
   if (!value || typeof value !== "object") return [];
   const object = value as Record<string, unknown>;
