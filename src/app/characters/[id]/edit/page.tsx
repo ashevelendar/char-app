@@ -153,7 +153,7 @@ function CharacterEditor({
   const [languages, setLanguages] = useState<string[]>(character.languages);
   const [asiChoices, setAsiChoices] = useState<string[]>(character.feats ?? []);
   const [featAbilityChoices, setFeatAbilityChoices] = useState<Record<string, AbilityKey>>(initialFeatAbilityChoices);
-  const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>>([]);
+  const [asiAbilityChoices, setAsiAbilityChoices] = useState<Array<{ mode: "two" | "one" | "feat"; first?: AbilityKey; second?: AbilityKey }>>([]);
   const [expertiseSelections, setExpertiseSelections] = useState<string[]>(() => {
     const match = character.notes.match(/^Expertise:\s*(.+)$/m);
     return match?.[1]?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
@@ -922,8 +922,8 @@ function AsiSelectionSection({
   allAsiLevels: number[];
   selectedFeatIds: string[];
   onFeatChange: (absoluteIndex: number, featId: string) => void;
-  abilityChoices: Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>;
-  onAbilityChoicesChange: (value: Array<{ mode: "two" | "one"; first?: AbilityKey; second?: AbilityKey }>) => void;
+  abilityChoices: Array<{ mode: "two" | "one" | "feat"; first?: AbilityKey; second?: AbilityKey }>;
+  onAbilityChoicesChange: (value: Array<{ mode: "two" | "one" | "feat"; first?: AbilityKey; second?: AbilityKey }>) => void;
   featCatalogue: Array<{ id: string; name: string; description: string; source: string; prerequisite?: unknown; ability?: unknown }>;
   character: Character;
   featAbilityChoices: Record<string, AbilityKey>;
@@ -938,7 +938,7 @@ function AsiSelectionSection({
         const selectedFeatId = absoluteIndex >= 0 ? (selectedFeatIds[absoluteIndex] ?? "") : "";
         const feat = featCatalogue.find((entry) => entry.id === selectedFeatId);
         const choice = abilityChoices[index];
-        const mode = selectedFeatId ? "feat" : (choice?.mode ?? "two");
+        const mode = choice?.mode ?? (selectedFeatId ? "feat" : "two");
         const first = choice?.first ?? "";
         const second = choice?.second ?? "";
 
@@ -955,12 +955,12 @@ function AsiSelectionSection({
             onChange={(event) => {
               if (event.target.value === "feat") {
                 const next = [...abilityChoices];
-                next[index] = { mode: "two" };
+                next[index] = { mode: "feat" };
                 onAbilityChoicesChange(next);
               } else {
                 if (absoluteIndex >= 0) onFeatChange(absoluteIndex, "");
                 const next = [...abilityChoices];
-                next[index] = { mode: event.target.value as "two" | "one", first: choice?.first, second: choice?.second };
+                next[index] = { mode: event.target.value as "two" | "one" | "feat", first: choice?.first, second: choice?.second };
                 onAbilityChoicesChange(next);
               }
             }}
