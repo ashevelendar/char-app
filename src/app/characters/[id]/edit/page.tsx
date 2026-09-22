@@ -538,6 +538,16 @@ function CharacterEditor({
                 <ChoiceGroup title="Language choices" choices={selectedBackgroundRules.languageChoices} value={backgroundLanguageSelections} onChange={setBackgroundLanguageSelections} />
                 {selectedBackgroundRules.featureName && <div className="mt-5 rounded-2xl border border-amber-900/50 bg-amber-950/20 p-5"><div className="text-xs font-semibold uppercase tracking-wider text-amber-500">Background Feature</div><h3 className="mt-1 text-lg font-semibold text-amber-300">{selectedBackgroundRules.featureName}</h3><p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-300">{selectedBackgroundRules.featureDescription}</p></div>}
               </SectionCard>}
+              {selectedBackgroundRules && <SectionCard title="Background traits">
+                <div className="space-y-3">
+                  {featureCatalogue.filter((feature) => feature.sourceType === "background" && feature.backgroundName === form.background && feature.requiredLevel <= form.level).map((feature) => (
+                    <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4">
+                      <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Background Feature</Badge></div>
+                      <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-400">{feature.description}</p>
+                    </article>
+                  ))}
+                </div>
+              </SectionCard>}
             </>
           )}
 
