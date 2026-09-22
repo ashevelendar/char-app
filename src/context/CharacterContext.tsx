@@ -1537,7 +1537,7 @@ function toCharacter(
     const featureId = maps.featureByDbId.get(entry.feature_id);
     if (!featureId) continue;
     const source = String(entry.source ?? "").toLowerCase();
-    const grantSource: FeatureGrantSource =
+    const grantSource: FeatureGrantHistoryEntry["source"] =
       Boolean(entry.dm_granted) || source.includes("dm") ? "dm" :
       source.includes("manual") ? "manual" :
       source.includes("automatic") ? "automatic" :
