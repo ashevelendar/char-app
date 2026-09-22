@@ -296,13 +296,15 @@ export default function NewCharacterPage() {
   function selectRace(race: string, subrace = "") {
     const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
     setRaceLanguageSelections([]);
-    setForm((current) => ({ ...current, race, subrace, abilities: applyAbilityBonuses(applyAbilityBonuses(baseAbilities, raceRules[race]?.abilityBonuses ?? {}), subraceRules?.abilityBonuses ?? {}) }));
+    const speed = subraceRules?.speed ?? raceRules[race]?.speed ?? 30;
+    setForm((current) => ({ ...current, race, subrace, speed, abilities: applyAbilityBonuses(applyAbilityBonuses(baseAbilities, raceRules[race]?.abilityBonuses ?? {}), subraceRules?.abilityBonuses ?? {}) }));
   }
 
   function setSubrace(value: string) {
     setForm((current) => ({
       ...current,
       subrace: value,
+      speed: catalogue.subraces.find((entry) => entry.name === value && entry.parentRace === current.race)?.speed ?? raceRules[current.race]?.speed ?? 30,
       abilities: applyAbilityBonuses(
         applyAbilityBonuses(baseAbilities, raceRules[current.race]?.abilityBonuses ?? {}),
         catalogue.subraces.find((entry) => entry.name === value && entry.parentRace === current.race)?.abilityBonuses ?? {},
