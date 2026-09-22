@@ -393,7 +393,8 @@ function CharacterEditor({
         && !category.includes("magic")
         && !item.requiresAttunement
         && item.magicBonus == null
-        && item.bonusAc == null;
+        && item.bonusAc == null
+        && !/\b(?:wand|rod|staff|potion|scroll|ring|cloak|amulet|medal|orb)\b/i.test(item.name);
     });
     return mundaneItems.filter((item) => {
       if (type === "weaponmartial") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("martial"));
@@ -402,7 +403,11 @@ function CharacterEditor({
       if (type === "armormedium") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("medium"));
       if (type === "armorheavy") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("heavy"));
       if (type === "instrumentmusical") return item.name.toLowerCase().includes("instrument");
-      return true;
+      if (type === "focusspellcastingarcane") return ["arcane focus", "component pouch"].includes(item.name.toLowerCase());
+      if (type === "focusspellcastingdruidic") return ["druidic focus"].includes(item.name.toLowerCase());
+      if (type === "focusspellcastingholy") return ["holy symbol"].includes(item.name.toLowerCase());
+      if (type.includes("focusspellcasting")) return item.name.toLowerCase().includes("focus") || item.name.toLowerCase().includes("symbol") || item.name.toLowerCase().includes("component pouch");
+      return item.category.toLowerCase() === "equipment";
     });
   }
 
@@ -428,7 +433,8 @@ function CharacterEditor({
             && !category.includes("magic")
             && !candidate.requiresAttunement
             && candidate.magicBonus == null
-            && candidate.bonusAc == null;
+            && candidate.bonusAc == null
+            && !/\b(?:wand|rod|staff|potion|scroll|ring|cloak|amulet|medal|orb)\b/i.test(candidate.name);
         }).find((candidate) => {
           const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\s+/i, "").replace(/[.,]/g, "").trim();
           const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
