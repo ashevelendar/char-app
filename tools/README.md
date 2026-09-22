@@ -14,6 +14,7 @@ The importer supports:
 - `backgrounds`
 - `features` (class and subclass features)
 - `feats` (feat catalogue)
+- `optionalfeatures` (Fighting Styles, Maneuvers, Eldritch Invocations, and other selectable options)
 - `items`
 
 The v1.17 changes are: the spell importer now reads 5e.tools canonical class-list associations from `data/spells/sources.json`, matches classes by name + source when available, excludes optional/variant class lists from the main `spell_classes` table, reports spell/class diagnostics, and refuses to delete existing spell links when class-link resolution is incomplete. `--help` is also handled before any import work.
@@ -59,7 +60,8 @@ Run the catalogue in this order so parent relationships and spell/class links re
 6. `spells --sources all`
 7. `features --sources all`
 8. `items --sources all`
-9. `feats --sources all`
+9. `optionalfeatures --sources all`
+10. `feats --sources all`
 8. `items --sources all`
 
 All imports are upserts on `content_key`, so rerunning them is safe. Rerun spells after the full class catalogue is present so class links are rebuilt against all imported classes. The importer now uses the canonical `data/spells/sources.json` mapping for normal class spell lists; optional/variant spell-list metadata remains in each spell's `raw_data` for a future optional-feature table.
@@ -75,6 +77,7 @@ node --env-file=tools/.env.importer tools/5etools-importer.mjs --entity subclass
 node --env-file=tools/.env.importer tools/5etools-importer.mjs --entity spells --edition 2014 --sources all --dry-run
 node --env-file=tools/.env.importer tools/5etools-importer.mjs --entity features --edition 2014 --sources all --dry-run
 
+node --env-file=tools/.env.importer tools/5etools-importer.mjs --entity optionalfeatures --edition 2014 --sources all --dry-run
 node --env-file=tools/.env.importer tools/5etools-importer.mjs --entity feats --edition 2014 --sources all --dry-run
 node --env-file=tools/.env.importer tools/5etools-importer.mjs --entity items --edition 2014 --sources all --dry-run
 ```
