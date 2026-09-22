@@ -148,13 +148,9 @@ export default function NewCharacterPage() {
     setBackgroundLanguageSelections([]);
   }, [form.background]);
 
-  function setRace(value: string) {
-    setForm((current) => ({
-      ...current,
-      race: value,
-      subrace: "",
-      abilities: applyAbilityBonuses(baseAbilities, raceRules[value]?.abilityBonuses ?? {}),
-    }));
+  function selectRace(race: string, subrace = "") {
+    const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
+    setForm((current) => ({ ...current, race, subrace, abilities: applyAbilityBonuses(applyAbilityBonuses(baseAbilities, raceRules[race]?.abilityBonuses ?? {}), subraceRules?.abilityBonuses ?? {}) }));
   }
 
   function setSubrace(value: string) {
@@ -203,7 +199,7 @@ export default function NewCharacterPage() {
         <SectionCard title="Identity">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Character name" value={form.name} required onChange={(value) => setForm((current) => ({ ...current, name: value }))} />
-            <div className="sm:col-span-2 lg:col-span-3"><RacePicker races={catalogue.races} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={(race, subrace) => { setRace(race); if (subrace) setSubrace(subrace); }} /></div>
+            <div className="sm:col-span-2 lg:col-span-3"><RacePicker races={catalogue.races} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} /></div>
             <Select label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
               const next = catalogue.subclasses.filter((entry) => entry.className === value);
               setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "" }));
