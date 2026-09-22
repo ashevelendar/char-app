@@ -685,10 +685,19 @@ export default function NewCharacterPage() {
               {selectedSubrace && <InfoBox title={selectedSubrace.name} badge={selectedSubrace.source} text={selectedSubrace.description || "No subrace description is available for this entry."} />}
 
               <SectionCard title="Species traits">
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-3">
+                  {featureCatalogue.filter((feature) => feature.sourceType === "race" && feature.raceName === form.race && feature.requiredLevel <= form.level).map((feature) => (
+                    <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4">
+                      <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Species Trait</Badge></div>
+                      <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-400">{feature.description}</p>
+                    </article>
+                  ))}
+                  {selectedSubrace?.description && <p className="text-sm leading-6 text-stone-400">{selectedSubrace.description}</p>}
+                </div>
+                <ChoiceGroup title="Choose species languages" choices={raceRules[form.race]?.languages.choices ?? []} value={raceLanguageSelections} onChange={setRaceLanguageSelections} />
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <ProficiencySummary title="Languages" values={selectedLanguages} />
-                  <ChoiceGroup title="Choose species languages" choices={selectedRaceRules?.languages.choices ?? []} value={raceLanguageSelections} onChange={setRaceLanguageSelections} />
-                  <ProficiencySummary title="Ability bonuses" values={Object.entries(selectedSubrace?.abilityBonuses ?? selectedRaceRules?.abilityBonuses ?? {}).map(([key, value]) => `${key.toUpperCase()} +${value}`)} />
+                  <ProficiencySummary title="Ability bonuses" values={Object.entries(selectedSubrace?.abilityBonuses ?? raceRules[form.race]?.abilityBonuses ?? {}).map(([key, value]) => key.toUpperCase() + " " + (value >= 0 ? "+" : "") + value)} />
                 </div>
               </SectionCard>
             </>
