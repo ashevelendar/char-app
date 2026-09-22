@@ -312,6 +312,10 @@ function extractFeatAbilityRules(value: unknown): Array<{ ability: AbilityKey; a
     const amount = typeof object.amount === "number" ? object.amount : inheritedAmount;
     const ability = normalizeAbilityKey(object.ability) ?? normalizeAbilityKey(object.name);
     if (ability && typeof amount === "number") result.push({ ability, amount });
+    for (const key of ["str", "dex", "con", "int", "wis", "cha"] as AbilityKey[]) {
+      const direct = object[key];
+      if (typeof direct === "number") result.push({ ability: key, amount: direct });
+    }
     if (Array.isArray(object.from)) object.from.forEach((entry) => visit({ ability: entry, amount }, amount));
     if (Array.isArray(object.choose)) object.choose.forEach((entry) => visit(entry, amount));
     if (object.choose && !Array.isArray(object.choose)) visit(object.choose, amount);
