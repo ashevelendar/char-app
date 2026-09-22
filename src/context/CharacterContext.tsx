@@ -26,6 +26,7 @@ import type {
   Character,
   ContentType,
   InventoryEntry,
+  Item,
   NewCharacterInput,
   Feat,
   Feature,
@@ -580,7 +581,6 @@ function makeMaps(
     subclassByName: byName(subclassRows),
     backgroundByName: byName(backgroundRows),
     spellCatalogue,
-    itemCatalogue,
     featureCatalogue,
     featCatalogue,
     itemCatalogue,
@@ -1374,7 +1374,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (!existing) return;
 
       const nextEquipped = !existing.equipped;
-      const nextCharacter = {
+      if (!character) return;
+      const nextCharacter: Character = {
         ...character,
         inventory: character.inventory.map((item) => item.itemId === itemId ? { ...item, equipped: nextEquipped } : item),
       };
