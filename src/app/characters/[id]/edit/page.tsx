@@ -1046,61 +1046,73 @@ function NumberField({ label, value, onChange, min, max }: { label: string; valu
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) { return <label><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm outline-none focus:border-amber-400">{options.length ? options.map((option) => <option key={option}>{option}</option>) : <option value="">None</option>}</select></label>; }
 function AsiSelectionSection({
   levels,
-  allAsiLevels,
-  selectedFeatIds,
-  onFeatChange,
-  abilityChoices,
-  onAbilityChoicesChange,
+  characterLevel,
+  asiHistory,
+  onAsiChange,
   featCatalogue,
   character,
   featAbilityChoices,
   onFeatAbilityChoiceChange,
 }: {
   levels: number[];
-  allAsiLevels: number[];
-  selectedFeatIds: string[];
-  onFeatChange: (absoluteIndex: number, featId: string) => void;
-  abilityChoices: Array<{ mode: "two" | "one" | "feat"; first?: AbilityKey; second?: AbilityKey }>;
-  onAbilityChoicesChange: (value: Array<{ mode: "two" | "one" | "feat"; first?: AbilityKey; second?: AbilityKey }>) => void;
+  characterLevel: number;
+  asiHistory: AsiHistoryEntry[];
+  onAsiChange: (level: number, entry: AsiHistoryEntry | undefined) => void;
   featCatalogue: Array<{ id: string; name: string; description: string; source: string; prerequisite?: unknown; ability?: unknown }>;
   character: Character;
   featAbilityChoices: Record<string, AbilityKey>;
   onFeatAbilityChoiceChange: (featId: string, ability: AbilityKey) => void;
 }) {
   const abilityNames: Array<[AbilityKey, string]> = [["str","Strength"],["dex","Dexterity"],["con","Constitution"],["int","Intelligence"],["wis","Wisdom"],["cha","Charisma"]];
+  const recordedFeatIds = asiHistory.filter((entry) => entry.mode === "feat" && entry.featId).map((entry) => entry.featId as string);
 
-  return <SectionCard title="New Ability Score Improvements" description="Choose an Ability Score Improvement or a feat for each newly reached ASI level.">
+  return <SectionCard
+    title="Ability Score Improvements"
+    description="Every ASI is recorded by level so existing choices can be edited safely and future level-ups are applied without double-counting bonuses."
+  >
+    <div className="mb-5 rounded-xl border border-amber-900/50 bg-amber-950/20 p-4 text-sm leading-6 text-stone-300">
+      <span className="font-semibold text-amber-300">Legacy character?</span> If this character was created before ASI history was added, record each previous ASI below. This is necessary because the old character data stored the resulting ability scores, but not which ASI produced them.
+      {character.feats.length > 0 && (
+        <div className="mt-2 text-stone-400">
+          Existing feat records available to assign: {character.feats.map((featId) => featCatalogue.find((feat) => feat.id === featId)?.name ?? featId).join(", ")}
+        </div>
+      )}
+    </div>
+
     <div className="space-y-5">
-      {levels.map((level, index) => {
-        const absoluteIndex = allAsiLevels.indexOf(level);
-        const selectedFeatId = absoluteIndex >= 0 ? (selectedFeatIds[absoluteIndex] ?? "") : "";
-        const feat = featCatalogue.find((entry) => entry.id === selectedFeatId);
-        const choice = abilityChoices[index];
-        const mode = choice?.mode ?? (selectedFeatId ? "feat" : "two");
-        const first = choice?.first ?? "";
-        const second = choice?.second ?? "";
+      {levels.map((level) => {
+        const entry = asiHistory.find((item) => item.level === level);
+        const mode = entry?.mode ?? "two";
+        const selectedFeatId = entry?.featId ?? "";
+        const feat = featCatalogue.find((candidate) => candidate.id === selectedFeatId);
+        const first = entry?.first ?? "";
+        const second = entry?.second ?? "";
 
-        const availableFeats = featCatalogue.filter((entry) => {
-          if (selectedFeatIds.includes(entry.id) && entry.id !== selectedFeatId) return false;
-          return isFeatAvailable(character, entry as typeof entry & { prerequisite?: unknown; ability?: unknown });
+        const availableFeats = featCatalogue.filter((candidate) => {
+          if (recordedFeatIds.includes(candidate.id) && candidate.id !== selectedFeatId) return false;
+          if (character.feats.includes(candidate.id)) return true;
+          return isFeatAvailable(character, candidate as typeof candidate & { prerequisite?: unknown; ability?: unknown });
         });
 
         return <div key={level} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
-          <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">Level {level}</h3><Badge>ASI / Feat</Badge></div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold">Level {level}</h3>
+            <Badge>{level <= characterLevel ? "Existing ASI" : "New ASI"}</Badge>
+            {!entry?.first && mode !== "feat" && <Badge tone="warn">Needs recording</Badge>}
+          </div>
 
           <select
             value={mode}
             onChange={(event) => {
-              if (event.target.value === "feat") {
-                const next = [...abilityChoices];
-                next[index] = { mode: "feat" };
-                onAbilityChoicesChange(next);
-              } else {
-                if (absoluteIndex >= 0) onFeatChange(absoluteIndex, "");
-                const next = [...abilityChoices];
-                next[index] = { mode: event.target.value as "two" | "one" | "feat", first: choice?.first, second: choice?.second };
-                onAbilityChoicesChange(next);
-              }
+              const nextMode = event.target.value as "two" | "one" | "feat";
+              onAsiChange(level, {
+                level,
+                mode: nextMode,
+                first: nextMode === "feat" ? undefined : entry?.first,
+                second: nextMode === "one" ? entry?.second : undefined,
+                featId: nextMode === "feat" ? entry?.featId : undefined,
+                featAbility: nextMode === "feat" ? entry?.featAbility : undefined,
+              });
             }}
             className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm"
           >
@@ -1113,11 +1125,16 @@ function AsiSelectionSection({
             <>
               <select
                 value={selectedFeatId}
-                onChange={(event) => absoluteIndex >= 0 && onFeatChange(absoluteIndex, event.target.value)}
+                onChange={(event) => onAsiChange(level, {
+                  level,
+                  mode: "feat",
+                  featId: event.target.value || undefined,
+                  featAbility: event.target.value === selectedFeatId ? entry?.featAbility : undefined,
+                })}
                 className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm"
               >
                 <option value="">Choose a feat...</option>
-                {availableFeats.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
+                {availableFeats.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
               </select>
 
               {feat && (
@@ -1128,7 +1145,7 @@ function AsiSelectionSection({
                     const options = getFeatAbilityOptions(feat as Parameters<typeof getFeatAbilityOptions>[0]);
                     if (!options.length) return null;
                     const grouped = [...new Map(options.map((option) => [option.ability, option])).values()];
-                    const selectedAbility = featAbilityChoices[feat.id];
+                    const selectedAbility = entry?.featAbility ?? featAbilityChoices[feat.id];
                     return (
                       <div className="mt-4 rounded-xl border border-stone-700 bg-stone-950/60 p-3">
                         <div className="text-xs font-semibold uppercase tracking-wider text-stone-400">Ability Score Effect</div>
@@ -1150,21 +1167,31 @@ function AsiSelectionSection({
             </>
           ) : (
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <select value={first} onChange={(event) => {
-                const next = [...abilityChoices];
-                next[index] = { mode, first: event.target.value ? event.target.value as AbilityKey : undefined, second: choice?.second };
-                onAbilityChoicesChange(next);
-              }} className="rounded-xl border border-stone-700 bg-stone-950/60 px-3 py-2.5 text-sm">
+              <select
+                value={first}
+                onChange={(event) => onAsiChange(level, {
+                  level,
+                  mode,
+                  first: event.target.value ? event.target.value as AbilityKey : undefined,
+                  second: mode === "one" ? entry?.second : undefined,
+                })}
+                className="rounded-xl border border-stone-700 bg-stone-950/60 px-3 py-2.5 text-sm"
+              >
                 <option value="">Choose an ability...</option>
                 {abilityNames.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
               </select>
-              {mode === "one" && <select value={second} onChange={(event) => {
-                const next = [...abilityChoices];
-                next[index] = { mode, first: choice?.first, second: event.target.value ? event.target.value as AbilityKey : undefined };
-                onAbilityChoicesChange(next);
-              }} className="rounded-xl border border-stone-700 bg-stone-950/60 px-3 py-2.5 text-sm">
+              {mode === "one" && <select
+                value={second}
+                onChange={(event) => onAsiChange(level, {
+                  level,
+                  mode: "one",
+                  first: entry?.first,
+                  second: event.target.value ? event.target.value as AbilityKey : undefined,
+                })}
+                className="rounded-xl border border-stone-700 bg-stone-950/60 px-3 py-2.5 text-sm"
+              >
                 <option value="">Choose an ability...</option>
-                {abilityNames.filter(([key]) => key !== choice?.first).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+                {abilityNames.filter(([key]) => key !== entry?.first).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
               </select>}
             </div>
           )}
