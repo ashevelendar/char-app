@@ -8,7 +8,7 @@ import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell"
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, SpellEntry } from "../../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getCarryingCapacity, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getInventoryWeight, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, getAvailableItems, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
@@ -506,6 +506,40 @@ function CharacterEditor({
 
   const effectiveSelectedSpells = selectedSpells;
 
+  const inventoryRuleCharacter = useMemo(() => ({
+    ...character,
+    ...form,
+    abilities: progressionAbilities,
+    skills: selectedSkills,
+    tools: selectedTools,
+    languages: selectedLanguages,
+    feats: asiChoices.filter(Boolean),
+  }), [character, form, progressionAbilities, selectedSkills, selectedTools, selectedLanguages, asiChoices]);
+
+  const availableInventoryItems = useMemo(
+    () => getAvailableItems(inventoryRuleCharacter, true, itemCatalogue),
+    [inventoryRuleCharacter, itemCatalogue],
+  );
+
+  const inventoryWeight = getInventoryWeight(inventoryRuleCharacter, itemCatalogue);
+  const carryingCapacity = getCarryingCapacity(inventoryRuleCharacter);
+  const overCarryingCapacity = inventoryWeight > carryingCapacity;
+
+  const startingEquipmentGroups = [
+    ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `class-${index}`, heading: "Class equipment" })),
+    ...(selectedBackgroundRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `background-${index}`, heading: "Background equipment" })),
+  ];
+
+  const incompleteStartingEquipment = startingEquipmentGroups.some((group) => {
+    if (group.options.length <= 1) return false;
+    const optionIndex = startingEquipmentSelections[group.id];
+    if (optionIndex === undefined) return true;
+    const option = group.options[optionIndex];
+    if (!option) return true;
+    return option.items.some((entry, entryIndex) =>
+      Boolean(entry.choiceType && !startingItemChoices[`${group.id}:${optionIndex}:${entryIndex}`]),
+    );
+  });
 
   function selectRace(race: string, subrace = "") {
     const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
@@ -621,6 +655,12 @@ function CharacterEditor({
       return;
     }
 
+    if (equipmentMode === "equipment" && incompleteStartingEquipment) {
+      setStep("equipment");
+      setSaveError("Please choose a starting-equipment option and complete every equipment choice before saving.");
+      return;
+    }
+
     setSaving(true);
     try {
       await onSave({
@@ -678,6 +718,10 @@ function CharacterEditor({
         (!choices || choices.toolChoices.reduce((total, choice) => total + choice.count, 0) === backgroundToolSelections.filter(Boolean).length) &&
         (!choices || choices.languageChoices.reduce((total, choice) => total + choice.count, 0) === backgroundLanguageSelections.filter(Boolean).length);
     }
+    if (currentStep === "equipment") {
+      if (equipmentMode === "gold") return true;
+      return !incompleteStartingEquipment;
+    }
     if (currentStep === "species") {
       if (!form.race) return false;
       const hasSubraces = catalogue.subraces.some((entry) => entry.parentRace === form.race);
@@ -718,6 +762,12 @@ function CharacterEditor({
                     setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "" }));
                     setClassSkillSelections([]);
                     setClassLanguageSelections([]);
+                    setStartingEquipmentSelections((current) => {
+                      const nextSelections = { ...current };
+                      Object.keys(nextSelections).filter((key) => key.startsWith("class-")).forEach((key) => delete nextSelections[key]);
+                      return nextSelections;
+                    });
+                    setEquipmentSelections((current) => current.filter((entry) => !entry.notes?.startsWith("starting:class-")));
                   }} />
                   <SelectField label="Subclass" value={form.subclass} options={subclassOptions.map((entry) => entry.name)} onChange={(value) => setForm((current) => ({ ...current, subclass: value }))} />
                 </div>
@@ -797,6 +847,12 @@ function CharacterEditor({
                   setBackgroundSkillSelections([]);
                   setBackgroundToolSelections([]);
                   setBackgroundLanguageSelections([]);
+                  setStartingEquipmentSelections((current) => {
+                    const nextSelections = { ...current };
+                    Object.keys(nextSelections).filter((key) => key.startsWith("background-")).forEach((key) => delete nextSelections[key]);
+                    return nextSelections;
+                  });
+                  setEquipmentSelections((current) => current.filter((entry) => !entry.notes?.startsWith("starting:background-")));
                 }} />
                 {selectedBackgroundRules?.description && <p className="mt-5 whitespace-pre-line text-sm leading-7 text-stone-400">{selectedBackgroundRules.description}</p>}
               </SectionCard>
@@ -883,10 +939,7 @@ function CharacterEditor({
                 </div>
                 {equipmentMode === "gold" && <div className="mb-5 grid gap-3 sm:grid-cols-5">{(["cp","sp","ep","gp","pp"] as const).map((coin) => <NumberField key={coin} label={coin.toUpperCase()} value={currency[coin]} min={0} onChange={(value) => setCurrency((current) => ({ ...current, [coin]: value }))} />)}</div>}
                 {equipmentMode === "equipment" && <div className="space-y-4">
-                  {[
-                    ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `class-${index}`, heading: "Class equipment" })),
-                    ...(selectedBackgroundRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `background-${index}`, heading: "Background equipment" })),
-                  ].map((group) => (
+                  {startingEquipmentGroups.map((group) => (
                     <div key={group.id} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
                       <div className="mb-3 flex flex-wrap items-center gap-2"><h3 className="font-semibold">{group.heading}</h3><Badge>{group.label}</Badge></div>
                       <div className="grid gap-2 sm:grid-cols-2">
@@ -928,6 +981,10 @@ function CharacterEditor({
               </SectionCard>
 
               {equipmentMode === "equipment" && <SectionCard title={`Current Inventory (${equipmentSelections.length})`} description="Manage the inventory that will be saved with this character.">
+                <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${overCarryingCapacity ? "border-red-900/70 bg-red-950/20 text-red-300" : "border-stone-800 bg-stone-950/60 text-stone-400"}`}>
+                  Carrying weight: <span className="font-semibold text-stone-200">{inventoryWeight.toFixed(1)} lb</span> / {carryingCapacity} lb
+                  {overCarryingCapacity && <span className="ml-2 font-semibold">Over carrying capacity</span>}
+                </div>
                 <div className="space-y-2">
                   {equipmentSelections.length === 0 ? <p className="text-sm text-stone-500">Nothing carried.</p> : equipmentSelections.map((entry) => {
                     const item = itemCatalogue.find((candidate) => candidate.id === entry.itemId);
@@ -937,7 +994,7 @@ function CharacterEditor({
                         <button type="button" onClick={() => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, quantity: Math.max(1, candidate.quantity - 1) } : candidate))} className="rounded-lg border border-stone-700 px-2 py-1">−</button>
                         <span className="w-8 text-center text-sm">{entry.quantity}</span>
                         <button type="button" onClick={() => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, quantity: candidate.quantity + 1 } : candidate))} className="rounded-lg border border-stone-700 px-2 py-1">+</button>
-                        <label className="flex items-center gap-2 text-sm text-stone-300"><input type="checkbox" checked={entry.equipped} onChange={(event) => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, equipped: event.target.checked } : candidate))} /> Equip</label>
+                        <label className={`flex items-center gap-2 text-sm ${item.isWeapon || item.isArmor || item.isShield ? "text-stone-300" : "text-stone-600"}`}><input type="checkbox" checked={entry.equipped} disabled={!(item.isWeapon || item.isArmor || item.isShield) && !entry.equipped} onChange={(event) => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, equipped: event.target.checked } : candidate))} /> Equip</label>
                         <button type="button" onClick={() => setEquipmentSelections((current) => current.filter((candidate) => candidate.itemId !== entry.itemId))} className="rounded-lg border border-red-900/60 px-2 py-1 text-red-400">Remove</button>
                       </div>
                     </div> : null;
@@ -945,10 +1002,10 @@ function CharacterEditor({
                 </div>
               </SectionCard>}
 
-              <SectionCard title="Add Items" description="Search the imported 2014 catalogue and add anything else.">
+              <SectionCard title="Add Items" description="Search normally available equipment. Restricted or DM-granted items remain in existing inventories but are not offered as normal additions.">
                 <div className="mb-4 flex gap-3"><input value={equipmentSearch} onChange={(event) => setEquipmentSearch(event.target.value)} placeholder="Search equipment..." className="flex-1 rounded-xl border border-stone-700 bg-stone-950 px-4 py-2.5 text-sm text-stone-100 outline-none focus:border-amber-400" /><Badge>{itemCatalogue.length} items</Badge></div>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {itemCatalogue.filter((item) => `${item.name} ${item.category}`.toLowerCase().includes(equipmentSearch.toLowerCase())).slice(0, 40).map((item) => <div key={item.id} className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/60 p-3"><div><div className="font-medium">{item.name}</div><div className="text-xs text-stone-600">{item.category}</div></div><button type="button" onClick={() => setEquipmentSelections((current) => current.some((entry) => entry.itemId === item.id) ? current : [...current, { itemId: item.id, quantity: 1, equipped: false }])} className="rounded-lg border border-stone-700 px-3 py-1.5 text-sm">Add</button></div>)}
+                  {availableInventoryItems.filter((item) => `${item.name} ${item.category}`.toLowerCase().includes(equipmentSearch.toLowerCase())).slice(0, 40).map((item) => <div key={item.id} className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/60 p-3"><div><div className="font-medium">{item.name}</div><div className="text-xs text-stone-600">{item.category}</div></div><button type="button" onClick={() => setEquipmentSelections((current) => current.some((entry) => entry.itemId === item.id) ? current : [...current, { itemId: item.id, quantity: 1, equipped: false }])} className="rounded-lg border border-stone-700 px-3 py-1.5 text-sm">Add</button></div>)}
                 </div>
               </SectionCard>
               <SectionCard title="Currency" description="Currency is saved with the character.">
