@@ -2853,6 +2853,12 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     }] : [];
   });
 
+  const progressionRows = [
+    ...character.asiHistory.map((entry) => ({ character_id: dbId, kind: "asi", level: entry.level, data: { mode: entry.mode, ...(entry.first ? { first: entry.first } : {}), ...(entry.second ? { second: entry.second } : {}), ...(entry.featId ? { featId: entry.featId } : {}), ...(entry.featAbility ? { featAbility: entry.featAbility } : {}) } })),
+    ...character.expertiseHistory.map((entry) => ({ character_id: dbId, kind: "expertise", level: entry.level, data: { skills: entry.skills } })),
+    ...character.magicalSecretsHistory.map((entry) => ({ character_id: dbId, kind: "magical-secrets", level: entry.level, data: { spellIds: entry.spellIds } })),
+  ];
+
   const featureRows = character.features.flatMap((featureId) => {
     const featureIdDb = maps.featureByAppId.get(featureId);
     const provenance = character.featureProvenance.find((entry) => entry.featureId === featureId)?.source ?? "automatic";
