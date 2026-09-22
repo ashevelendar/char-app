@@ -221,6 +221,18 @@ export interface ClassDefinition {
   subclassUnlockLevel: number;
 }
 
+export interface ClassRuleData {
+  hitDie?: number | null;
+  spellcastingAbility?: string | null;
+  casterProgression?: string | null;
+  cantripProgression?: number[];
+  spellsKnownProgression?: number[];
+  preparedSpells?: string | null;
+  spellSlots?: number[][];
+  subclassUnlockLevel?: number;
+  asiLevels?: number[];
+}
+
 export interface SubclassDefinition {
   id: string;
   name: string;
