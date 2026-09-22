@@ -83,6 +83,26 @@ export interface Item {
   isShield?: boolean;
 }
 
+export type HomebrewType = "spell" | "feature" | "feat" | "item" | "race" | "subrace" | "class" | "subclass" | "background" | "other";
+
+export interface HomebrewContent {
+  id: string;
+  name: string;
+  contentType: HomebrewType;
+  description: string;
+  source: string;
+  edition: "2014" | "2024" | "custom";
+  className?: string;
+  subclassName?: string;
+  raceName?: string;
+  backgroundName?: string;
+  requiredLevel?: number;
+  featureTypes: string[];
+  prerequisites: unknown;
+  data: unknown;
+  isPublished: boolean;
+}
+
 export interface InventoryEntry {
   itemId: string;
   quantity: number;
@@ -155,6 +175,7 @@ export interface Character {
   inventory: InventoryEntry[];
   feats: string[];
   optionalFeatures: string[];
+  homebrew: string[];
   accessOverrides: ContentOverride[];
   resourceUses: Record<string, number>;
   currency: Currency;
@@ -185,6 +206,7 @@ export interface NewCharacterInput {
   tools?: string[];
   languages?: string[];
   optionalFeatures?: string[];
+  homebrew?: string[];
   feats?: string[];
   inventory?: InventoryEntry[];
   resourceUses?: Record<string, number>;
