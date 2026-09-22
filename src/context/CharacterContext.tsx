@@ -19,6 +19,7 @@ import {
   isItemNormallyAvailable,
   isSpellNormallyAvailable,
   getClassDefinition,
+  getAutomaticallyGrantedFeatureIds,
 } from "../lib/rules";
 import type {
   AbilityKey,
@@ -1864,16 +1865,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           background: patch.background ?? currentCharacter.background,
           feats: patch.feats ?? currentCharacter.feats,
         };
-        const autoGrantable = (feature: Feature, candidate: Character) =>
-          isFeatureNormallyAvailable(candidate, feature) &&
-          !/gain a feature from your|gain a feature from the|optional feature/i.test(feature.description);
-        const oldAutoFeatures = new Set(
-          featureCatalogue.filter((feature) => autoGrantable(feature, currentCharacter)).map((feature) => feature.id),
-        );
+        const oldAutoFeatures = new Set(getAutomaticallyGrantedFeatureIds(currentCharacter, featureCatalogue));
         const preservedFeatures = currentCharacter.features.filter((featureId) => !oldAutoFeatures.has(featureId));
-        const nextAutoFeatures = featureCatalogue
-          .filter((feature) => autoGrantable(feature, nextCharacter))
-          .map((feature) => feature.id);
+        const nextAutoFeatures = getAutomaticallyGrantedFeatureIds(nextCharacter, featureCatalogue);
         localPatch.features = Array.from(new Set([...preservedFeatures, ...nextAutoFeatures]));
       }
 
