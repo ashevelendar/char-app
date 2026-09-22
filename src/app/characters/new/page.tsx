@@ -409,6 +409,14 @@ export default function NewCharacterPage() {
       && expertiseSelections.slice(0, expertiseLevels.length * 2).every(Boolean),
     magicalSecrets: magicalSecretSelections.length >= magicalSecretFeatures.length * 2
       && magicalSecretSelections.slice(0, magicalSecretFeatures.length * 2).every(Boolean),
+    optionalFeatures: optionalChoiceGroups.every((group) => {
+      const count = form.optionalFeatures.filter((id) =>
+        optionalFeatureCatalogue.some((option) =>
+          option.id === id && option.featureTypes.some((type) => group.featureTypes.includes(type)),
+        ),
+      ).length;
+      return count >= group.count;
+    }),
     spells: effectiveSelectedSpells.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0).length === cantripsKnown
       && (normalSpellLimit === null
         || effectiveSelectedSpells.filter((entry) => (availableSpells.find((spell) => spell.id === entry.spellId)?.level ?? 0) > 0).length === normalSpellLimit),
