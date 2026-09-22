@@ -968,6 +968,8 @@ function makeMaps(
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const homebrewCatalogue: HomebrewContent[] = [];
+
   return {
     classByName: byName(classesRows),
     raceByName: byName(raceRows),
