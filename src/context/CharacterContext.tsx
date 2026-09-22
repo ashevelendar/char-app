@@ -335,8 +335,15 @@ function extractNaturalArmor(raw: unknown): { base: number; dexMax?: number | nu
     if (Number.isFinite(base)) return { base, dexMax: armor.dex === false ? 0 : null };
   }
   const text = catalogueText(object.entries);
-  const match = text.match(/(?:your )?AC is (\d+) \+ your Dexterity modifier/i);
-  return match ? { base: Number(match[1]), dexMax: null } : undefined;
+  const fixedMatch = text.match(/(?:base )?AC (?:is|of|equals) (\d+)(?:\\s*\\((?:your )?Dexterity modifier doesn['’]t affect this number\\))?/i);
+  if (fixedMatch) {
+    const fixedText = fixedMatch[0].toLowerCase();
+    if (fixedText.includes("doesn't affect") || fixedText.includes("doesn’t affect")) {
+      return { base: Number(fixedMatch[1]), dexMax: 0 };
+    }
+  }
+  const formulaMatch = text.match(/(?:base )?AC (?:is|equals) (\d+) \\+ your Dexterity modifier/i);
+  return formulaMatch ? { base: Number(formulaMatch[1]), dexMax: null } : undefined;
 }
 
 function calculateArmorClass(character: Pick<Character, "abilities" | "inventory" | "race">, itemCatalogue: Item[], raceRules: Record<string, RaceRules>): number {
@@ -1104,8 +1111,22 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         patch.level !== undefined ||
         patch.className !== undefined ||
         patch.abilities?.con !== undefined;
+      const acCalculationChanged =
+        patch.race !== undefined ||
+        patch.abilities !== undefined ||
+        patch.inventory !== undefined;
 
       const localPatch: Partial<Character> = { ...patch };
+      if (currentCharacter && acCalculationChanged) {
+        const nextAbilities = { ...currentCharacter.abilities, ...(patch.abilities ?? {}) };
+        const nextInventory = patch.inventory ?? currentCharacter.inventory;
+        const nextRace = patch.race ?? currentCharacter.race;
+        localPatch.ac = calculateArmorClass(
+          { abilities: nextAbilities, inventory: nextInventory, race: nextRace },
+          itemCatalogue,
+          raceRules,
+        );
+      }
 
       if (currentCharacter && progressionChanged) {
         const nextClassName = patch.className ?? currentCharacter.className;
@@ -1156,7 +1177,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         if (patch.hp !== undefined && !progressionChanged) dbPatch.current_hp = patch.hp;
         if (patch.maxHp !== undefined && !progressionChanged) dbPatch.max_hp = patch.maxHp;
         if (patch.tempHp !== undefined) dbPatch.temporary_hp = patch.tempHp;
-        if (patch.ac !== undefined) dbPatch.armor_class = patch.ac;
+        if (localPatch.ac !== undefined) dbPatch.armor_class = localPatch.ac;
         if (patch.speed !== undefined) dbPatch.speed = patch.speed;
         if (patch.hitDice !== undefined && !progressionChanged) dbPatch.hit_dice = patch.hitDice;
         if (patch.proficiencyBonus !== undefined && !progressionChanged) dbPatch.proficiency_bonus = patch.proficiencyBonus;
