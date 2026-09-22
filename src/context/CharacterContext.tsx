@@ -1559,6 +1559,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     spellCatalogue,
     featureCatalogue,
     featCatalogue,
+    homebrewCatalogue,
     itemCatalogue,
     optionalFeatureCatalogue,
     classRules,
@@ -2417,7 +2418,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       setCharacters([defaultCharacter]);
     },
-  }), [characters, hydrated, accessMode, databaseStatus, catalogue, raceRules, backgroundRules, spellCatalogue, itemCatalogue, featureCatalogue, featCatalogue, optionalFeatureCatalogue, classRules, subclassOptionalFeatureProgression, user]);
+  }), [characters, hydrated, accessMode, databaseStatus, catalogue, raceRules, backgroundRules, spellCatalogue, itemCatalogue, featureCatalogue, featCatalogue, optionalFeatureCatalogue, homebrewCatalogue, classRules, subclassOptionalFeatureProgression, user]);
 
   return <CharacterContext.Provider value={value}>{children}</CharacterContext.Provider>;
 
