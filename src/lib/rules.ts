@@ -304,22 +304,58 @@ export type SpellSlotSummary = {
   count: number;
 };
 
-export function getCantripsKnown(className: string, level: number) {
-  const progression = CANTRIPS_KNOWN[className];
-  if (!progression) return 0;
+export function getCantripsKnown(className: string, level: number, classCatalogue?: RuleClassCatalogue) {
+  const progression = getDynamicClassRule(className, classCatalogue)?.cantripProgression;
+  if (progression?.length) {
+    const safeLevel = Math.max(1, Math.min(20, level));
+    return progression[safeLevel - 1] ?? progression[safeLevel] ?? 0;
+  }
+  const fallback = CANTRIPS_KNOWN[className];
+  if (!fallback) return 0;
   const safeLevel = Math.max(1, Math.min(20, level));
-  return progression[safeLevel] ?? 0;
+  return fallback[safeLevel] ?? 0;
 }
 
-export function getSpellsKnown(className: string, level: number) {
-  const progression = SPELLS_KNOWN[className];
-  if (!progression) return null;
+export function getSpellsKnown(className: string, level: number, classCatalogue?: RuleClassCatalogue) {
+  const progression = getDynamicClassRule(className, classCatalogue)?.spellsKnownProgression;
+  if (progression?.length) {
+    const safeLevel = Math.max(1, Math.min(20, level));
+    return progression[safeLevel - 1] ?? progression[safeLevel] ?? null;
+  }
+  const fallback = SPELLS_KNOWN[className];
+  if (!fallback) return null;
   const safeLevel = Math.max(1, Math.min(20, level));
-  return progression[safeLevel] ?? 0;
+  return fallback[safeLevel] ?? 0;
 }
 
-export function getPreparedSpellCount(character: Character) {
+export function getPreparedSpellCount(character: Character, classCatalogue?: RuleClassCatalogue) {
   const level = Math.max(1, Math.min(20, character.level));
+  const rule = getDynamicClassRule(character.className, classCatalogue);
+  const formula = rule?.preparedSpells;
+  if (formula) {
+    const abilityModifierByToken: Record<string, number> = {
+      str_mod: getAbilityModifier(character.abilities.str),
+      dex_mod: getAbilityModifier(character.abilities.dex),
+      con_mod: getAbilityModifier(character.abilities.con),
+      int_mod: getAbilityModifier(character.abilities.int),
+      wis_mod: getAbilityModifier(character.abilities.wis),
+      cha_mod: getAbilityModifier(character.abilities.cha),
+    };
+    const expression = formula
+      .replaceAll("<$level$>", String(level))
+      .replace(/<\$([a-z]+_mod)\$>/g, (_, token: string) => String(abilityModifierByToken[token] ?? 0))
+      .replace(/floor\(([^)]+)\)/gi, "$1");
+    if (/^[0-9+*/().\s-]+$/.test(expression)) {
+      const terms = expression.split("+").map((term) => term.trim()).filter(Boolean);
+      const value = terms.reduce((sum, term) => {
+        const parts = term.split("/").map((part) => Number(part.trim()));
+        if (parts.some((part) => !Number.isFinite(part))) return Number.NaN;
+        return sum + (parts.length === 2 ? Math.floor(parts[0] / parts[1]) : parts[0]);
+      }, 0);
+      if (Number.isFinite(value)) return Math.max(1, value);
+    }
+  }
+
   if (!["Cleric", "Druid", "Paladin", "Artificer", "Wizard"].includes(character.className)) return null;
 
   const abilityModifier =
@@ -340,8 +376,18 @@ export function getWizardSpellbookProgression(level: number) {
   const safeLevel = Math.max(1, Math.min(20, level));  return 6 + (safeLevel - 1) * 2;
 }
 
-export function getSpellSlotSummary(className: string, level: number): SpellSlotSummary[] {
+export function getSpellSlotSummary(className: string, level: number, classCatalogue?: RuleClassCatalogue): SpellSlotSummary[] {
   const safeLevel = Math.max(1, Math.min(20, level));
+  const rule = getDynamicClassRule(className, classCatalogue);
+
+  if (rule?.pactSlotProgression?.length) {
+    const slot = rule.pactSlotProgression[safeLevel - 1];
+    return slot ? [{ level: slot.level, count: slot.count }] : [];
+  }
+
+  if (rule?.spellSlots?.length) {
+    return (rule.spellSlots[safeLevel - 1] ?? []).map((count, index) => ({ level: index + 1, count })).filter((entry) => entry.count > 0);
+  }
 
   if (className === "Warlock") {
     const slot = WARLOCK_SLOTS[safeLevel - 1];
@@ -357,17 +403,17 @@ export function getSpellSlotSummary(className: string, level: number): SpellSlot
   return (progression[safeLevel] ?? []).map((count, index) => ({ level: index + 1, count }));
 }
 
-export function getSpellcastingSummary(character: Character) {
+export function getSpellcastingSummary(character: Character, classCatalogue?: RuleClassCatalogue) {
   return {
-    mode: getSpellcastingMode(character),
-    maxSpellLevel: getMaxSpellLevel(character),
-    cantripsKnown: getCantripsKnown(character.className, character.level),
-    spellsKnown: getSpellsKnown(character.className, character.level),
-    preparedSpells: getPreparedSpellCount(character),
+    mode: getSpellcastingMode(character, classCatalogue),
+    maxSpellLevel: getMaxSpellLevel(character, classCatalogue),
+    cantripsKnown: getCantripsKnown(character.className, character.level, classCatalogue),
+    spellsKnown: getSpellsKnown(character.className, character.level, classCatalogue),
+    preparedSpells: getPreparedSpellCount(character, classCatalogue),
     wizardSpellbookProgression: character.className === "Wizard"
       ? getWizardSpellbookProgression(character.level)
       : null,
-    slots: getSpellSlotSummary(character.className, character.level),
+    slots: getSpellSlotSummary(character.className, character.level, classCatalogue),
   };
 }
 
