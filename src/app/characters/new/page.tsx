@@ -259,7 +259,8 @@ export default function NewCharacterPage() {
       const className = catalogue.classes.includes(current.className) ? current.className : catalogue.classes[0];
       const race = catalogue.races.includes(current.race) ? current.race : catalogue.races[0] ?? "";
       const background = catalogue.backgrounds.includes(current.background) ? current.background : catalogue.backgrounds[0] ?? "";
-      const nextSubclasses = catalogue.subclasses.filter((entry) => entry.className === className);
+      const unlockLevel = getClassDefinition(className)?.subclassUnlockLevel ?? 1;
+      const nextSubclasses = catalogue.subclasses.filter((entry) => entry.className === className && current.level >= unlockLevel);
       const subclass = nextSubclasses.some((entry) => entry.name === current.subclass) ? current.subclass : nextSubclasses[0]?.name ?? "";
       const raceSubraces = catalogue.subraces.filter((entry) => entry.parentRace === race);
       const subrace = raceSubraces.some((entry) => entry.name === current.subrace) ? current.subrace : "";
