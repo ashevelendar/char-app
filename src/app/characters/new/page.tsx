@@ -1151,7 +1151,7 @@ function SpellSelectionSection({ className, level, availableSpells, cantripsKnow
     if (limit !== null && count >= limit) return;
     onChange([...selectedSpells, { spellId, prepared: spell.level === 0 || !spellbook }]);
   }
-  const spellbookText = "Choose the spells in your spellbook. At level " + level + ", a Wizard can have " + (spellLimit ?? 0) + " spells in the spellbook.";
+  const spellbookText = "Choose the spells in your spellbook. At level " + level + ", your character can have " + (spellLimit ?? 0) + " spells in the spellbook.";
   const knownText = "Choose the spells your character starts with. You can select " + cantripsKnown + " cantrip" + (cantripsKnown === 1 ? "" : "s") + (spellLimit !== null ? " and " + spellLimit + " " + label.toLowerCase() + "." : ".");
   return <SectionCard title="Spells" description={spellbook ? spellbookText : knownText}>
     <div className="grid gap-5 lg:grid-cols-2">
