@@ -1968,6 +1968,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         const nextCharacter: Character = {
           ...currentCharacter,
           ...localPatch,
+          abilities: { ...currentCharacter.abilities, ...(localPatch.abilities ?? {}) },
           level: Math.max(1, Math.min(20, patch.level ?? currentCharacter.level)),
           className: patch.className ?? currentCharacter.className,
           subclass: patch.subclass ?? currentCharacter.subclass,
@@ -1996,7 +1997,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       setCharacters((current) =>
         current.map((character) =>
-          character.id === id ? { ...character, ...localPatch } : character,
+          character.id === id ? { ...character, ...localPatch, abilities: { ...character.abilities, ...(localPatch.abilities ?? {}) } } : character,
         ),
       );
 
@@ -2004,206 +2005,151 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       try {
         const maps = await getMapsForWrite();
-        const dbPatch: Record<string, unknown> = {};
+        const persistedCharacter: Character | null = currentCharacter
+          ? {
+              ...currentCharacter,
+              ...localPatch,
+              abilities: { ...currentCharacter.abilities, ...(localPatch.abilities ?? {}) },
+              currency: { ...currentCharacter.currency, ...(localPatch.currency ?? {}) },
+            }
+          : null;
 
-        if (patch.name !== undefined) dbPatch.name = patch.name;
-        if (progressionChanged && currentCharacter) {
-          const nextClassName = patch.className ?? currentCharacter.className;
-          const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
-          const nextConstitution = patch.abilities?.con ?? currentCharacter.abilities.con;
-          const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextConstitution, classRules);
-          const hpDelta = nextMaxHp - currentCharacter.maxHp;
+        if (!persistedCharacter) return;
 
-          dbPatch.level = nextLevel;
-          dbPatch.max_hp = nextMaxHp;
-          dbPatch.current_hp = Math.max(
-            0,
-            Math.min(nextMaxHp, currentCharacter.hp + hpDelta),
-          );
-          dbPatch.hit_dice = getExpectedHitDice(nextClassName, nextLevel, classRules);
-          dbPatch.proficiency_bonus = getProficiencyBonus(nextLevel);
-        }
+        const dbCharacter = {
+          name: persistedCharacter.name,
+          race_id: maps.raceByName.get(persistedCharacter.race) ?? null,
+          subrace_id: maps.subraceByName.get(
+            persistedCharacter.race.trim().toLowerCase() + "::" + persistedCharacter.subrace.trim().toLowerCase(),
+          ) ?? null,
+          class_id: maps.classByName.get(persistedCharacter.className) ?? null,
+          subclass_id: maps.subclassByName.get(persistedCharacter.subclass) ?? null,
+          background_id: maps.backgroundByName.get(persistedCharacter.background) ?? null,
+          level: persistedCharacter.level,
+          alignment: persistedCharacter.alignment,
+          player_name: persistedCharacter.playerName,
+          current_hp: persistedCharacter.hp,
+          max_hp: persistedCharacter.maxHp,
+          temporary_hp: persistedCharacter.tempHp,
+          armor_class: persistedCharacter.ac,
+          speed: persistedCharacter.speed,
+          hit_dice: persistedCharacter.hitDice,
+          proficiency_bonus: persistedCharacter.proficiencyBonus,
+          strength: persistedCharacter.abilities.str,
+          dexterity: persistedCharacter.abilities.dex,
+          constitution: persistedCharacter.abilities.con,
+          intelligence: persistedCharacter.abilities.int,
+          wisdom: persistedCharacter.abilities.wis,
+          charisma: persistedCharacter.abilities.cha,
+          saving_throws: persistedCharacter.savingThrows,
+          skills: persistedCharacter.skills,
+          tools: persistedCharacter.tools,
+          languages: persistedCharacter.languages,
+          notes: persistedCharacter.notes,
+          feats: persistedCharacter.feats,
+          resource_uses: persistedCharacter.resourceUses,
+          currency: persistedCharacter.currency,
+        };
 
-        if (patch.alignment !== undefined) dbPatch.alignment = patch.alignment;
-        if (patch.playerName !== undefined) dbPatch.player_name = patch.playerName;
-        if (patch.hp !== undefined && !progressionChanged) dbPatch.current_hp = patch.hp;
-        if (patch.maxHp !== undefined && !progressionChanged) dbPatch.max_hp = patch.maxHp;
-        if (patch.tempHp !== undefined) dbPatch.temporary_hp = patch.tempHp;
-        if (localPatch.ac !== undefined) dbPatch.armor_class = localPatch.ac;
-        if (localPatch.speed !== undefined) dbPatch.speed = localPatch.speed;
-        if (patch.hitDice !== undefined && !progressionChanged) dbPatch.hit_dice = patch.hitDice;
-        if (patch.proficiencyBonus !== undefined && !progressionChanged) dbPatch.proficiency_bonus = patch.proficiencyBonus;
-        if (patch.notes !== undefined) dbPatch.notes = patch.notes;
-        if (patch.feats !== undefined) dbPatch.feats = patch.feats;
-    if (patch.resourceUses !== undefined) dbPatch.resource_uses = patch.resourceUses;
-        if (patch.race !== undefined) dbPatch.race_id = maps.raceByName.get(patch.race) ?? null;
-        if (patch.subrace !== undefined) {
-          const raceName = patch.race ?? currentCharacter?.race ?? "";
-          dbPatch.subrace_id = maps.subraceByName.get(raceName.trim().toLowerCase() + "::" + patch.subrace.trim().toLowerCase()) ?? null;
-        }
-        if (patch.className !== undefined) dbPatch.class_id = maps.classByName.get(patch.className) ?? null;
-        if (patch.subclass !== undefined) dbPatch.subclass_id = maps.subclassByName.get(patch.subclass) ?? null;
-        if (patch.background !== undefined) dbPatch.background_id = maps.backgroundByName.get(patch.background) ?? null;
+        const spellRows = persistedCharacter.spells.flatMap((entry) => {
+          const dbSpellId = maps.spellByDbId.get(entry.spellId) ?? maps.spellByAppId.get(entry.spellId);
+          return dbSpellId ? [{
+            spell_id: dbSpellId,
+            prepared: Boolean(entry.prepared),
+            dm_granted: entry.source === "dm",
+            source: entry.source === "magical-secrets"
+              ? "Magical Secrets"
+              : entry.source === "normal"
+                ? "Normal"
+                : entry.source === "dm"
+                  ? "DM Grant"
+                  : "Migrated",
+          }] : [];
+        });
 
-        if (patch.abilities) {
-          dbPatch.strength = patch.abilities.str;
-          dbPatch.dexterity = patch.abilities.dex;
-          dbPatch.constitution = patch.abilities.con;
-          dbPatch.intelligence = patch.abilities.int;
-          dbPatch.wisdom = patch.abilities.wis;
-          dbPatch.charisma = patch.abilities.cha;
-        }
+        const featureRows = persistedCharacter.features.flatMap((featureId) => {
+          const dbFeatureId = maps.featureByDbId.get(featureId) ?? maps.featureByAppId.get(featureId);
+          if (!dbFeatureId) return [];
+          const appFeatureId = maps.featureByDbId.get(dbFeatureId) ?? featureId;
+          const provenance = persistedCharacter.featureProvenance.find((entry) => entry.featureId === appFeatureId)?.source ?? "legacy";
+          return [{
+            feature_id: dbFeatureId,
+            dm_granted: provenance === "dm",
+            source: provenance === "dm"
+              ? "DM Grant"
+              : provenance === "manual"
+                ? "Manual"
+                : provenance === "automatic"
+                  ? "Automatic"
+                  : "Legacy",
+          }];
+        });
 
-        if (patch.savingThrows !== undefined) dbPatch.saving_throws = patch.savingThrows;
-        if (patch.skills !== undefined) dbPatch.skills = patch.skills;
-        if (patch.tools !== undefined) dbPatch.tools = patch.tools;
-        if (patch.languages !== undefined) dbPatch.languages = patch.languages;
-        if (patch.currency !== undefined) dbPatch.currency = patch.currency;
+        const itemRows = persistedCharacter.inventory.flatMap((entry) => {
+          const dbItemId = maps.itemByDbId.get(entry.itemId) ?? maps.itemByAppId.get(entry.itemId);
+          return dbItemId ? [{
+            item_id: dbItemId,
+            quantity: Math.max(1, Number(entry.quantity) || 1),
+            equipped: Boolean(entry.equipped),
+            dm_granted: false,
+          }] : [];
+        });
 
-        if (Object.keys(dbPatch).length) {
-          const result = await supabase
-            .from("characters")
-            .update(dbPatch)
-            .eq("id", id)
-            .eq("user_id", user.id);
+        const optionalFeatureRows = Array.from(new Set(
+          persistedCharacter.optionalFeatures
+            .map((optionalFeatureId) => maps.optionalFeatureByDbId.has(optionalFeatureId)
+              ? optionalFeatureId
+              : maps.optionalFeatureByKey.get(optionalFeatureId))
+            .filter(Boolean),
+        )).map((optionalFeatureId) => ({
+          optional_feature_id: optionalFeatureId as string,
+          dm_granted: false,
+          source: "Normal",
+        }));
 
-          if (result.error) throw result.error;
-        }
+        const homebrewRows = Array.from(new Set(
+          persistedCharacter.homebrew.filter((homebrewId) => isUuid(homebrewId)),
+        )).map((homebrewId) => ({
+          homebrew_content_id: homebrewId,
+          dm_granted: false,
+        }));
 
-        if (patch.spells !== undefined) {
-          const spellRows = patch.spells.flatMap((entry) => {
-            const dbSpellId = maps.spellByDbId.get(entry.spellId) ?? maps.spellByAppId.get(entry.spellId);
-            return dbSpellId ? [{
-              character_id: id,
-              spell_id: dbSpellId,
-              prepared: Boolean(entry.prepared),
-              dm_granted: entry.source === "dm",
-              source: entry.source === "magical-secrets" ? "Magical Secrets" : entry.source === "normal" ? "Normal" : entry.source === "dm" ? "DM Grant" : "Migrated",
-            }] : [];
-          });
-          const deleteResult = await supabase.from("character_spells").delete().eq("character_id", id);
-          if (deleteResult.error) throw deleteResult.error;
-          if (spellRows.length) {
-            const insertResult = await supabase.from("character_spells").insert(spellRows);
-            if (insertResult.error) throw insertResult.error;
-          }
-        }
+        const progressionRows = [
+          ...persistedCharacter.asiHistory.map((entry) => ({
+            kind: "asi",
+            level: entry.level,
+            data: {
+              mode: entry.mode,
+              ...(entry.first ? { first: entry.first } : {}),
+              ...(entry.second ? { second: entry.second } : {}),
+              ...(entry.featId ? { featId: entry.featId } : {}),
+              ...(entry.featAbility ? { featAbility: entry.featAbility } : {}),
+            },
+          })),
+          ...persistedCharacter.expertiseHistory.map((entry) => ({
+            kind: "expertise",
+            level: entry.level,
+            data: { skills: entry.skills },
+          })),
+          ...persistedCharacter.magicalSecretsHistory.map((entry) => ({
+            kind: "magical-secrets",
+            level: entry.level,
+            data: { spellIds: entry.spellIds },
+          })),
+        ];
 
-        if (patch.inventory !== undefined) {
-          const inventoryRows = patch.inventory.flatMap((entry) => {
-            const dbItemId = maps.itemByDbId.get(entry.itemId) ?? maps.itemByAppId.get(entry.itemId);
-            return dbItemId ? [{
-              character_id: id,
-              item_id: dbItemId,
-              quantity: Math.max(1, Number(entry.quantity) || 1),
-              equipped: Boolean(entry.equipped),
-              dm_granted: false,
-            }] : [];
-          });
+        const result = await supabase.rpc("save_character_bundle", {
+          p_character_id: id,
+          p_character: dbCharacter,
+          p_spells: spellRows,
+          p_features: featureRows,
+          p_items: itemRows,
+          p_optional_features: optionalFeatureRows,
+          p_homebrew: homebrewRows,
+          p_progression_history: progressionRows,
+        });
 
-          const deleteResult = await supabase
-            .from("character_items")
-            .delete()
-            .eq("character_id", id);
-          if (deleteResult.error) throw deleteResult.error;
-
-          if (inventoryRows.length) {
-            const insertResult = await supabase.from("character_items").insert(inventoryRows);
-            if (insertResult.error) throw insertResult.error;
-          }
-        }
-
-        if (patch.homebrew !== undefined) {
-          const homebrewIds = Array.from(new Set(patch.homebrew.filter((homebrewId) => isUuid(homebrewId))));
-          const deleteResult = await supabase.from("character_homebrew").delete().eq("character_id", id);
-          if (deleteResult.error) throw deleteResult.error;
-          if (homebrewIds.length) {
-            const insertResult = await supabase.from("character_homebrew").insert(
-              homebrewIds.map((homebrewId) => ({ character_id: id, homebrew_content_id: homebrewId, dm_granted: false })),
-            );
-            if (insertResult.error) throw insertResult.error;
-          }
-        }
-
-        if (patch.optionalFeatures !== undefined) {
-          const dbOptionalFeatureIds = Array.from(new Set(
-            patch.optionalFeatures
-              .map((optionalFeatureId) => maps.optionalFeatureByDbId.has(optionalFeatureId)
-                ? optionalFeatureId
-                : maps.optionalFeatureByKey.get(optionalFeatureId))
-              .filter(Boolean),
-          )) as string[];
-
-          const deleteResult = await supabase
-            .from("character_optional_features")
-            .delete()
-            .eq("character_id", id);
-          if (deleteResult.error) throw deleteResult.error;
-
-          if (dbOptionalFeatureIds.length) {
-            const insertResult = await supabase
-              .from("character_optional_features")
-              .insert(dbOptionalFeatureIds.map((optionalFeatureId) => ({
-                character_id: id,
-                optional_feature_id: optionalFeatureId,
-                dm_granted: false,
-                source: "Normal",
-              })));
-            if (insertResult.error) throw insertResult.error;
-          }
-        }
-
-        if (patch.asiHistory !== undefined || patch.expertiseHistory !== undefined || patch.magicalSecretsHistory !== undefined) {
-          const currentAsi = patch.asiHistory ?? currentCharacter?.asiHistory ?? [];
-          const currentExpertise = patch.expertiseHistory ?? currentCharacter?.expertiseHistory ?? [];
-          const currentSecrets = patch.magicalSecretsHistory ?? currentCharacter?.magicalSecretsHistory ?? [];
-          const progressionRows = [
-            ...currentAsi.map((entry) => ({ character_id: id, kind: "asi", level: entry.level, data: { mode: entry.mode, ...(entry.first ? { first: entry.first } : {}), ...(entry.second ? { second: entry.second } : {}), ...(entry.featId ? { featId: entry.featId } : {}), ...(entry.featAbility ? { featAbility: entry.featAbility } : {}) } })),
-            ...currentExpertise.map((entry) => ({ character_id: id, kind: "expertise", level: entry.level, data: { skills: entry.skills } })),
-            ...currentSecrets.map((entry) => ({ character_id: id, kind: "magical-secrets", level: entry.level, data: { spellIds: entry.spellIds } })),
-          ];
-          const deleteResult = await supabase.from("character_progression_history").delete().eq("character_id", id);
-          if (deleteResult.error) throw deleteResult.error;
-          if (progressionRows.length) {
-            const insertResult = await supabase.from("character_progression_history").insert(progressionRows);
-            if (insertResult.error) throw insertResult.error;
-          }
-        }
-
-        if (localPatch.features !== undefined) {
-          const dbFeatureIds = Array.from(
-            new Set(
-              localPatch.features
-                .map((featureId) => maps.featureByDbId.get(featureId) ?? maps.featureByAppId.get(featureId))
-                .filter(Boolean),
-            ),
-          ) as string[];
-
-          const deleteResult = await supabase
-            .from("character_features")
-            .delete()
-            .eq("character_id", id);
-          if (deleteResult.error) throw deleteResult.error;
-
-          if (dbFeatureIds.length) {
-            const insertResult = await supabase
-              .from("character_features")
-              .insert(
-                dbFeatureIds.map((featureId) => {
-                  const appFeatureId = maps.featureByDbId.get(featureId) ?? featureId;
-                  const provenance = localPatch.featureProvenance?.find((entry) => entry.featureId === appFeatureId)?.source ?? "legacy";
-                  return {
-                    character_id: id,
-                    feature_id: featureId,
-                    dm_granted: provenance === "dm",
-                    source: provenance === "dm" ? "DM Grant" : provenance === "manual" ? "Manual" : provenance === "automatic" ? "Automatic" : "Legacy",
-                  };
-                }),
-              );
-
-            if (insertResult.error) throw insertResult.error;
-          }
-        }
+        if (result.error) throw result.error;
       } catch (error) {
         const details = (() => {
           if (error instanceof Error) return { message: error.message, name: error.name, stack: error.stack };
@@ -2221,7 +2167,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           return { message: String(error ?? "") };
         })();
         console.error("Could not update character:", details);
-        const diagnostic = [details.code, details.message, details.details, details.hint].filter(Boolean).join(" · ");
         if (currentCharacter) {
           setCharacters((current) =>
             current.map((character) => character.id === id ? currentCharacter : character),
@@ -2231,7 +2176,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-
 
     deleteCharacter: async (id) => {
       const deletedCharacter = characters.find((character) => character.id === id);
