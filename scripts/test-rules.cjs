@@ -104,8 +104,20 @@ test("ASI levels are correct for standard classes", () => {
 
 test("full caster spell progression reaches 3rd-level spells at wizard 5", () => {
   const wizard = character({ level: 5 });
-  assert.equal(rules.getMaxSpellLevel(wizard), 3);
-  assert.deepEqual(rules.getSpellSlotSummary(wizard), { 1: 4, 2: 3, 3: 2 });
+  const wizardClass = {
+    id: "test-wizard",
+    name: "Wizard",
+    raw_data: {
+      spellcasting: {
+        progression: [2, 2, 2, 2, 3, 3],
+      },
+    },
+  };
+  assert.equal(rules.getMaxSpellLevel(wizard, [wizardClass]), 3);
+  assert.deepEqual(
+    rules.getSpellSlotSummary(wizard, [wizardClass]),
+    { 1: 4, 2: 3, 3: 2 },
+  );
 });
 
 test("warlock uses pact spell slots", () => {
