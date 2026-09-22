@@ -289,6 +289,59 @@ function featPrerequisiteMet(prerequisite: unknown, character: FeatPrerequisiteC
   return true;
 }
 
+
+export type FeatAbilityChoice = { featId: string; ability: AbilityKey };
+
+function normalizeAbilityKey(value: unknown): AbilityKey | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.toLowerCase().replace(/[\\s_-]/g, "");
+  const aliases: Record<string, AbilityKey> = {
+    str: "str", strength: "str", dex: "dex", dexterity: "dex", con: "con", constitution: "con",
+    int: "int", intelligence: "int", wis: "wis", wisdom: "wis", cha: "cha", charisma: "cha",
+  };
+  return aliases[normalized] ?? null;
+}
+
+function extractFeatAbilityRules(value: unknown): Array<{ ability: AbilityKey; amount: number }> {
+  const result: Array<{ ability: AbilityKey; amount: number }> = [];
+  const visit = (node: unknown, inheritedAmount?: number) => {
+    if (!node) return;
+    if (Array.isArray(node)) { node.forEach((entry) => visit(entry, inheritedAmount)); return; }
+    if (typeof node !== "object") return;
+    const object = node as Record<string, unknown>;
+    const amount = typeof object.amount === "number" ? object.amount : inheritedAmount;
+    const ability = normalizeAbilityKey(object.ability) ?? normalizeAbilityKey(object.name);
+    if (ability && typeof amount === "number") result.push({ ability, amount });
+    if (Array.isArray(object.from)) object.from.forEach((entry) => visit({ ability: entry, amount }, amount));
+    if (Array.isArray(object.choose)) object.choose.forEach((entry) => visit(entry, amount));
+    if (object.choose && !Array.isArray(object.choose)) visit(object.choose, amount);
+    if (Array.isArray(object.ability)) object.ability.forEach((entry) => visit(entry, amount));
+  };
+  visit(value);
+  return result;
+}
+
+export function getFeatAbilityOptions(feat: Feat): Array<{ ability: AbilityKey; amount: number }> {
+  const raw = extractFeatAbilityRules(feat.ability);
+  const seen = new Set<string>();
+  return raw.filter((entry) => {
+    const key = entry.ability + ":" + entry.amount;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function getFeatAbilityBonuses(feat: Feat, selectedAbility?: AbilityKey): Partial<AbilityScores> {
+  const rules = getFeatAbilityOptions(feat);
+  if (!rules.length) return {};
+  const hasChoice = rules.length > 1;
+  const selected = selectedAbility ? rules.find((entry) => entry.ability === selectedAbility) : undefined;
+  if (hasChoice && !selected) return {};
+  const applied = selected ?? rules[0];
+  return { [applied.ability]: applied.amount };
+}
+
 export function isFeatAvailable(character: FeatPrerequisiteCharacter, feat: Feat) {
   return featPrerequisiteMet(feat.prerequisite, character);
 }
