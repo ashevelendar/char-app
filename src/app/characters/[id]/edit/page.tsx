@@ -408,7 +408,7 @@ function CharacterEditor({
       const additions = option.items.flatMap((entry, entryIndex) => {
         const choiceKey = `${groupId}:${optionIndex}:${entryIndex}`;
         const choiceId = choiceOverrides[choiceKey] ?? startingItemChoices[choiceKey];
-        const chosen = entry.choiceType ? itemCatalogue.find((item) => item.id === choiceId) : undefined;
+        const chosen = entry.choiceType ? itemCatalogue.find((item) => item.id === choiceId && (item.rarity || "Common").trim().toLowerCase() === "common") : undefined;
         if (entry.choiceType && !chosen) return [];
         if (entry.special) return [];
         const item = chosen ?? itemCatalogue.filter((candidate) => (candidate.rarity || "Common").trim().toLowerCase() === "common").find((candidate) => {
