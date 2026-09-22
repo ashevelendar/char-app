@@ -31,7 +31,7 @@ export default function CharacterPage() {
     return spell ? { spell, entry } : null;
   }).filter((x): x is { spell: Spell; entry: (typeof character.spells)[number] } => Boolean(x)) : [], [character, librarySpells]);
   const charFeatures = useMemo(() => character ? character.features.map((id) => featureCatalogue.find((feature) => feature.id === id) ?? features.find((feature) => feature.id === id)).filter((feature): feature is Feature => Boolean(feature)) : [], [character, featureCatalogue]);
-  const libraryItems = itemCatalogue.length ? itemCatalogue : items;
+  const libraryItems = [...itemCatalogue, ...items.filter((fallback) => !itemCatalogue.some((item) => item.id === fallback.id || item.name.toLowerCase() === fallback.name.toLowerCase()))];
   const charItems = useMemo(() => character ? character.inventory.map((entry) => { const item = libraryItems.find((candidate) => candidate.id === entry.itemId); return item ? { item, entry } : null; }).filter((x): x is { item: Item; entry: (typeof character.inventory)[number] } => Boolean(x)) : [], [character, libraryItems]);
   if (!character) return <div className="mx-auto max-w-5xl px-4 py-12"><SectionCard title="Character not found"><Link href="/characters" className="text-amber-400">Back to Characters</Link></SectionCard></div>;
 
