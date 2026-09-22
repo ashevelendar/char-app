@@ -205,7 +205,7 @@ export default function NewCharacterPage() {
     skills: selectedSkills,
     tools: selectedTools,
     languages: selectedLanguages,
-  }), [form.level, form.abilities, form.race, form.subrace, form.className, form.background, form.feats, selectedSkills, selectedTools, selectedLanguages]);
+  }), [form.level, form.abilities, form.race, form.subrace, form.className, form.background, asiChoices, selectedSkills, selectedTools, selectedLanguages]);
 
   const spellCharacter = useMemo(() => ({
     ...defaultCharacter,
@@ -220,7 +220,7 @@ export default function NewCharacterPage() {
     skills: selectedSkills,
     tools: selectedTools,
     languages: selectedLanguages,
-  } as Character), [form.level, form.abilities, form.race, form.subrace, form.className, form.subclass, form.background, form.feats, selectedSkills, selectedTools, selectedLanguages]);
+  } as Character), [form.level, form.abilities, form.race, form.subrace, form.className, form.subclass, form.background, asiChoices, selectedSkills, selectedTools, selectedLanguages]);
 
   const availableSpells = useMemo(() => spellCatalogue.filter((spell) => isSpellNormallyAvailable(spellCharacter, spell)), [spellCatalogue, spellCharacter]);
   const magicalSecretSpellOptions = useMemo(() => {
