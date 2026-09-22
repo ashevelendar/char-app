@@ -180,7 +180,7 @@ export default function NewCharacterPage() {
   const spellsKnown = getSpellsKnown(form.className, form.level);
   const preparedSpellLimit = getPreparedSpellCount(spellCharacter);
   const wizardSpellbookLimit = form.className === "Wizard" ? getWizardSpellbookProgression(form.level) : null;
-  const knownSpellLimit = spellsKnown ?? preparedSpellLimit ?? wizardSpellbookLimit;
+  const knownSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : spellsKnown ?? preparedSpellLimit;
 
   const availableFeats = useMemo(
     () => featCatalogue.filter((feat) => isFeatAvailable(featPrerequisiteCharacter, feat)),
