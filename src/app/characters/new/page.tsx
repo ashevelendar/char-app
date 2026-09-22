@@ -672,6 +672,16 @@ export default function NewCharacterPage() {
                   )}
                 </SectionCard>
               )}
+              {selectedBackgroundRules && <SectionCard title="Background traits">
+                <div className="space-y-3">
+                  {featureCatalogue.filter((feature) => feature.sourceType === "background" && feature.backgroundName === form.background && feature.requiredLevel <= form.level).map((feature) => (
+                    <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4">
+                      <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Background Feature</Badge></div>
+                      <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-400">{feature.description}</p>
+                    </article>
+                  ))}
+                </div>
+              </SectionCard>}
             </>
           )}
 
