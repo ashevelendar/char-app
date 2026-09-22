@@ -1456,67 +1456,93 @@ function toCharacter(
   progressionRows: any[],
   maps: ContentMaps,
 ): Character {
-  const spellsForCharacter = spellRows
-    .filter((entry) => entry.character_id === row.id)
-    .flatMap((entry) => {
-      const appId = maps.spellByDbId.get(entry.spell_id);
-      return appId ? [{
-        spellId: appId,
-        prepared: Boolean(entry.prepared),
-        source: entry.dm_granted || String(entry.source ?? "").toLowerCase().includes("dm")
-          ? "dm" as const
-          : String(entry.source ?? "").toLowerCase().includes("magical")
-            ? "magical-secrets" as const
-            : String(entry.source ?? "").toLowerCase().includes("normal")
-              ? "normal" as const
-              : "legacy" as const,
-      }] : [];
-    });
+  const characterId = row.id;
 
-  const featuresForCharacter = featureRows
-    .filter((entry) => entry.character_id === row.id)
-    .flatMap((entry) => {
-      const appId = maps.featureByDbId.get(entry.feature_id);
-      return appId ? [appId] : [];
-    });
+  // Index the already-loaded child rows once. This avoids repeatedly scanning
+  // every character's rows and keeps hydration close to O(total child rows).
+  const byCharacter = <T extends { character_id: string }>(rows: T[]) => {
+    const grouped = new Map<string, T[]>();
+    for (const entry of rows) {
+      const existing = grouped.get(entry.character_id);
+      if (existing) existing.push(entry);
+      else grouped.set(entry.character_id, [entry]);
+    }
+    return grouped;
+  };
 
-  const inventoryForCharacter = itemRows
-    .filter((entry) => entry.character_id === row.id)
-    .flatMap((entry) => {
-      const appId = maps.itemByDbId.get(entry.item_id);
-      return appId ? [{
-        itemId: appId,
-        quantity: Number(entry.quantity) || 1,
-        equipped: Boolean(entry.equipped),
-      }] : [];
-    });
+  const characterSpells = byCharacter(spellRows).get(characterId) ?? [];
+  const characterFeatures = byCharacter(featureRows).get(characterId) ?? [];
+  const characterItems = byCharacter(itemRows).get(characterId) ?? [];
+  const characterOptionalFeatures = byCharacter(optionalFeatureRows).get(characterId) ?? [];
+  const characterHomebrew = byCharacter(homebrewRows).get(characterId) ?? [];
+  const characterOverrides = byCharacter(overrideRows).get(characterId) ?? [];
+  const characterProgression = byCharacter(progressionRows).get(characterId) ?? [];
 
-  const optionalFeaturesForCharacter = optionalFeatureRows
-    .filter((entry) => entry.character_id === row.id)
+  const spellsForCharacter = characterSpells.flatMap((entry) => {
+    const appId = maps.spellByDbId.get(entry.spell_id);
+    return appId ? [{
+      spellId: appId,
+      prepared: Boolean(entry.prepared),
+      source: entry.dm_granted || String(entry.source ?? "").toLowerCase().includes("dm")
+        ? "dm" as const
+        : String(entry.source ?? "").toLowerCase().includes("magical")
+          ? "magical-secrets" as const
+          : String(entry.source ?? "").toLowerCase().includes("normal")
+            ? "normal" as const
+            : "legacy" as const,
+    }] : [];
+  });
+
+  const featuresForCharacter = characterFeatures.flatMap((entry) => {
+    const appId = maps.featureByDbId.get(entry.feature_id);
+    return appId ? [appId] : [];
+  });
+
+  const inventoryForCharacter = characterItems.flatMap((entry) => {
+    const appId = maps.itemByDbId.get(entry.item_id);
+    return appId ? [{
+      itemId: appId,
+      quantity: Number(entry.quantity) || 1,
+      equipped: Boolean(entry.equipped),
+    }] : [];
+  });
+
+  const optionalFeaturesForCharacter = characterOptionalFeatures
     .map((entry) => entry.optional_feature_id)
     .filter((id): id is string => typeof id === "string");
 
-  const homebrewForCharacter = homebrewRows
-    .filter((entry) => entry.character_id === row.id)
+  const homebrewForCharacter = characterHomebrew
     .map((entry) => entry.homebrew_content_id)
     .filter((id): id is string => typeof id === "string");
 
-  const progressionForCharacter = progressionRows.filter((entry) => entry.character_id === row.id);
-  const progressionData = (kind: string) => progressionForCharacter
+  const progressionData = (kind: string) => characterProgression
     .filter((entry) => entry.kind === kind)
-    .map((entry) => ({ level: Number(entry.level), ...(entry.data && typeof entry.data === "object" ? entry.data : {}) }))
+    .map((entry) => ({
+      level: Number(entry.level),
+      ...(entry.data && typeof entry.data === "object" ? entry.data : {}),
+    }))
     .sort((a, b) => a.level - b.level);
 
-  const overrides = overrideRows
-    .filter((entry) => entry.character_id === row.id)
-    .flatMap((entry) => {
-      const appId =
-        entry.content_type === "spell" ? maps.spellByDbId.get(entry.content_id) :
-        entry.content_type === "feature" ? maps.featureByDbId.get(entry.content_id) :
-        entry.content_type === "item" ? maps.itemByDbId.get(entry.content_id) :
-        undefined;
-      return appId ? [{ type: entry.content_type as ContentType, contentId: appId, reason: entry.reason ?? undefined }] : [];
-    });
+  const overrides = characterOverrides.flatMap((entry) => {
+    const appId =
+      entry.content_type === "spell" ? maps.spellByDbId.get(entry.content_id) :
+      entry.content_type === "feature" ? maps.featureByDbId.get(entry.content_id) :
+      entry.content_type === "item" ? maps.itemByDbId.get(entry.content_id) :
+      undefined;
+    return appId
+      ? [{ type: entry.content_type as ContentType, contentId: appId, reason: entry.reason ?? undefined }]
+      : [];
+  });
+
+  const featureProvenance = characterFeatures.flatMap((entry) => {
+    const featureId = maps.featureByDbId.get(entry.feature_id);
+    if (!featureId) return [];
+    const source = String(entry.source ?? "").toLowerCase();
+    if (Boolean(entry.dm_granted) || source.includes("dm")) return [{ featureId, source: "dm" as const }];
+    if (source.includes("manual")) return [{ featureId, source: "manual" as const }];
+    if (source.includes("automatic")) return [{ featureId, source: "automatic" as const }];
+    return [{ featureId, source: "legacy" as const }];
+  });
 
   const raceName = relationName(row.race);
   const storedAbilities: AbilityScores = {
@@ -1536,7 +1562,11 @@ function toCharacter(
       }), {} as AbilityScores)
     : storedAbilities;
 
-  const calculatedAc = calculateArmorClass({ abilities, inventory: inventoryForCharacter, race: raceName }, maps.itemCatalogue, maps.raceRules);
+  const calculatedAc = calculateArmorClass(
+    { abilities, inventory: inventoryForCharacter, race: raceName },
+    maps.itemCatalogue,
+    maps.raceRules,
+  );
 
   return normalizeCharacter({
     id: row.id,
@@ -1575,14 +1605,7 @@ function toCharacter(
     optionalFeatures: optionalFeaturesForCharacter,
     homebrew: homebrewForCharacter,
     features: featuresForCharacter,
-    featureProvenance: featuresForCharacter.map((featureId) => {
-      const rowEntry = featureRows.find((entry) => entry.character_id === row.id && maps.featureByDbId.get(entry.feature_id) === featureId);
-      const source = String(rowEntry?.source ?? "").toLowerCase();
-      if (Boolean(rowEntry?.dm_granted) || source.includes("dm")) return { featureId, source: "dm" as const };
-      if (source.includes("manual")) return { featureId, source: "manual" as const };
-      if (source.includes("automatic")) return { featureId, source: "automatic" as const };
-      return { featureId, source: "legacy" as const };
-    }),
+    featureProvenance,
     spells: spellsForCharacter,
     inventory: inventoryForCharacter,
     accessOverrides: overrides,
