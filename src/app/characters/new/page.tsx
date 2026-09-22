@@ -412,6 +412,18 @@ export default function NewCharacterPage() {
 
               {(cantripsKnown > 0 || knownSpellLimit !== null) && <SpellSelectionSection className={form.className} level={form.level} availableSpells={availableSpells} cantripsKnown={cantripsKnown} spellLimit={normalSpellLimit} selectedSpells={selectedSpells} onChange={setSelectedSpells} />}
 
+              {asiLevels.length > 0 && (
+                <AsiSelectionSection levels={asiLevels} choices={asiChoices} onChoicesChange={setAsiChoices} abilityChoices={asiAbilityChoices} onAbilityChoicesChange={setAsiAbilityChoices} availableFeats={availableFeats} featCatalogue={featCatalogue} />
+              )}
+
+              {expertiseLevels.length > 0 && (
+                <ExpertiseSelectionSection levels={expertiseLevels} selected={expertiseSelections} onChange={setExpertiseSelections} skills={selectedSkills} />
+              )}
+
+              {magicalSecretFeatures.length > 0 && (
+                <MagicalSecretsSection features={magicalSecretFeatures} spells={magicalSecretSpellOptions} selected={magicalSecretSelections} onChange={setMagicalSecretSelections} />
+              )}
+
               <SectionCard title="Class options" description="Choose Fighting Styles and other optional class features available at this level.">
                 {optionalChoiceGroups.length > 0 ? optionalChoiceGroups.map((group) => (
                   <OptionalFeatureGroup key={group.id} title={group.title} count={group.count} featureTypes={group.featureTypes} catalogue={optionalFeatureCatalogue} selected={form.optionalFeatures} onChange={(next) => setForm((current) => ({ ...current, optionalFeatures: next }))} />
@@ -765,6 +777,104 @@ function ChoiceGroup({ title, choices, value, onChange, exclude = [] }: { title:
       </select>;
     }))}
   </div>;
+}
+
+function AsiSelectionSection({ levels, choices, onChoicesChange, abilityChoices, onAbilityChoicesChange, availableFeats, featCatalogue }: {
+  levels: number[];
+  choices: string[];
+  onChoicesChange: (value: string[]) => void;
+  abilityChoices: Array<{ mode: "two" | "one"; first: AbilityKey; second: AbilityKey }>;
+  onAbilityChoicesChange: (value: Array<{ mode: "two" | "one"; first: AbilityKey; second: AbilityKey }>) => void;
+  availableFeats: Array<{ id: string; name: string; description: string; source: string }>;
+  featCatalogue: Array<{ id: string; name: string; description: string; source: string }>;
+}) {
+  const abilityNames: Array<[AbilityKey, string]> = [["str","Strength"],["dex","Dexterity"],["con","Constitution"],["int","Intelligence"],["wis","Wisdom"],["cha","Charisma"]];
+  return <SectionCard title="Ability Score Improvements / Feats" description="At each Ability Score Improvement level, choose the normal ability score improvement or replace it with a feat you qualify for.">
+    <div className="space-y-5">
+      {levels.map((level, index) => {
+        const selectedFeatId = choices[index] ?? "";
+        const choice = abilityChoices[index] ?? { mode: "two" as const, first: "str" as AbilityKey, second: "dex" as AbilityKey };
+        const selectedFeat = featCatalogue.find((feat) => feat.id === selectedFeatId);
+        const eligibleFeats = availableFeats.filter((feat) => !choices.includes(feat.id) || feat.id === selectedFeatId);
+        return <div key={level} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
+          <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">Level {level}</h3><Badge>ASI / Feat</Badge></div>
+          <select value={selectedFeatId} onChange={(event) => {
+            const next = [...choices]; next[index] = event.target.value; onChoicesChange(next);
+          }} className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100">
+            <option value="">Ability Score Improvement</option>
+            {eligibleFeats.map((feat) => <option key={feat.id} value={feat.id}>{feat.name}</option>)}
+          </select>
+          {!selectedFeatId && <div className="mt-4 rounded-xl border border-stone-800 p-4">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500">ASI allocation</label>
+            <select value={choice.mode} onChange={(event) => {
+              const next = [...abilityChoices]; next[index] = { ...choice, mode: event.target.value as "two" | "one" }; onAbilityChoicesChange(next);
+            }} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+              <option value="two">+2 to one ability score</option>
+              <option value="one">+1 to two different ability scores</option>
+            </select>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <select value={choice.first} onChange={(event) => {
+                const next = [...abilityChoices]; next[index] = { ...choice, first: event.target.value as AbilityKey }; onAbilityChoicesChange(next);
+              }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+                {abilityNames.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+              </select>
+              {choice.mode === "one" && <select value={choice.second} onChange={(event) => {
+                const next = [...abilityChoices]; next[index] = { ...choice, second: event.target.value as AbilityKey }; onAbilityChoicesChange(next);
+              }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+                {abilityNames.filter(([key]) => key !== choice.first).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+              </select>}
+            </div>
+            <p className="mt-2 text-xs text-stone-500">Ability scores cannot be increased above 20.</p>
+          </div>}
+          {selectedFeat && <article className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4"><div className="flex items-center gap-2"><h3 className="font-semibold text-amber-300">{selectedFeat.name}</h3>{selectedFeat.source && <Badge>{selectedFeat.source}</Badge>}</div><p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-300">{selectedFeat.description}</p></article>}
+        </div>;
+      })}
+    </div>
+  </SectionCard>;
+}
+
+function ExpertiseSelectionSection({ levels, selected, onChange, skills }: { levels: number[]; selected: string[]; onChange: (value: string[]) => void; skills: string[] }) {
+  let offset = 0;
+  return <SectionCard title="Expertise" description="Choose the skill proficiencies that gain Expertise at each level shown below.">
+    <div className="space-y-4">
+      {levels.map((level) => {
+        const slots = [0, 1].map(() => offset++);
+        return <div key={level} className="rounded-xl border border-stone-800 p-4">
+          <div className="mb-3 font-semibold">Level {level} Expertise</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {slots.map((slot) => <select key={slot} value={selected[slot] ?? ""} onChange={(event) => {
+              const next = [...selected]; next[slot] = event.target.value; onChange(next);
+            }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+              <option value="">Choose a skill...</option>
+              {skills.filter((skill) => !selected.some((value, index) => index !== slot && value === skill)).map((skill) => <option key={skill}>{skill}</option>)}
+            </select>)}
+          </div>
+        </div>;
+      })}
+    </div>
+  </SectionCard>;
+}
+
+function MagicalSecretsSection({ features, spells, selected, onChange }: { features: Array<{ id: string; name: string; requiredLevel: number }>; spells: Array<{ id: string; name: string; level: number; description: string }>; selected: string[]; onChange: (value: string[]) => void }) {
+  let offset = 0;
+  return <SectionCard title="Magical Secrets" description="Choose the spells from any class granted by each Magical Secrets feature. These choices count toward the class's spells known.">
+    <div className="space-y-4">
+      {features.map((feature) => {
+        const slots = [0, 1].map(() => offset++);
+        return <div key={feature.id} className="rounded-xl border border-stone-800 p-4">
+          <div className="mb-3 font-semibold">Level {feature.requiredLevel} · {feature.name}</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {slots.map((slot) => <select key={slot} value={selected[slot] ?? ""} onChange={(event) => {
+              const next = [...selected]; next[slot] = event.target.value; onChange(next);
+            }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+              <option value="">Choose a spell...</option>
+              {spells.filter((spell) => !selected.some((value, index) => index !== slot && value === spell.id)).map((spell) => <option key={spell.id} value={spell.id}>{spell.name} (Level {spell.level})</option>)}
+            </select>)}
+          </div>
+        </div>;
+      })}
+    </div>
+  </SectionCard>;
 }
 
 function SpellSelectionSection({ className, level, availableSpells, cantripsKnown, spellLimit, selectedSpells, onChange }: { className: string; level: number; availableSpells: Array<{ id: string; name: string; level: number; school: string; description: string }>; cantripsKnown: number; spellLimit: number | null; selectedSpells: SpellEntry[]; onChange: (value: SpellEntry[]) => void }) {
