@@ -211,11 +211,12 @@ function normalizeCharacter(value: Character): Character {
     feats: Array.isArray(value.feats) ? value.feats : [],
     features: Array.isArray(value.features) ? value.features : [],
     featureProvenance: Array.isArray(value.featureProvenance)
-      ? value.featureProvenance.filter((entry): entry is FeatureGrantHistoryEntry =>
-          Boolean(entry && typeof entry === "object" &&
-            typeof (entry as Record<string, unknown>).featureId === "string" &&
-            ["automatic", "manual", "dm"].includes(String((entry as Record<string, unknown>).source))),
-        )
+      ? value.featureProvenance.filter((entry) => {
+          if (!entry || typeof entry !== "object") return false;
+          const candidate = entry as unknown as { featureId?: unknown; source?: unknown };
+          return typeof candidate.featureId === "string" &&
+            (candidate.source === "automatic" || candidate.source === "manual" || candidate.source === "dm");
+        }) as FeatureGrantHistoryEntry[]
       : [],
     spells: normalizeSpells(value.spells),
     inventory: normalizeInventory(value.inventory),
