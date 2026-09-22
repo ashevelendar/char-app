@@ -182,7 +182,8 @@ export default function NewCharacterPage() {
   const preparedSpellLimit = getPreparedSpellCount(spellCharacter);
   const wizardSpellbookLimit = form.className === "Wizard" ? getWizardSpellbookProgression(form.level) : null;
   const knownSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : spellsKnown ?? preparedSpellLimit;
-\n  useEffect(() => {
+
+  useEffect(() => {
     setSelectedSpells((current) => {
       const valid = current.filter((entry) => availableSpells.some((spell) => spell.id === entry.spellId));
       const cantrips = valid.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0).slice(0, cantripsKnown);
