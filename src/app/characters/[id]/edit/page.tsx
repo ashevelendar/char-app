@@ -7,7 +7,7 @@ import type { FormEvent } from "react";
 import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, InventoryEntry, SpellEntry } from "../../../../lib/types";
+import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, ExpertiseHistoryEntry, InventoryEntry, SpellEntry } from "../../../../lib/types";
 import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
@@ -57,9 +57,25 @@ function getAsiHistoryBonusTotal(entries: AsiHistoryEntry[]): AbilityScores {
 function stripManagedNotes(notes: string) {
   return notes
     .split("\n")
-    .filter((line) => !/^(?:Expertise:|ASI History:|Feat Ability Choices:)/.test(line.trim()))
+    .filter((line) => !/^(?:Expertise:|Expertise History:|ASI History:|Feat Ability Choices:)/.test(line.trim()))
     .join("\n")
     .trim();
+}
+
+function parseExpertiseHistory(notes: string): ExpertiseHistoryEntry[] {
+  const match = notes.match(/^Expertise History:\s*(.+)$/m);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[1]) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is ExpertiseHistoryEntry => {
+      if (!entry || typeof entry !== "object") return false;
+      const value = entry as Record<string, unknown>;
+      return typeof value.level === "number" && Array.isArray(value.skills) && value.skills.every((skill) => typeof skill === "string");
+    }).sort((a, b) => a.level - b.level);
+  } catch {
+    return [];
+  }
 }
 
 function parseAsiHistory(notes: string): AsiHistoryEntry[] {
@@ -207,10 +223,6 @@ function CharacterEditor({
   const [languages, setLanguages] = useState<string[]>(character.languages);
   const [asiHistory, setAsiHistory] = useState<AsiHistoryEntry[]>(initialAsiHistory);
   const [featAbilityChoices, setFeatAbilityChoices] = useState<Record<string, AbilityKey>>(initialFeatAbilityChoices);
-  const [expertiseSelections, setExpertiseSelections] = useState<string[]>(() => {
-    const match = character.notes.match(/^Expertise:\s*(.+)$/m);
-    return match?.[1]?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
-  });
   const [magicalSecretSelections, setMagicalSecretSelections] = useState<string[]>([]);
   const [selectedSpells, setSelectedSpells] = useState<SpellEntry[]>(character.spells ?? []);
   const [optionalFeatures, setOptionalFeatures] = useState<string[]>(character.optionalFeatures ?? []);
@@ -409,6 +421,24 @@ function CharacterEditor({
     [featureCatalogue, form.className, form.level],
   );
 
+  const initialExpertiseHistory = useMemo(() => {
+    const parsed = parseExpertiseHistory(character.notes);
+    if (parsed.length) return parsed;
+    const legacyMatch = character.notes.match(/^Expertise:\s*(.+)$/m);
+    const legacySkills = legacyMatch?.[1]?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
+    return legacySkills.length && expertiseLevels.length
+      ? expertiseLevels.map((level, index) => ({ level, skills: legacySkills.slice(index * 2, index * 2 + 2) })).filter((entry) => entry.skills.length)
+      : [];
+  }, [character.notes, expertiseLevels]);
+  const [expertiseHistory, setExpertiseHistory] = useState<ExpertiseHistoryEntry[]>(initialExpertiseHistory);
+  const expertiseSelections = expertiseHistory.flatMap((entry) => entry.skills);
+
+  function updateExpertiseHistory(level: number, skills: string[]) {
+    setExpertiseHistory((current) => {
+      const filtered = current.filter((entry) => entry.level !== level);
+      return skills.filter(Boolean).length ? [...filtered, { level, skills: [...new Set(skills.filter(Boolean))] }].sort((a, b) => a.level - b.level) : filtered;
+    });
+  }
   const magicalSecretFeatures = useMemo(
     () => featureCatalogue
       .filter((feature) => feature.name.toLowerCase().includes("magical secrets") && feature.className === form.className && feature.requiredLevel <= form.level)
@@ -578,6 +608,7 @@ function CharacterEditor({
         notes: [
           form.notes,
           expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
+          expertiseHistory.length ? "Expertise History: " + JSON.stringify(expertiseHistory) : "",
           asiHistory.length ? "ASI History: " + JSON.stringify(asiHistory) : "",
           Object.keys(featAbilityChoices).length ? "Feat Ability Choices: " + JSON.stringify(featAbilityChoices) : "",
         ].filter(Boolean).join("\n\n"),
@@ -693,7 +724,7 @@ function CharacterEditor({
                 />
               )}
               {expertiseLevels.length > 0 && (
-                <ExpertiseSelectionSection levels={expertiseLevels} selected={expertiseSelections} onChange={setExpertiseSelections} skills={selectedSkills} />
+                <ExpertiseSelectionSection levels={expertiseLevels} history={expertiseHistory} onChange={updateExpertiseHistory} skills={selectedSkills} />
               )}
               {magicalSecretFeatures.length > 0 && (
                 <MagicalSecretsSection
@@ -1218,20 +1249,23 @@ function AsiSelectionSection({
   </SectionCard>;
 }
 
-function ExpertiseSelectionSection({ levels, selected, onChange, skills }: { levels: number[]; selected: string[]; onChange: (value: string[]) => void; skills: string[] }) {
-  let offset = 0;
-  return <SectionCard title="Expertise" description="Choose the skill proficiencies that gain Expertise. Existing expertise stored in notes is loaded when possible.">
+function ExpertiseSelectionSection({ levels, history, onChange, skills }: { levels: number[]; history: ExpertiseHistoryEntry[]; onChange: (level: number, skills: string[]) => void; skills: string[] }) {
+  const selected = history.flatMap((entry) => entry.skills);
+  return <SectionCard title="Expertise" description="Choose the skill proficiencies that gain Expertise. Each Expertise level is stored separately so changes do not shift or overwrite another level.">
     <div className="space-y-4">
       {levels.map((level) => {
-        const slots = [0, 1].map(() => offset++);
+        const values = history.find((entry) => entry.level === level)?.skills ?? [];
         return <div key={level} className="rounded-xl border border-stone-800 p-4">
           <div className="mb-3 font-semibold">Level {level} Expertise</div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {slots.map((slot) => <select key={slot} value={selected[slot] ?? ""} onChange={(event) => {
-              const next = [...selected]; next[slot] = event.target.value; onChange(next);
-            }} className="rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm">
+            {[0, 1].map((slot) => <select key={slot} value={values[slot] ?? ""} onChange={(event) => {
+              const next = [...values];
+              if (event.target.value) next[slot] = event.target.value;
+              else next.splice(slot, 1);
+              onChange(level, next);
+            }} className="rounded-xl border border-stone-700 bg-stone-950/60 px-3 py-2.5 text-sm">
               <option value="">Choose a skill...</option>
-              {skills.filter((skill) => !selected.some((value, index) => index !== slot && value === skill)).map((skill) => <option key={skill}>{skill}</option>)}
+              {skills.filter((skill) => !selected.includes(skill) || values.includes(skill)).map((skill) => <option key={skill}>{skill}</option>)}
             </select>)}
           </div>
         </div>;
