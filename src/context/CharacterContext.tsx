@@ -610,72 +610,54 @@ function extractNaturalArmor(raw: unknown): { base: number; dexMax?: number | nu
   return formulaMatch ? { base: Number(formulaMatch[1]), dexMax: null } : undefined;
 }
 
+function extractRequiredFeatureIds(
+  raw: unknown,
+  featureRows: Array<{ id: string; name: string }>,
+  currentFeatureId: string,
+): string[] {
+  const byId = new Map(featureRows.map((row) => [row.id, row.id]));
+  const byName = new Map(featureRows.map((row) => [row.name.trim().toLowerCase(), row.id]));
+  const dependencyKeys = new Set([
+    "requiresFeatureId", "requiredFeatureId", "requiresFeature", "requiredFeature",
+    "prerequisiteFeature", "prerequisiteFeatures", "featurePrerequisite", "featurePrerequisites",
+    "prerequisite", "prerequisites",
+  ]);
+  const resolve = (value: unknown): string[] => {
+    if (typeof value === "string") {
+      const text = value.trim();
+      if (!text) return [];
+      if (byId.has(text) && text !== currentFeatureId) return [text];
+      const byNameId = byName.get(text.toLowerCase());
+      return byNameId && byNameId !== currentFeatureId ? [byNameId] : [];
+    }
+    if (Array.isArray(value)) return value.flatMap(resolve);
+    if (!value || typeof value !== "object") return [];
+    const object = value as Record<string, unknown>;
+    return ["id", "featureId", "feature_id", "name", "feature"].flatMap((key) => resolve(object[key]));
+  };
+  const found: string[] = [];
+  function visit(value: unknown) {
+    if (!value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    const object = value as Record<string, unknown>;
+    for (const [key, child] of Object.entries(object)) {
+      if (dependencyKeys.has(key)) found.push(...resolve(child));
+      visit(child);
+    }
+  }
+  visit(raw);
+  return [...new Set(found)].filter((id) => id !== currentFeatureId);
+}
+
 function extractRequiredFeatureId(
   raw: unknown,
   featureRows: Array<{ id: string; name: string }>,
   currentFeatureId: string,
 ): string | undefined {
-  const byId = new Map(featureRows.map((row) => [row.id, row.id]));
-  const byName = new Map(featureRows.map((row) => [row.name.trim().toLowerCase(), row.id]));
-  const dependencyKeys = new Set([
-    "requiresFeatureId",
-    "requiredFeatureId",
-    "requiresFeature",
-    "requiredFeature",
-    "prerequisiteFeature",
-    "prerequisiteFeatures",
-    "featurePrerequisite",
-    "featurePrerequisites",
-    "prerequisite",
-    "prerequisites",
-  ]);
-  const resolve = (value: unknown): string | undefined => {
-    if (typeof value === "string") {
-      const text = value.trim();
-      if (!text) return undefined;
-      if (byId.has(text) && text !== currentFeatureId) return text;
-      const byNameId = byName.get(text.toLowerCase());
-      if (byNameId && byNameId !== currentFeatureId) return byNameId;
-      return undefined;
-    }
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        const resolved = resolve(entry);
-        if (resolved) return resolved;
-      }
-      return undefined;
-    }
-    if (!value || typeof value !== "object") return undefined;
-    const object = value as Record<string, unknown>;
-    for (const key of ["id", "featureId", "feature_id", "name", "feature"]) {
-      const resolved = resolve(object[key]);
-      if (resolved) return resolved;
-    }
-    return undefined;
-  };
-
-  function visit(value: unknown): string | undefined {
-    if (!value || typeof value !== "object") return undefined;
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        const resolved = visit(entry);
-        if (resolved) return resolved;
-      }
-      return undefined;
-    }
-    const object = value as Record<string, unknown>;
-    for (const [key, child] of Object.entries(object)) {
-      if (dependencyKeys.has(key)) {
-        const resolved = resolve(child);
-        if (resolved) return resolved;
-      }
-      const nested = visit(child);
-      if (nested) return nested;
-    }
-    return undefined;
-  }
-
-  return visit(raw);
+  return extractRequiredFeatureIds(raw, featureRows, currentFeatureId)[0];
 }
 
 function calculateArmorClass(character: Pick<Character, "abilities" | "inventory" | "race">, itemCatalogue: Item[], raceRules: Record<string, RaceRules>): number {
@@ -982,6 +964,7 @@ function makeMaps(
         raceName: raceName ?? (sourceType === "race" ? row.source ?? undefined : undefined),
         backgroundName: backgroundName ?? (sourceType === "background" ? row.source ?? undefined : undefined),
         requiresFeatureId: extractRequiredFeatureId(row.raw_data, featureRows, row.id),
+        requiresFeatureIds: extractRequiredFeatureIds(row.raw_data, featureRows, row.id),
       } satisfies Feature;
     })
     .filter((feature) => feature.name)
