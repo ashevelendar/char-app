@@ -174,6 +174,8 @@ function CharacterEditor({
   const [equipmentMode, setEquipmentMode] = useState<"equipment" | "gold">("equipment");
   const [currency, setCurrency] = useState<Currency>(character.currency ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 });
   const [step, setStep] = useState<BuilderStep>("class");
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const subclassUnlockLevel = getClassDefinition(form.className, classRules)?.subclassUnlockLevel ?? 1;
   const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className && form.level >= subclassUnlockLevel);
@@ -384,8 +386,16 @@ function CharacterEditor({
 
   function equipmentChoiceOptions(choiceType: string) {
     const type = choiceType.toLowerCase();
-    const commonItems = itemCatalogue.filter((item) => (item.rarity || "Common").trim().toLowerCase() === "common");
-    return commonItems.filter((item) => {
+    const mundaneItems = itemCatalogue.filter((item) => {
+      const rarity = (item.rarity || "").trim().toLowerCase();
+      const category = (item.category || "").trim().toLowerCase();
+      return (rarity === "" || rarity === "common" || rarity === "none" || rarity === "mundane")
+        && !category.includes("magic")
+        && !item.requiresAttunement
+        && item.magicBonus == null
+        && item.bonusAc == null;
+    });
+    return mundaneItems.filter((item) => {
       if (type === "weaponmartial") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("martial"));
       if (type === "weaponsimple") return Boolean(item.isWeapon && item.weaponCategory?.toLowerCase().includes("simple"));
       if (type === "armorlight") return Boolean(item.isArmor && item.armorCategory?.toLowerCase().includes("light"));
@@ -408,10 +418,18 @@ function CharacterEditor({
       const additions = option.items.flatMap((entry, entryIndex) => {
         const choiceKey = `${groupId}:${optionIndex}:${entryIndex}`;
         const choiceId = choiceOverrides[choiceKey] ?? startingItemChoices[choiceKey];
-        const chosen = entry.choiceType ? itemCatalogue.find((item) => item.id === choiceId && (item.rarity || "Common").trim().toLowerCase() === "common") : undefined;
+        const chosen = entry.choiceType ? equipmentChoiceOptions(entry.choiceType).find((item) => item.id === choiceId) : undefined;
         if (entry.choiceType && !chosen) return [];
         if (entry.special) return [];
-        const item = chosen ?? itemCatalogue.filter((candidate) => (candidate.rarity || "Common").trim().toLowerCase() === "common").find((candidate) => {
+        const item = chosen ?? itemCatalogue.filter((candidate) => {
+          const rarity = (candidate.rarity || "").trim().toLowerCase();
+          const category = (candidate.category || "").trim().toLowerCase();
+          return (rarity === "" || rarity === "common" || rarity === "none" || rarity === "mundane")
+            && !category.includes("magic")
+            && !candidate.requiresAttunement
+            && candidate.magicBonus == null
+            && candidate.bonusAc == null;
+        }).find((candidate) => {
           const normalized = entry.name.toLowerCase().replace(/^(a|an|one)\s+/i, "").replace(/[.,]/g, "").trim();
           const name = candidate.name.toLowerCase().replace(/[.,]/g, "").trim();
           return name === normalized || name.includes(normalized) || normalized.includes(name);
@@ -428,36 +446,75 @@ function CharacterEditor({
     });
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSaveError("");
 
-    onSave({
-      ...form,
-      skills: selectedSkills,
-      tools: selectedTools,
-      languages: selectedLanguages,
-      inventory: equipmentMode === "equipment" ? equipmentSelections : [],
-      currency,
-      abilities: progressionAbilities,
-      feats: asiChoices.filter(Boolean),
-      spells: [
-        ...effectiveSelectedSpells,
-        ...magicalSecretSelections
-          .filter(Boolean)
-          .filter((id) => !selectedSpells.some((entry) => entry.spellId === id))
-          .map((spellId) => ({ spellId, prepared: true })),
-      ],
-      optionalFeatures,
-      notes: [
-        form.notes,
-        expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
-        Object.keys(featAbilityChoices).length ? "Feat Ability Choices: " + JSON.stringify(featAbilityChoices) : "",
-      ].filter(Boolean).join("\n\n"),
+    const incompleteAsi = newAsiLevels.some((level, index) => {
+      const absoluteIndex = allAsiLevels.indexOf(level);
+      const featId = absoluteIndex >= 0 ? (asiChoices[absoluteIndex] ?? "") : "";
+      if (featId) {
+        const feat = featCatalogue.find((entry) => entry.id === featId);
+        const options = feat ? getFeatAbilityOptions(feat) : [];
+        return options.length > 1 && !featAbilityChoices[featId];
+      }
+      const choice = asiAbilityChoices[index];
+      return !choice?.first || (choice.mode === "one" && (!choice.second || choice.second === choice.first));
     });
+
+    if (incompleteAsi) {
+      setStep("abilities");
+      setSaveError("Please complete every new Ability Score Improvement: choose a feat, or complete the required ability score choice.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onSave({
+        ...form,
+        skills: selectedSkills,
+        tools: selectedTools,
+        languages: selectedLanguages,
+        inventory: equipmentMode === "equipment" ? equipmentSelections : [],
+        currency,
+        abilities: progressionAbilities,
+        feats: asiChoices.filter(Boolean),
+        spells: [
+          ...effectiveSelectedSpells,
+          ...magicalSecretSelections
+            .filter(Boolean)
+            .filter((id) => !selectedSpells.some((entry) => entry.spellId === id))
+            .map((spellId) => ({ spellId, prepared: true })),
+        ],
+        optionalFeatures,
+        notes: [
+          form.notes,
+          expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
+          Object.keys(featAbilityChoices).length ? "Feat Ability Choices: " + JSON.stringify(featAbilityChoices) : "",
+        ].filter(Boolean).join("\n\n"),
+      });
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error ?? "Could not save this character."));
+    } finally {
+      setSaving(false);
+    }
   }
 
   const canAdvanceFromStep = (currentStep: BuilderStep) => {
     if (currentStep === "class") return Boolean(form.className);
+    if (currentStep === "abilities") {
+      return newAsiLevels.every((level, index) => {
+        const absoluteIndex = allAsiLevels.indexOf(level);
+        const featId = absoluteIndex >= 0 ? (asiChoices[absoluteIndex] ?? "") : "";
+        if (featId) {
+          const feat = featCatalogue.find((entry) => entry.id === featId);
+          const options = feat ? getFeatAbilityOptions(feat) : [];
+          return !options.length || Boolean(featAbilityChoices[featId]);
+        }
+        const choice = asiAbilityChoices[index];
+        return Boolean(choice?.first) && (choice.mode !== "one" || Boolean(choice.second && choice.second !== choice.first));
+      });
+    }
     if (currentStep === "background") {
       const choices = selectedBackgroundRules;
       return Boolean(form.background) &&
@@ -610,7 +667,7 @@ function CharacterEditor({
           {step === "species" && (
             <>
               <SectionCard title="Species" description="Change the race or subrace and review the associated traits.">
-                <RacePicker races={catalogue.races.map((name) => ({ name, source: raceRules[name]?.source ?? "" }))} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} />
+                <RacePicker races={catalogue.races.map((name) => ({ name, source: raceRules[name]?.source ?? "", description: raceRules[name]?.description ?? "" }))} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} />
               </SectionCard>
               {raceRules[form.race] && <InfoBox title={form.race} badge={raceRules[form.race].source} text={raceRules[form.race].description || "No species description is available."} />}
               {selectedSubrace && <InfoBox title={selectedSubrace.name} badge={selectedSubrace.source} text={selectedSubrace.description || "No subrace description is available."} />}
@@ -843,7 +900,8 @@ function CharacterEditor({
             </>
           )}
 
-          <BuilderFooter step={step} onStepChange={setStep} canAdvance={canAdvanceFromStep(step)} />
+          {saveError && <div className="rounded-2xl border border-red-900/70 bg-red-950/30 px-4 py-3 text-sm text-red-300">{saveError}</div>}
+          <BuilderFooter step={step} onStepChange={setStep} canAdvance={canAdvanceFromStep(step)} saving={saving} />
         </form>
       </div>
     </div>
@@ -865,14 +923,21 @@ function BuilderStepNav({ step, onStepChange }: { step: BuilderStep; onStepChang
   return <div className="border-b border-stone-800 bg-stone-950/95"><div className="mx-auto max-w-5xl overflow-x-auto px-4 sm:px-6 lg:px-8"><nav className="flex min-w-max items-stretch gap-1">{BUILDER_STEPS.map((entry) => { const active = entry === step; return <button key={entry} type="button" onClick={() => onStepChange(entry)} className={`relative px-4 py-4 text-left ${active ? "text-stone-100" : "text-stone-500 hover:text-stone-300"}`}><span className="mr-2 text-[10px] font-bold text-stone-600">{STEP_META[entry].number}.</span><span className="text-xs font-semibold uppercase tracking-wider">{STEP_META[entry].title}</span>{active && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-amber-400" />}</button>; })}</nav></div></div>;
 }
 
-function BuilderFooter({ step, onStepChange, canAdvance }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void; canAdvance: boolean }) {
+function BuilderFooter({ step, onStepChange, canAdvance, saving }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void; canAdvance: boolean; saving: boolean }) {
   const index = BUILDER_STEPS.indexOf(step);
   const previous = index > 0 ? BUILDER_STEPS[index - 1] : null;
   const next = index < BUILDER_STEPS.length - 1 ? BUILDER_STEPS[index + 1] : null;
-  return <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-stone-800 bg-stone-950/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3"><button type="button" disabled={!previous} onClick={() => previous && onStepChange(previous)} className="rounded-xl border border-stone-700 px-5 py-2.5 text-sm font-semibold text-stone-300 hover:bg-stone-900 disabled:opacity-30">Back</button><div className="text-xs text-stone-600">{index + 1} / {BUILDER_STEPS.length}</div>{next ? <button type="button" disabled={!canAdvance} onClick={() => canAdvance && onStepChange(next)} className="rounded-xl bg-stone-100 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-30">Next: {STEP_META[next].title}</button> : <button type="submit" className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300">Save Character</button>}</div></div>;
+  return <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-stone-800 bg-stone-950/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3"><button type="button" disabled={!previous} onClick={() => previous && onStepChange(previous)} className="rounded-xl border border-stone-700 px-5 py-2.5 text-sm font-semibold text-stone-300 hover:bg-stone-900 disabled:opacity-30">Back</button><div className="text-xs text-stone-600">{index + 1} / {BUILDER_STEPS.length}</div>{next ? <button type="button" disabled={!canAdvance} onClick={() => canAdvance && onStepChange(next)} className="rounded-xl bg-stone-100 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-30">Next: {STEP_META[next].title}</button> : <button type="submit" disabled={saving} className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving..." : "Save Character"}</button>}</div></div>;
 }
+function getEquipmentPackDescription(label: string) {
+  const normalized = label.toLowerCase();
+  if (normalized.includes("dungeoneer")) return "Contains a backpack, crowbar, hammer, 10 pitons, 10 torches, tinderbox, 10 days of rations, a waterskin and 50 feet of hempen rope.";
+  if (normalized.includes("explorer")) return "Contains a backpack, bedroll, mess kit, tinderbox, 10 torches, 10 days of rations, a waterskin and 50 feet of hempen rope.";
+  return "";
+}
+
 function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }: {
-  races: Array<{ name: string; source: string }>;
+  races: Array<{ name: string; source: string; description: string }>;
   subraces: Array<{ name: string; parentRace: string }>;
   selectedRace: string;
   selectedSubrace: string;
@@ -905,6 +970,10 @@ function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }
                   <span className="font-semibold">{race.name}</span>
                   {children.length > 0 && <span className="text-xs text-stone-500">{children.length} subrace{children.length === 1 ? "" : "s"} {open ? "▴" : "▾"}</span>}
                 </button>
+                {open && selected && <div className="border-t border-stone-800 bg-stone-950/40 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-amber-500">{race.source || "Species"}</div>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-400">{race.description || "No species description is available."}</p>
+                </div>}
                 {open && children.length > 0 && <div className="border-t border-stone-800 p-2">
                   {children.map((entry) => <button key={entry.name} type="button" onClick={() => { setExpanded(race.name); onSelect(race.name, entry.name); }} className={"block w-full rounded-lg px-4 py-2 text-left text-sm " + (selectedSubrace === entry.name && selectedRace === race.name ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-stone-900 hover:text-stone-200")}>{entry.name}</button>)}
                 </div>}
