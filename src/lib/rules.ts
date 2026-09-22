@@ -421,9 +421,9 @@ export function hasOverride(character: Character, type: ContentType, contentId: 
   return character.accessOverrides.some((entry) => entry.type === type && entry.contentId === contentId);
 }
 
-export function isSpellNormallyAvailable(character: Character, spell: Spell) {
+export function isSpellNormallyAvailable(character: Character, spell: Spell, classCatalogue?: RuleClassCatalogue) {
   if (spell.requiredCharacterLevel && character.level < spell.requiredCharacterLevel) return false;
-  const withinLevel = spell.level === 0 || spell.level <= getMaxSpellLevel(character);
+  const withinLevel = spell.level === 0 || spell.level <= getMaxSpellLevel(character, classCatalogue);
   if (!withinLevel) return false;
   const classMatch = spell.classes.includes(character.className);
   const subclassMatch = Boolean(spell.subclasses?.includes(character.subclass));
@@ -431,12 +431,12 @@ export function isSpellNormallyAvailable(character: Character, spell: Spell) {
   return classMatch || subclassMatch || raceMatch;
 }
 
-export function getSpellRestrictionReason(character: Character, spell: Spell) {
+export function getSpellRestrictionReason(character: Character, spell: Spell, classCatalogue?: RuleClassCatalogue) {
   if (spell.requiredCharacterLevel && character.level < spell.requiredCharacterLevel) {
     return `Requires character level ${spell.requiredCharacterLevel}`;
   }
-  if (spell.level > 0 && spell.level > getMaxSpellLevel(character)) {
-    return `Your ${character.className} level ${character.level} normally reaches ${getMaxSpellLevel(character)}th-level spells`;
+  if (spell.level > 0 && spell.level > getMaxSpellLevel(character, classCatalogue)) {
+    return `Your ${character.className} level ${character.level} normally reaches ${getMaxSpellLevel(character, classCatalogue)}th-level spells`;
   }
   if (!spell.classes.includes(character.className) && !spell.subclasses?.includes(character.subclass) && !spell.races?.includes(character.race)) {
     return `Not on the ${character.className} spell list or another granted source`;
@@ -479,8 +479,8 @@ export function getItemRestrictionReason(character: Character, item: Item) {
   return "Restricted by prerequisites";
 }
 
-export function getAvailableSpells(character: Character, includeOverrides = true, sourceSpells: Spell[] = spells) {
-  return sourceSpells.filter((spell) => isSpellNormallyAvailable(character, spell) || (includeOverrides && hasOverride(character, "spell", spell.id)));
+export function getAvailableSpells(character: Character, includeOverrides = true, sourceSpells: Spell[] = spells, classCatalogue?: RuleClassCatalogue) {
+  return sourceSpells.filter((spell) => isSpellNormallyAvailable(character, spell, classCatalogue) || (includeOverrides && hasOverride(character, "spell", spell.id)));
 }
 
 export function getAvailableFeatures(character: Character, includeOverrides = true) {
