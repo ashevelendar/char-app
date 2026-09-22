@@ -225,12 +225,13 @@ function normalizeCharacter(value: Character): Character {
 
 function cleanDisplayText(value: string) {
   return value
-    .replace(/\.html\\b/gi, "")
+    .replaceAll(".html", "")
     .replace(/\{@[^\s}]+\s+([^}|}]+)(?:\|[^}]*)?\}/g, "$1")
     .replace(/\{@[^}]*\}/g, "")
     .replace(/[{}]/g, "")
-    .replace(/\\s+([,.;:])/g, "$1")
+    .replaceAll(" ,", ",").replaceAll(" .", ".").replaceAll(" ;", ";").replaceAll(" :", ":")
     .trim();
+}
 }
 
 function catalogueText(value: unknown): string {
