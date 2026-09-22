@@ -863,67 +863,11 @@ function CharacterEditor({
               <SectionCard title="Level Progression">
                 <div className="space-y-4">
                   {featureCatalogue.filter((feature) => feature.requiredLevel > character.level && feature.requiredLevel <= form.level && feature.className === form.className && (!feature.subclassName || feature.subclassName === form.subclass)).filter((feature) => !/gain a feature from your|gain a feature from the/i.test(feature.description)).map((feature) => <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Level {feature.requiredLevel}</Badge><Badge tone="warn">{feature.sourceType === "subclass" ? "Subclass" : "Class"}</Badge></div><p className="mt-3 whitespace-pre-line text-sm leading-6 text-stone-400">{feature.description}</p></article>)}
-                  {asiLevels.length > 0 && <div className="rounded-xl border border-amber-900/60 bg-amber-950/20 p-4"><h3 className="font-semibold text-amber-300">Ability Score Improvement / Feat</h3><p className="mt-2 text-sm text-stone-400">ASI levels reached: {asiLevels.join(", ")}.</p></div>}
+                  {newAsiLevels.length > 0 && <div className="rounded-xl border border-amber-900/60 bg-amber-950/20 p-4"><h3 className="font-semibold text-amber-300">Ability Score Improvement / Feat</h3><p className="mt-2 text-sm text-stone-400">New ASI levels reached: {newAsiLevels.join(", ")}. Complete them in the Ability Score Improvements section.</p></div>}
                 </div>
               </SectionCard>
 
-              {allAsiLevels.length > 0 && (
-                <SectionCard title="Ability Score Improvements / Feats" description="Existing feat choices are preserved. When you level up, any newly reached ASI levels can be allocated above in Class.">
-                  <div className="space-y-4">
-                    {allAsiLevels.map((asiLevel, index) => {
-                      const selectedFeatId = asiChoices[index] ?? "";
-                      const choices = featCatalogue
-                        .filter((feat) => !asiChoices.includes(feat.id) || feat.id === selectedFeatId)
-                        .filter((feat) => isFeatAvailable({
-                          level: form.level,
-                          abilities: progressionAbilities,
-                          race: form.race,
-                          subrace: form.subrace,
-                          className: form.className,
-                          background: form.background,
-                          feats: asiHistory.filter((entry) => entry.mode === "feat" && entry.featId).map((entry) => entry.featId as string),
-                          skills: selectedSkills,
-                          tools: selectedTools,
-                          languages: selectedLanguages,
-                        }, feat));
-                      const selectedFeat = featCatalogue.find((feat) => feat.id === selectedFeatId);
-                      return (
-                        <div key={asiLevel} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
-                          <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">Level {asiLevel}</h3><Badge>ASI / Feat</Badge></div>
-                          <select value={selectedFeatId} onChange={(event) => setAsiChoices((current) => {
-                            const next = [...current];
-                            next[index] = event.target.value;
-                            return next;
-                          })} className="mt-3 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100">
-                            <option value="">Ability Score Improvement</option>
-                            {choices.map((feat) => <option key={feat.id} value={feat.id}>{feat.name}</option>)}
-                          </select>
-                          {selectedFeat && <article className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4">
-                             <div className="flex items-center gap-2"><h3 className="font-semibold text-amber-300">{selectedFeat.name}</h3>{selectedFeat.source && <Badge>{selectedFeat.source}</Badge>}</div>
-                             <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-300">{selectedFeat.description}</p>
-                             {(() => {
-                               const abilityOptions = getFeatAbilityOptions(selectedFeat);
-                               if (!abilityOptions.length) return null;
-                               const grouped = [...new Map(abilityOptions.map((option) => [option.ability, option])).values()];
-                               const selectedAbility = featAbilityChoices[selectedFeat.id];
-                               const requiresChoice = grouped.length > 1;
-                               return <div className="mt-4 rounded-xl border border-stone-700 bg-stone-950/60 p-3">
-                                 <div className="text-xs font-semibold uppercase tracking-wider text-stone-400">Ability Score Effect</div>
-                                 {requiresChoice ? (
-                                   <select value={selectedAbility ?? ""} onChange={(event) => setFeatAbilityChoices((current) => ({ ...current, [selectedFeat.id]: event.target.value as AbilityKey }))} className="mt-2 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2.5 text-sm text-stone-100">
-                                     <option value="">Choose an ability...</option>
-                                     {grouped.map((option) => <option key={option.ability} value={option.ability}>+{option.amount} {option.ability.toUpperCase()}</option>)}
-                                   </select>
-                                 ) : <p className="mt-2 text-sm text-amber-300">+{grouped[0].amount} {grouped[0].ability.toUpperCase()}</p>}
-                               </div>;
-                             })()}
-                           </article>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </SectionCard>
-              )}
+
 
               <SectionCard title="Review">
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
