@@ -181,6 +181,8 @@ function normalizeCharacter(value: Character): Character {
   const merged = {
     ...defaultCharacter,
     ...value,
+    subrace: value.subrace ?? "",
+    tools: Array.isArray(value.tools) ? value.tools : [],
     abilities: { ...defaultCharacter.abilities, ...(value.abilities ?? {}) },
     savingThrows: Array.isArray(value.savingThrows) ? value.savingThrows : [],
     skills: Array.isArray(value.skills) ? value.skills : [],
@@ -1033,6 +1035,7 @@ function toCharacter(
     id: row.id,
     name: row.name,
     race: raceName,
+    subrace: relationName(row.subrace),
     className: relationName(row.class),
     subclass: maps.subclassByDbId.get(row.subclass_id) ?? relationName(row.subclass),
     background: relationName(row.background),
@@ -1049,6 +1052,7 @@ function toCharacter(
     abilities,
     savingThrows: Array.isArray(row.saving_throws) ? row.saving_throws : [],
     skills: Array.isArray(row.skills) ? row.skills : [],
+    tools: Array.isArray(row.tools) ? row.tools : [],
     languages: Array.isArray(row.languages) ? row.languages : [],
     feats: Array.isArray(row.feats) ? row.feats : [],
     resourceUses: row.resource_uses && typeof row.resource_uses === "object" ? row.resource_uses : {},
@@ -1127,9 +1131,10 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           .select(`
             id,name,race_id,class_id,subclass_id,background_id,level,alignment,player_name,
             current_hp,max_hp,temporary_hp,armor_class,speed,hit_dice,proficiency_bonus,
+            subrace_id,tools,
             strength,dexterity,constitution,intelligence,wisdom,charisma,
             saving_throws,skills,languages,notes,feats,resource_uses,
-            race:races(name),class:classes(name),subclass:subclasses(name),background:backgrounds(name)
+            race:races(name),subrace:subraces(name),class:classes(name),subclass:subclasses(name),background:backgrounds(name)
           `)
           .eq("user_id", user!.id)
           .order("created_at", { ascending: true });
@@ -1264,10 +1269,11 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         tempHp: 0,
         savingThrows: [],
         skills: input.skills ?? [],
+        tools: input.tools ?? [],
         languages: input.languages ?? [],
         feats: input.feats ?? [],
         resourceUses: input.resourceUses ?? {},
-        optionalFeatures: [],
+        optionalFeatures: input.optionalFeatures ?? [],
         features: [],
         spells: [],
         inventory: [],
@@ -1386,6 +1392,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         if (patch.feats !== undefined) dbPatch.feats = patch.feats;
     if (patch.resourceUses !== undefined) dbPatch.resource_uses = patch.resourceUses;
         if (patch.race !== undefined) dbPatch.race_id = maps.raceByName.get(patch.race) ?? null;
+        if (patch.subrace !== undefined) dbPatch.subrace_id = maps.subraceByName.get(patch.subrace) ?? null;
         if (patch.className !== undefined) dbPatch.class_id = maps.classByName.get(patch.className) ?? null;
         if (patch.subclass !== undefined) dbPatch.subclass_id = maps.subclassByName.get(patch.subclass) ?? null;
         if (patch.background !== undefined) dbPatch.background_id = maps.backgroundByName.get(patch.background) ?? null;
@@ -1401,6 +1408,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
         if (patch.savingThrows !== undefined) dbPatch.saving_throws = patch.savingThrows;
         if (patch.skills !== undefined) dbPatch.skills = patch.skills;
+        if (patch.tools !== undefined) dbPatch.tools = patch.tools;
         if (patch.languages !== undefined) dbPatch.languages = patch.languages;
 
         if (Object.keys(dbPatch).length) {
@@ -1941,6 +1949,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     id: isUuid(character.id) ? character.id : crypto.randomUUID(),    user_id: userId,
     name: character.name,
     race_id: maps.raceByName.get(character.race) ?? null,
+    subrace_id: maps.subraceByName.get(character.subrace) ?? null,
     class_id: maps.classByName.get(character.className) ?? null,
     subclass_id: maps.subclassByName.get(character.subclass) ?? null,
     background_id: maps.backgroundByName.get(character.background) ?? null,
@@ -1961,6 +1970,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     charisma: character.abilities.cha,
     saving_throws: character.savingThrows,
     skills: character.skills,
+    tools: character.tools,
     languages: character.languages,
     notes: character.notes,
     feats: character.feats,
