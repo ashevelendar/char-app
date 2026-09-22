@@ -54,6 +54,14 @@ function getAsiHistoryBonusTotal(entries: AsiHistoryEntry[]): AbilityScores {
   }, { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 });
 }
 
+function stripManagedNotes(notes: string) {
+  return notes
+    .split("\n")
+    .filter((line) => !/^(?:Expertise:|ASI History:|Feat Ability Choices:)/.test(line.trim()))
+    .join("\n")
+    .trim();
+}
+
 function parseAsiHistory(notes: string): AsiHistoryEntry[] {
   const match = notes.match(/^ASI History:\s*(.+)$/m);
   if (!match) return [];
