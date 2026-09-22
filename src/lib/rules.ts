@@ -589,6 +589,39 @@ export function getItemRestrictionReason(character: Character, item: Item) {
   return "Restricted by prerequisites";
 }
 
+export function getItemWeight(item: Item) {
+  if (!item.weight) return 0;
+  const match = String(item.weight).match(/(\\d+(?:\\.\\d+)?)\\s*lb/i);
+  return match ? Number(match[1]) : 0;
+}
+
+export function getInventoryWeight(character: Character, sourceItems: Item[] = items) {
+  return character.inventory.reduce((total, entry) => {
+    const item = sourceItems.find((candidate) => candidate.id === entry.itemId);
+    return total + (item ? getItemWeight(item) * Math.max(0, entry.quantity) : 0);
+  }, 0);
+}
+
+export function getCarryingCapacity(character: Character) {
+  return Math.max(0, character.abilities.str * 15);
+}
+
+export function isItemOverCarryingCapacity(character: Character, sourceItems: Item[] = items) {
+  return getInventoryWeight(character, sourceItems) > getCarryingCapacity(character);
+}
+
+export function canEquipItem(character: Character, item: Item) {
+  if (!isItemNormallyAvailable(character, item)) return false;
+  return Boolean(item.isWeapon || item.isArmor || item.isShield);
+}
+
+export function getEquipRestrictionReason(character: Character, item: Item) {
+  if (!isItemNormallyAvailable(character, item)) return getItemRestrictionReason(character, item);
+  if (!item.isWeapon && !item.isArmor && !item.isShield) return "This item is not currently represented as equippable equipment";
+  if (item.requiredClass && item.requiredClass !== character.className) return `Intended for ${item.requiredClass}`;
+  return "";
+}
+
 export function getAvailableSpells(character: Character, includeOverrides = true, sourceSpells: Spell[] = spells, classCatalogue?: RuleClassCatalogue) {
   return sourceSpells.filter((spell) => isSpellNormallyAvailable(character, spell, classCatalogue) || (includeOverrides && hasOverride(character, "spell", spell.id)));
 }
