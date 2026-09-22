@@ -22,7 +22,7 @@ export interface MagicalSecretsHistoryEntry {
   spellIds: string[];
 }
 
-export type FeatureGrantSource = "automatic" | "manual" | "dm";
+export type FeatureGrantSource = "automatic" | "manual" | "dm" | "legacy";
 
 export interface FeatureGrantHistoryEntry {
   featureId: string;
