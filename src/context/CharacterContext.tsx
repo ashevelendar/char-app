@@ -1393,12 +1393,12 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       setDatabaseStatus("loading");
       try {
         const maps = await loadContentMaps();
-        const homebrewResult = await supabase!
+        const homebrewCatalogueResult = await supabase!
           .from("homebrew_content")
           .select("id,name,content_type,description,source,edition,class_name,subclass_name,race_name,background_name,required_level,feature_types,prerequisites,data,is_published")
           .order("name");
-        if (homebrewResult.error) throw homebrewResult.error;
-        const homebrewRows = homebrewResult.data ?? [];
+        if (homebrewCatalogueResult.error) throw homebrewCatalogueResult.error;
+        const homebrewRows = homebrewCatalogueResult.data ?? [];
         setHomebrewCatalogue(homebrewRows.map((row) => ({
           id: row.id,
           name: row.name,
