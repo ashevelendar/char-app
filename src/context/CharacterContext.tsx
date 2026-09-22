@@ -1348,11 +1348,29 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [subclassOptionalFeatureProgression, setSubclassOptionalFeatureProgression] = useState<Record<string, ClassRules["optionalFeatureProgression"]>>({});
 
   useEffect(() => {
-    if (!user || !supabase) {
-      return;
-    }
-
     let cancelled = false;
+
+    if (!user || !supabase) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setCharacters([]);
+        setCatalogue({ classes: [], races: [], subraces: [], subclasses: [], backgrounds: [] });
+        setRaceRules({});
+        setBackgroundRules({});
+        setSpellCatalogue([]);
+        setItemCatalogue([]);
+        setFeatureCatalogue([]);
+        setFeatCatalogue([]);
+        setOptionalFeatureCatalogue([]);
+        setClassRules({});
+        setSubclassOptionalFeatureProgression({});
+        setHydrated(true);
+        setDatabaseStatus(supabase ? "local-only" : "error");
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
 
     async function load() {
       setHydrated(false);
