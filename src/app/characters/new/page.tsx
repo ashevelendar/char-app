@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { Badge, PageHeader, SectionCard } from "../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, Currency, InventoryEntry } from "../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getExpectedHitDice, getExpectedMaxHp, getProficiencyBonus, isFeatAvailable } from "../../../lib/rules";
+import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, SpellEntry } from "../../../lib/types";
+import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getExpectedHitDice, getExpectedMaxHp, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getWizardSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
 
@@ -90,6 +90,7 @@ export default function NewCharacterPage() {
   const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
   const [startingItemChoices, setStartingItemChoices] = useState<Record<string, string>>({});
   const [asiChoices, setAsiChoices] = useState<string[]>([]);
+  const [selectedSpells, setSelectedSpells] = useState<SpellEntry[]>([]);
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [equipmentMode, setEquipmentMode] = useState<"equipment" | "gold">("equipment");
   const [step, setStep] = useState<BuilderStep>("class");
@@ -158,6 +159,28 @@ export default function NewCharacterPage() {
     tools: selectedTools,
     languages: selectedLanguages,
   }), [form.level, form.abilities, form.race, form.subrace, form.className, form.background, form.feats, selectedSkills, selectedTools, selectedLanguages]);
+
+  const spellCharacter = useMemo(() => ({
+    ...defaultCharacter,
+    level: form.level,
+    abilities: form.abilities,
+    race: form.race,
+    subrace: form.subrace,
+    className: form.className,
+    subclass: form.subclass,
+    background: form.background,
+    feats: form.feats,
+    skills: selectedSkills,
+    tools: selectedTools,
+    languages: selectedLanguages,
+  } as Character), [form.level, form.abilities, form.race, form.subrace, form.className, form.subclass, form.background, form.feats, selectedSkills, selectedTools, selectedLanguages]);
+
+  const availableSpells = useMemo(() => spellCatalogue.filter((spell) => isSpellNormallyAvailable(spellCharacter, spell)), [spellCatalogue, spellCharacter]);
+  const cantripsKnown = getCantripsKnown(form.className, form.level);
+  const spellsKnown = getSpellsKnown(form.className, form.level);
+  const preparedSpellLimit = getPreparedSpellCount(spellCharacter);
+  const wizardSpellbookLimit = form.className === "Wizard" ? getWizardSpellbookProgression(form.level) : null;
+  const knownSpellLimit = spellsKnown ?? preparedSpellLimit ?? wizardSpellbookLimit;
 
   const availableFeats = useMemo(
     () => featCatalogue.filter((feat) => isFeatAvailable(featPrerequisiteCharacter, feat)),
@@ -298,6 +321,7 @@ export default function NewCharacterPage() {
       skills: selectedSkills,
       tools: selectedTools,
       languages: selectedLanguages,
+      spells: selectedSpells,
       inventory: equipmentMode === "equipment" ? equipmentSelections : [],
       currency: form.currency,
       maxHp,
@@ -353,6 +377,7 @@ export default function NewCharacterPage() {
                 <div className="space-y-3">
                   {featureCatalogue
                     .filter((feature) => feature.requiredLevel <= form.level && feature.className === form.className && (!feature.subclassName || feature.subclassName === form.subclass))
+                    .filter((feature) => !/gain a feature from your|gain a feature from the/i.test(feature.description))
                     .map((feature) => (
                       <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4">
                         <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Level {feature.requiredLevel}</Badge><Badge tone={feature.sourceType === "subclass" ? "warn" : "neutral"}>{feature.sourceType === "subclass" ? "Subclass" : "Class"}</Badge></div>
@@ -361,6 +386,8 @@ export default function NewCharacterPage() {
                     ))}
                 </div>
               </SectionCard>
+
+              {(cantripsKnown > 0 || knownSpellLimit !== null) && <SpellSelectionSection className={form.className} level={form.level} availableSpells={availableSpells} cantripsKnown={cantripsKnown} spellLimit={knownSpellLimit} selectedSpells={selectedSpells} onChange={setSelectedSpells} />}
 
               <SectionCard title="Class options" description="Choose Fighting Styles and other optional class features available at this level.">
                 {optionalChoiceGroups.length > 0 ? optionalChoiceGroups.map((group) => (
@@ -753,6 +780,53 @@ function ChoiceGroup({ title, choices, value, onChange, exclude = [] }: { title:
         {options.map((option) => <option key={option}>{option}</option>)}
       </select>;
     }))}
+  </div>;
+}
+
+function SpellSelectionSection({ className, level, availableSpells, cantripsKnown, spellLimit, selectedSpells, onChange }: { className: string; level: number; availableSpells: Array<{ id: string; name: string; level: number; school: string; description: string }>; cantripsKnown: number; spellLimit: number | null; selectedSpells: SpellEntry[]; onChange: (value: SpellEntry[]) => void }) {
+  if (!cantripsKnown && spellLimit === null) return null;
+  const selectedCantrips = selectedSpells.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0);
+  const selectedLeveled = selectedSpells.filter((entry) => {
+    const spell = availableSpells.find((candidate) => candidate.id === entry.spellId);
+    return Boolean(spell && spell.level > 0);
+  });
+  const isWizard = className === "Wizard";
+  const label = isWizard ? "Spellbook" : spellLimit === null ? "Prepared spells" : "Spells known";
+  const remainingCantrips = Math.max(0, cantripsKnown - selectedCantrips.length);
+  const remainingLeveled = spellLimit === null ? 0 : Math.max(0, spellLimit - selectedLeveled.length);
+  function toggle(spellId: string) {
+    if (selectedSpells.some((entry) => entry.spellId === spellId)) {
+      onChange(selectedSpells.filter((entry) => entry.spellId !== spellId));
+      return;
+    }
+    const spell = availableSpells.find((entry) => entry.id === spellId);
+    if (!spell) return;
+    const count = spell.level === 0 ? selectedCantrips.length : selectedLeveled.length;
+    const limit = spell.level === 0 ? cantripsKnown : spellLimit;
+    if (limit !== null && count >= limit) return;
+    onChange([...selectedSpells, { spellId, prepared: spell.level === 0 || !isWizard }]);
+  }
+  const spellbookText = "Choose the spells in your spellbook. At level " + level + ", a Wizard can have " + (spellLimit ?? 0) + " spells in the spellbook.";
+  const knownText = "Choose the spells your character starts with. You can select " + cantripsKnown + " cantrip" + (cantripsKnown === 1 ? "" : "s") + (spellLimit !== null ? " and " + spellLimit + " " + label.toLowerCase() + "." : ".");
+  return <SectionCard title="Spells" description={isWizard ? spellbookText : knownText}>
+    <div className="grid gap-5 lg:grid-cols-2">
+      <SpellPicker title={"Cantrips (" + selectedCantrips.length + "/" + cantripsKnown + ")"} spells={availableSpells.filter((spell) => spell.level === 0)} selected={selectedSpells} remaining={remainingCantrips} onToggle={toggle} />
+      {spellLimit !== null && <SpellPicker title={label + " (" + selectedLeveled.length + "/" + spellLimit + ")"} spells={availableSpells.filter((spell) => spell.level > 0)} selected={selectedSpells} remaining={remainingLeveled} onToggle={toggle} />}
+      {spellLimit === null && isWizard && <SpellPicker title={"Spellbook (" + selectedLeveled.length + "/" + (wizardSpellbookLimit ?? 0) + ")"} spells={availableSpells.filter((spell) => spell.level > 0)} selected={selectedSpells} remaining={remainingLeveled} onToggle={toggle} />}
+    </div>
+    <p className="mt-4 text-xs text-stone-500">Only spells normally available to this class, subclass or species and within the character&apos;s current spell level are shown.</p>
+  </SectionCard>;
+}
+
+function SpellPicker({ title, spells, selected, remaining, onToggle }: { title: string; spells: Array<{ id: string; name: string; level: number; school: string; description: string }>; selected: SpellEntry[]; remaining: number; onToggle: (id: string) => void }) {
+  return <div className="rounded-2xl border border-stone-800 bg-stone-950/60 p-4">
+    <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{title}</h3>{remaining > 0 && <Badge>{remaining} remaining</Badge>}</div>
+    <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+      {spells.map((spell) => {
+        const checked = selected.some((entry) => entry.spellId === spell.id);
+        return <label key={spell.id} className="block cursor-pointer rounded-xl border border-stone-800 p-3 hover:bg-stone-900"><div className="flex items-start gap-3"><input type="checkbox" checked={checked} onChange={() => onToggle(spell.id)} disabled={!checked && remaining <= 0} className="mt-1" /><div><div className="font-medium">{spell.name} <span className="text-xs text-stone-500">Level {spell.level}</span></div><p className="mt-1 text-xs leading-5 text-stone-500">{spell.description}</p></div></div></label>;
+      })}
+    </div>
   </div>;
 }
 
