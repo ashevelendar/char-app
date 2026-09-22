@@ -544,14 +544,6 @@ function CharacterEditor({
                       next[absoluteIndex] = featId;
                       return next;
                     });
-                    const newIndex = newAsiLevels.indexOf(newAsiLevels.find((level) => allAsiLevels[absoluteIndex] === level) ?? -1);
-                    if (newIndex >= 0) {
-                      setAsiAbilityChoices((current) => {
-                        const next = [...current];
-                        next[newIndex] = { mode: "two" };
-                        return next;
-                      });
-                    }
                   }}
                   featCatalogue={featCatalogue}
                   character={spellCharacter}
