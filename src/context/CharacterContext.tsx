@@ -638,11 +638,16 @@ function makeMaps(
   itemRows: Array<{ id: string; name: string; category?: string | null; rarity?: string | null; description?: string | null; weight?: string | null; value?: string | null; requires_attunement?: boolean | null; minimum_level?: number | null; raw_data?: unknown }>,
   classFeatureRows: Array<{ class_id: string; feature_id: string; required_level?: number | null }>,
   subclassFeatureRows: Array<{ subclass_id: string; feature_id: string; required_level?: number | null }>,
+  raceFeatureRows: Array<{ race_id: string; feature_id: string }>,
+  backgroundFeatureRows: Array<{ background_id: string; feature_id: string }>,
   featRows: Array<{ id: string; name: string; description?: string | null; prerequisite?: unknown; ability?: unknown; source?: string | null; edition?: string | null; content_key?: string | null }>,
   subraceRows: Array<{ id: string; name: string; race_id: string; race_name?: string | null; description?: string | null; source?: string | null; source_code?: string | null; raw_data?: unknown }>,
   optionalFeatureRows: Array<{ id: string; name: string; description?: string | null; feature_types?: unknown; source?: string | null; content_key?: string | null; raw_data?: unknown }>,
 ): ContentMaps {  const byName = (rows: Array<{ id: string; name: string }>) => new Map(rows.map((row) => [row.name, row.id]));
-  const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));  const raceNameById = new Map(raceRows.map((row: any) => [row.id, row.name]));
+  const classNameById = new Map(classesRows.map((row: any) => [row.id, row.name]));
+  const subclassNameById = new Map(subclassRows.map((row: any) => [row.id, row.name]));
+  const raceNameById = new Map(raceRows.map((row: any) => [row.id, row.name]));
+  const backgroundNameById = new Map(backgroundRows.map((row: any) => [row.id, row.name]));
   const uniqueNames = (values: string[]) => [...new Set(values.filter(Boolean))];
 
   function preferredRows<T extends { name: string; source?: string | null; source_code?: string | null }>(rows: T[]) {
@@ -805,20 +810,44 @@ function makeMaps(
     }
   }
 
+  const raceFeatureById = new Map<string, string>();
+  for (const link of raceFeatureRows) {
+    const raceName = raceNameById.get(link.race_id);
+    if (raceName) raceFeatureById.set(link.feature_id, raceName);
+  }
+  const backgroundFeatureById = new Map<string, string>();
+  for (const link of backgroundFeatureRows) {
+    const backgroundName = backgroundNameById.get(link.background_id);
+    if (backgroundName) backgroundFeatureById.set(link.feature_id, backgroundName);
+  }
+
   const featureCatalogue: Feature[] = featureRows
     .map((row: any) => {
       const classLink = classFeatureById.get(row.id);
       const subclassLink = subclassFeatureById.get(row.id);
+      const raceName = raceFeatureById.get(row.id);
+      const backgroundName = backgroundFeatureById.get(row.id);
+      const sourceType = subclassLink
+        ? "subclass"
+        : raceName
+          ? "race"
+          : backgroundName
+            ? "background"
+            : classLink
+              ? "class"
+              : (row.source_type === "race" || row.source_type === "background" || row.source_type === "feat" ? row.source_type : "class");
       return {
         id: row.id,
         name: row.name,
         source: row.source ?? row.source_code ?? "",
-        sourceType: subclassLink ? "subclass" : "class",
+        sourceType,
         requiredLevel: subclassLink?.requiredLevel ?? classLink?.requiredLevel ?? (Number(row.required_level) || 1),
         description: cleanDisplayText(row.description ?? ""),
         uses: extractFeatureUses(row.raw_data),
         className: classLink?.className ?? subclassLink?.className,
         subclassName: subclassLink?.subclassName,
+        raceName: raceName ?? (sourceType === "race" ? row.source ?? undefined : undefined),
+        backgroundName: backgroundName ?? (sourceType === "background" ? row.source ?? undefined : undefined),
       } satisfies Feature;
     })
     .filter((feature) => feature.name)
@@ -916,7 +945,8 @@ function makeMaps(
     abilityBonuses: extractAbilityBonuses(row.raw_data),
   })).filter((row) => row.name && row.parentRace);
 
-  const subraceByName = new Map(subraces.map((row) => [row.name, row.id]));
+  const subraceKey = (parentRace: string, name: string) => parentRace.trim().toLowerCase() + "::" + name.trim().toLowerCase();
+  const subraceByName = new Map(subraces.map((row) => [subraceKey(row.parentRace, row.name), row.id]));
   const subraceByDbId = new Map(subraces.map((row) => [row.id, row.name]));
 
   const featCatalogue: Feat[] = featRows
@@ -1034,6 +1064,8 @@ async function loadContentMaps(): Promise<ContentMaps> {
     spellRacesResult,
     classFeaturesResult,
     subclassFeaturesResult,
+    raceFeaturesResult,
+    backgroundFeaturesResult,
     featsResult,
   ] = await Promise.all([    supabase.from("classes").select("id,name,raw_data").is("owner_id", null).eq("edition", "2014"),
     supabase.from("races").select("id,name,description,source,source_code,raw_data").is("owner_id", null).eq("edition", "2014"),    supabase.from("subclasses").select("id,name,class_id,description,source,source_code,edition,raw_data").is("owner_id", null).eq("edition", "2014"),
@@ -1048,6 +1080,8 @@ async function loadContentMaps(): Promise<ContentMaps> {
     supabase.from("spell_races").select("spell_id,race_id"),
     supabase.from("class_features").select("class_id,feature_id,required_level"),
     supabase.from("subclass_features").select("subclass_id,feature_id,required_level"),
+    supabase.from("race_features").select("race_id,feature_id"),
+    supabase.from("background_features").select("background_id,feature_id"),
     supabase.from("feats").select("id,name,description,prerequisite,ability,source,source_code,edition,content_key").eq("edition", "2014").is("owner_id", null),
   ]);
   // Feats and optional features were added after the original catalogue. Treat a missing
@@ -1092,6 +1126,8 @@ async function loadContentMaps(): Promise<ContentMaps> {
     ["spell_races", spellRacesResult],
     ["class_features", classFeaturesResult],
     ["subclass_features", subclassFeaturesResult],
+    ["race_features", raceFeaturesResult],
+    ["background_features", backgroundFeaturesResult],
     ["feats", safeFeatsResult],
   ] as const;
 
@@ -1126,6 +1162,8 @@ async function loadContentMaps(): Promise<ContentMaps> {
     spellRaces: spellRacesResult.data ?? [],
     classFeatures: classFeaturesResult.data ?? [],
     subclassFeatures: subclassFeaturesResult.data ?? [],
+    raceFeatures: raceFeaturesResult.data ?? [],
+    backgroundFeatures: backgroundFeaturesResult.data ?? [],
     feats: featsData,
   };
 
@@ -1157,6 +1195,8 @@ async function loadContentMaps(): Promise<ContentMaps> {
     rows.items,
     rows.classFeatures,
     rows.subclassFeatures,
+    rows.raceFeatures,
+    rows.backgroundFeatures,
     rows.feats,
     rows.subraces,
     rows.optionalFeatures,
@@ -1309,19 +1349,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user || !supabase) {
-      setCharacters([]);
-      setCatalogue({ classes: [], races: [], subraces: [], subclasses: [], backgrounds: [] });
-      setRaceRules({});
-      setBackgroundRules({});
-      setSpellCatalogue([]);
-      setItemCatalogue([]);
-      setFeatureCatalogue([]);
-      setFeatCatalogue([]);
-      setOptionalFeatureCatalogue([]);
-      setClassRules({});
-      setSubclassOptionalFeatureProgression({});
-      setHydrated(true);
-      setDatabaseStatus(supabase ? "local-only" : "error");
       return;
     }
 
@@ -1515,36 +1542,30 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         notes: input.notes,
       };
 
-      const starterFeatures = featureCatalogue.filter((feature) =>
-        feature.requiredLevel <= baseCharacter.level &&
-        feature.className === baseCharacter.className &&
-        (!feature.subclassName || feature.subclassName === baseCharacter.subclass) &&
-        !/gain a feature from your|gain a feature from the|optional feature/i.test(feature.description)
-      ).map((feature) => feature.id);
+      const starterFeatures = featureCatalogue
+        .filter((feature) =>
+          isFeatureNormallyAvailable(baseCharacter, feature) &&
+          !/gain a feature from your|gain a feature from the|optional feature/i.test(feature.description),
+        )
+        .map((feature) => feature.id);
       const character: Character = { ...baseCharacter, features: starterFeatures };
-
-      setCharacters((current) => [...current, character]);
 
       if (supabase && user) {
         try {
           const maps = await getMapsForWrite();
-          await insertCharacterToDb(user.id, character, maps);
-          for (const featureId of starterFeatures) {
-            const featureDbId = appIdToDbId(maps.featureByAppId, featureId);
-            if (featureDbId) {
-              await supabase.from("character_features").upsert({
-                character_id: character.id,
-                feature_id: featureDbId,
-                source: "class/subclass/race/background",
-              }, { onConflict: "character_id,feature_id" });
-            }
-          }
+          const persisted = await insertCharacterToDb(user.id, character, maps);
+          setCharacters((current) => [...current, persisted]);
           setDatabaseStatus("connected");
+          return persisted.id;
         } catch (error) {
           console.error("Could not save new character:", error);
           setDatabaseStatus("error");
-        }      }
+          throw error;
+        }
+      }
 
+      setCharacters((current) => [...current, character]);
+      setDatabaseStatus("local-only");
       return character.id;
     },
     updateCharacter: async (id, patch) => {
@@ -1627,7 +1648,10 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         if (patch.feats !== undefined) dbPatch.feats = patch.feats;
     if (patch.resourceUses !== undefined) dbPatch.resource_uses = patch.resourceUses;
         if (patch.race !== undefined) dbPatch.race_id = maps.raceByName.get(patch.race) ?? null;
-        if (patch.subrace !== undefined) dbPatch.subrace_id = maps.subraceByName.get(patch.subrace) ?? null;
+        if (patch.subrace !== undefined) {
+          const raceName = patch.race ?? currentCharacter?.race ?? "";
+          dbPatch.subrace_id = maps.subraceByName.get(raceName.trim().toLowerCase() + "::" + patch.subrace.trim().toLowerCase()) ?? null;
+        }
         if (patch.className !== undefined) dbPatch.class_id = maps.classByName.get(patch.className) ?? null;
         if (patch.subclass !== undefined) dbPatch.subclass_id = maps.subclassByName.get(patch.subclass) ?? null;
         if (patch.background !== undefined) dbPatch.background_id = maps.backgroundByName.get(patch.background) ?? null;
@@ -2241,7 +2265,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     id: isUuid(character.id) ? character.id : crypto.randomUUID(),    user_id: userId,
     name: character.name,
     race_id: maps.raceByName.get(character.race) ?? null,
-    subrace_id: maps.subraceByName.get(character.subrace) ?? null,
+    subrace_id: maps.subraceByName.get(character.race.trim().toLowerCase() + "::" + character.subrace.trim().toLowerCase()) ?? null,
     class_id: maps.classByName.get(character.className) ?? null,
     subclass_id: maps.subclassByName.get(character.subclass) ?? null,
     background_id: maps.backgroundByName.get(character.background) ?? null,
