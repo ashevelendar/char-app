@@ -1519,7 +1519,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         feature.requiredLevel <= baseCharacter.level &&
         feature.className === baseCharacter.className &&
         (!feature.subclassName || feature.subclassName === baseCharacter.subclass) &&
-        !/gain a feature from your|gain a feature from the/i.test(feature.description)
+        !/gain a feature from your|gain a feature from the|optional feature/i.test(feature.description)
       ).map((feature) => feature.id);
       const character: Character = { ...baseCharacter, features: starterFeatures };
 
