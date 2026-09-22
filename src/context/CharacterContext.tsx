@@ -1812,12 +1812,19 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             }
           : { message: String(error ?? "") };
         console.error("Could not update character:", details);
+        if (currentCharacter) {
+          setCharacters((current) =>
+            current.map((character) => character.id === id ? currentCharacter : character),
+          );
+        }
         setDatabaseStatus("error");
+        throw error;
       }
     },
 
 
     deleteCharacter: async (id) => {
+      const deletedCharacter = characters.find((character) => character.id === id);
       setCharacters((current) => current.filter((character) => character.id !== id));
       if (!supabase || !user || !isUuid(id)) return;
 
@@ -1830,7 +1837,15 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         if (result.error) throw result.error;
       } catch (error) {
         console.error("Could not delete character:", error);
+        if (deletedCharacter) {
+          setCharacters((current) =>
+            current.some((character) => character.id === id)
+              ? current
+              : [...current, deletedCharacter],
+          );
+        }
         setDatabaseStatus("error");
+        throw error;
       }
     },
 
