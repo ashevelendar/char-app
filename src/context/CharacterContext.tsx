@@ -1599,6 +1599,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         if (patch.skills !== undefined) dbPatch.skills = patch.skills;
         if (patch.tools !== undefined) dbPatch.tools = patch.tools;
         if (patch.languages !== undefined) dbPatch.languages = patch.languages;
+        if (patch.currency !== undefined) dbPatch.currency = patch.currency;
 
         if (Object.keys(dbPatch).length) {
           const result = await supabase
