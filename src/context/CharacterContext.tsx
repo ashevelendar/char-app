@@ -149,6 +149,7 @@ type CharacterContextValue = {
   spellCatalogue: Spell[];
   featureCatalogue: Feature[];
   featCatalogue: Feat[];
+  homebrewCatalogue: HomebrewContent[];
   itemCatalogue: Item[];
   optionalFeatureCatalogue: OptionalFeatureDefinition[];
   classRules: Record<string, ClassRules>;
@@ -697,8 +698,7 @@ function makeMaps(
           ? ({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 }[textLanguageMatch[1].toLowerCase()] ?? 0)
           : 0;
         const languageChoices = languageRules.choices.length
-          ? languageRules.choices
-          : alternateLanguageRules.choices.length
+          ? languageRules.choices          : alternateLanguageRules.choices.length
             ? alternateLanguageRules.choices
             : textLanguageCount > 0
               ? [{ count: textLanguageCount, options: LANGUAGE_OPTIONS_2014 }]
@@ -976,7 +976,6 @@ function makeMaps(
     spellCatalogue,
     featureCatalogue,
     featCatalogue,
-    homebrewCatalogue,
     itemCatalogue,
     optionalFeatureCatalogue,
     classRules,
@@ -1397,8 +1396,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           .from("homebrew_content")
           .select("id,name,content_type,description,source,edition,class_name,subclass_name,race_name,background_name,required_level,feature_types,prerequisites,data,is_published")
           .order("name");
-        if (homebrewCatalogueResult.error) throw homebrewCatalogueResult.error;
-        const homebrewRows = homebrewCatalogueResult.data ?? [];
+        if (homebrewCatalogueResult.error) throw homebrewCatalogueResult.error;        const homebrewRows = homebrewCatalogueResult.data ?? [];
         setHomebrewCatalogue(homebrewRows.map((row) => ({
           id: row.id,
           name: row.name,
@@ -2097,8 +2095,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
       if (supabase && user && isUuid(characterId)) {
         try {
-          const maps = await getMapsForWrite();
-          const dbSpellId = maps.spellByDbId.get(spellId) ?? appIdToDbId(maps.spellByAppId, spellId);
+          const maps = await getMapsForWrite();          const dbSpellId = maps.spellByDbId.get(spellId) ?? appIdToDbId(maps.spellByAppId, spellId);
           if (!dbSpellId) throw new Error(`Spell "${spellId}" is missing from the database catalogue.`);
 
           const result = await supabase.from("character_spells").upsert({
