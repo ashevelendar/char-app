@@ -2274,6 +2274,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     },
 
     removeInventoryItem: async (characterId, itemId) => {
+      const character = characters.find((entry) => entry.id === characterId);
+      if (!character) return;
       setCharacters((current) => current.map((character) =>
         character.id === characterId
           ? { ...character, inventory: character.inventory.filter((entry) => entry.itemId !== itemId) }
@@ -2427,6 +2429,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     },
 
     removeSpell: async (characterId, spellId) => {
+      const character = characters.find((entry) => entry.id === characterId);
+      if (!character) return;
       setCharacters((current) => current.map((character) =>
         character.id === characterId
           ? { ...character, spells: character.spells.filter((entry) => entry.spellId !== spellId) }
@@ -2584,6 +2588,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     },
 
     removeOptionalFeature: async (characterId, optionalFeatureKey) => {
+      const character = characters.find((entry) => entry.id === characterId);
+      if (!character) return;
       setCharacters((current) => current.map((character) =>
         character.id === characterId
           ? { ...character, optionalFeatures: character.optionalFeatures.filter((key) => key !== optionalFeatureKey) }
@@ -2650,6 +2656,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     },
 
     removeHomebrew: async (characterId, homebrewId) => {
+      const character = characters.find((entry) => entry.id === characterId);
+      if (!character) return;
       setCharacters((current) => current.map((entry) =>
         entry.id === characterId ? { ...entry, homebrew: entry.homebrew.filter((id) => id !== homebrewId) } : entry,
       ));
@@ -2667,6 +2675,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     },
 
     removeFeature: async (characterId, featureId) => {
+      const character = characters.find((entry) => entry.id === characterId);
+      if (!character) return;
       setCharacters((current) => current.map((character) =>
         character.id === characterId
           ? {
@@ -2694,6 +2704,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     },
 
     revokeOverride: async (characterId, type, contentId) => {
+      const character = characters.find((entry) => entry.id === characterId);
+      if (!character) return;
       setCharacters((current) => current.map((character) =>
         character.id === characterId
           ? { ...character, accessOverrides: character.accessOverrides.filter((entry) => !(entry.type === type && entry.contentId === contentId)) }
