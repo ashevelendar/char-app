@@ -20,8 +20,7 @@ type RequirementKey = "identity" | "nameClass" | "background" | "race" | "abilit
 function isOrdinaryStartingItem(item: Item) {
   const rarity = item.rarity.trim().toLowerCase();
   const description = item.description.toLowerCase();
-  const nonOrdinaryRarities = new Set(["uncommon", "rare", "very rare", "legendary", "artifact"]);
-  if (nonOrdinaryRarities.has(rarity)) return false;
+  if (rarity !== "none") return false;
   if (item.requiresAttunement || item.restricted || item.magicBonus) return false;
   if (/\b(?:magic|magical|cursed|attunement|requires attunement)\b/.test(description)) return false;
   return true;
