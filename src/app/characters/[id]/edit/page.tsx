@@ -455,6 +455,23 @@ function CharacterEditor({
     });
   }
 
+  const canAdvanceFromStep = (currentStep: BuilderStep) => {
+    if (currentStep === "class") return Boolean(form.className);
+    if (currentStep === "background") {
+      const choices = selectedBackgroundRules;
+      return Boolean(form.background) &&
+        (!choices || choices.skillChoices.reduce((total, choice) => total + choice.count, 0) === backgroundSkillSelections.filter(Boolean).length) &&
+        (!choices || choices.toolChoices.reduce((total, choice) => total + choice.count, 0) === backgroundToolSelections.filter(Boolean).length) &&
+        (!choices || choices.languageChoices.reduce((total, choice) => total + choice.count, 0) === backgroundLanguageSelections.filter(Boolean).length);
+    }
+    if (currentStep === "species") {
+      if (!form.race) return false;
+      const hasSubraces = catalogue.subraces.some((entry) => entry.parentRace === form.race);
+      return !hasSubraces || Boolean(form.subrace);
+    }
+    return true;
+  };
+
   return (
     <div className="min-h-[calc(100vh-120px)] bg-stone-950">
       <BuilderStepNav step={step} onStepChange={setStep} />
@@ -592,7 +609,7 @@ function CharacterEditor({
           {step === "species" && (
             <>
               <SectionCard title="Species" description="Change the race or subrace and review the associated traits.">
-                <RacePicker races={catalogue.races} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} />
+                <RacePicker races={catalogue.races.map((name) => ({ name, source: raceRules[name]?.source ?? "" }))} subraces={catalogue.subraces} selectedRace={form.race} selectedSubrace={form.subrace} onSelect={selectRace} />
               </SectionCard>
               {raceRules[form.race] && <InfoBox title={form.race} badge={raceRules[form.race].source} text={raceRules[form.race].description || "No species description is available."} />}
               {selectedSubrace && <InfoBox title={selectedSubrace.name} badge={selectedSubrace.source} text={selectedSubrace.description || "No subrace description is available."} />}
@@ -825,7 +842,7 @@ function CharacterEditor({
             </>
           )}
 
-          <BuilderFooter step={step} onStepChange={setStep} />
+          <BuilderFooter step={step} onStepChange={setStep} canAdvance={canAdvanceFromStep(step)} />
         </form>
       </div>
     </div>
@@ -847,36 +864,58 @@ function BuilderStepNav({ step, onStepChange }: { step: BuilderStep; onStepChang
   return <div className="border-b border-stone-800 bg-stone-950/95"><div className="mx-auto max-w-5xl overflow-x-auto px-4 sm:px-6 lg:px-8"><nav className="flex min-w-max items-stretch gap-1">{BUILDER_STEPS.map((entry) => { const active = entry === step; return <button key={entry} type="button" onClick={() => onStepChange(entry)} className={`relative px-4 py-4 text-left ${active ? "text-stone-100" : "text-stone-500 hover:text-stone-300"}`}><span className="mr-2 text-[10px] font-bold text-stone-600">{STEP_META[entry].number}.</span><span className="text-xs font-semibold uppercase tracking-wider">{STEP_META[entry].title}</span>{active && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-amber-400" />}</button>; })}</nav></div></div>;
 }
 
-function BuilderFooter({ step, onStepChange }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void }) {
+function BuilderFooter({ step, onStepChange, canAdvance }: { step: BuilderStep; onStepChange: (step: BuilderStep) => void; canAdvance: boolean }) {
   const index = BUILDER_STEPS.indexOf(step);
   const previous = index > 0 ? BUILDER_STEPS[index - 1] : null;
   const next = index < BUILDER_STEPS.length - 1 ? BUILDER_STEPS[index + 1] : null;
-  return <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-stone-800 bg-stone-950/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3"><button type="button" disabled={!previous} onClick={() => previous && onStepChange(previous)} className="rounded-xl border border-stone-700 px-5 py-2.5 text-sm font-semibold text-stone-300 hover:bg-stone-900 disabled:opacity-30">Back</button><div className="text-xs text-stone-600">{index + 1} / {BUILDER_STEPS.length}</div>{next ? <button type="button" onClick={() => onStepChange(next)} className="rounded-xl bg-stone-100 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300">Next: {STEP_META[next].title}</button> : <button type="submit" className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300">Save Character</button>}</div></div>;
+  return <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-stone-800 bg-stone-950/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3"><button type="button" disabled={!previous} onClick={() => previous && onStepChange(previous)} className="rounded-xl border border-stone-700 px-5 py-2.5 text-sm font-semibold text-stone-300 hover:bg-stone-900 disabled:opacity-30">Back</button><div className="text-xs text-stone-600">{index + 1} / {BUILDER_STEPS.length}</div>{next ? <button type="button" disabled={!canAdvance} onClick={() => canAdvance && onStepChange(next)} className="rounded-xl bg-stone-100 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-30">Next: {STEP_META[next].title}</button> : <button type="submit" className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-stone-950 hover:bg-amber-300">Save Character</button>}</div></div>;
 }
-
-function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }: { races: string[]; subraces: Array<{ name: string; parentRace: string }>; selectedRace: string; selectedSubrace: string; onSelect: (race: string, subrace?: string) => void }) {
+function RacePicker({ races, subraces, selectedRace, selectedSubrace, onSelect }: {
+  races: Array<{ name: string; source: string }>;
+  subraces: Array<{ name: string; parentRace: string }>;
+  selectedRace: string;
+  selectedSubrace: string;
+  onSelect: (race: string, subrace?: string) => void;
+}) {
   const [expanded, setExpanded] = useState(selectedRace);
+  const sourceOrder = ["PHB", ...Array.from(new Set(races.map((race) => race.source || "Other").filter((source) => source !== "PHB"))).sort((a, b) => a.localeCompare(b))];
+  const grouped = sourceOrder.map((source) => ({
+    source,
+    races: races.filter((race) => (race.source || "Other") === source).sort((a, b) => a.name.localeCompare(b.name)),
+  })).filter((group) => group.races.length > 0);
+
   return <div>
     <div className="text-xs font-semibold uppercase tracking-wider text-stone-500">Race</div>
-    <div className="mt-2 space-y-2">
-      {races.map((race) => {
-        const children = subraces.filter((entry) => entry.parentRace === race);
-        const open = expanded === race;
-        const selected = selectedRace === race && !selectedSubrace;
-        return <div key={race} className="rounded-xl border border-stone-800 bg-stone-950/60 overflow-hidden">
-          <button type="button" onClick={() => { setExpanded(open ? "" : race); onSelect(race); }} className={`flex w-full items-center justify-between px-4 py-3 text-left ${selected ? "bg-stone-800 text-stone-100" : "text-stone-300"}`}>
-            <span className="font-semibold">{race}</span>
-            {children.length > 0 && <span className="text-xs text-stone-500">{children.length} subrace{children.length === 1 ? "" : "s"} {open ? "▴" : "▾"}</span>}
-          </button>
-          {open && children.length > 0 && <div className="border-t border-stone-800 p-2">
-            {children.map((entry) => <button key={entry.name} type="button" onClick={() => { setExpanded(race); onSelect(race, entry.name); }} className={`block w-full rounded-lg px-4 py-2 text-left text-sm ${selectedSubrace === entry.name ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-stone-900 hover:text-stone-200"}`}>{entry.name}</button>)}
-          </div>}
-        </div>;
-      })}
+    <div className="mt-3 space-y-6">
+      {grouped.map((group) => (
+        <section key={group.source}>
+          <div className="mb-2 flex items-center gap-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-amber-300">{group.source}</h3>
+            <div className="h-px flex-1 bg-stone-800" />
+          </div>
+          <div className="space-y-2">
+            {group.races.map((race) => {
+              const children = subraces.filter((entry) => entry.parentRace === race.name).sort((a, b) => a.name.localeCompare(b.name));
+              const open = expanded === race.name;
+              const selected = selectedRace === race.name;
+              const buttonClass = "flex w-full items-center justify-between px-4 py-3 text-left " + (selected && !selectedSubrace ? "bg-stone-800 text-stone-100" : selected ? "bg-stone-900 text-stone-200" : "text-stone-300");
+              const subraceClass = "block w-full rounded-lg px-4 py-2 text-left text-sm " + (selectedSubrace === entry.name && selectedRace === race.name ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-stone-900 hover:text-stone-200");
+              return <div key={race.name} className="rounded-xl border border-stone-800 bg-stone-950/60 overflow-hidden">
+                <button type="button" onClick={() => { setExpanded(open ? "" : race.name); onSelect(race.name); }} className={buttonClass}>
+                  <span className="font-semibold">{race.name}</span>
+                  {children.length > 0 && <span className="text-xs text-stone-500">{children.length} subrace{children.length === 1 ? "" : "s"} {open ? "▴" : "▾"}</span>}
+                </button>
+                {open && children.length > 0 && <div className="border-t border-stone-800 p-2">
+                  {children.map((entry) => <button key={entry.name} type="button" onClick={() => { setExpanded(race.name); onSelect(race.name, entry.name); }} className={"block w-full rounded-lg px-4 py-2 text-left text-sm " + (selectedSubrace === entry.name && selectedRace === race.name ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-stone-900 hover:text-stone-200")}>{entry.name}</button>)}
+                </div>}
+              </div>;
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   </div>;
 }
-
 function ChoiceGroup({ title, choices, value, onChange, exclude = [] }: { title: string; choices: Array<{ count: number; options: string[] }>; value: string[]; onChange: (value: string[]) => void; exclude?: string[] }) {
   if (!choices.length) return null;
   let offset = 0;
