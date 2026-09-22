@@ -1,7 +1,7 @@
 export type AbilityKey = "str" | "dex" | "con" | "int" | "wis" | "cha";
 export type AbilityScores = Record<AbilityKey, number>;
 
-export type AsiChoiceMode = "two" | "one" | "feat";
+export type AsiChoiceMode = "two" | "one" | "feat" | "legacy";
 
 export interface AsiHistoryEntry {
   level: number;
