@@ -171,8 +171,11 @@ function normalizeSpells(value: unknown): SpellEntry[] {
   return value.flatMap((entry) => {
     if (typeof entry === "string") return [{ spellId: entry, prepared: false }];
     if (entry && typeof entry === "object" && "spellId" in entry && typeof entry.spellId === "string") {
-      const candidate = entry as Partial<SpellEntry>;
-      return [{ spellId: candidate.spellId as string, prepared: Boolean(candidate.prepared) }];
+      const candidate = entry as Partial<SpellEntry> & { source?: unknown };
+      const source = candidate.source === "normal" || candidate.source === "magical-secrets" || candidate.source === "dm" || candidate.source === "legacy"
+        ? candidate.source
+        : undefined;
+      return [{ spellId: candidate.spellId as string, prepared: Boolean(candidate.prepared), ...(source ? { source } : {}) }];
     }
     return [];
   });
@@ -1467,7 +1470,17 @@ function toCharacter(
     .filter((entry) => entry.character_id === row.id)
     .flatMap((entry) => {
       const appId = maps.spellByDbId.get(entry.spell_id);
-      return appId ? [{ spellId: appId, prepared: Boolean(entry.prepared) }] : [];
+      return appId ? [{
+        spellId: appId,
+        prepared: Boolean(entry.prepared),
+        source: entry.dm_granted || String(entry.source ?? "").toLowerCase().includes("dm")
+          ? "dm" as const
+          : String(entry.source ?? "").toLowerCase().includes("magical")
+            ? "magical-secrets" as const
+            : String(entry.source ?? "").toLowerCase().includes("normal")
+              ? "normal" as const
+              : "legacy" as const,
+      }] : [];
     });
 
   const featuresForCharacter = featureRows
@@ -1695,7 +1708,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
         const [spellResult, featureResult, itemResult, optionalFeatureResult, homebrewResult, overrideResult] = await Promise.all([
           ids.length
-            ? supabase!.from("character_spells").select("character_id,spell_id,prepared").in("character_id", ids)
+            ? supabase!.from("character_spells").select("character_id,spell_id,prepared,dm_granted,source").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
           ids.length
             ? supabase!.from("character_features").select("character_id,feature_id,dm_granted,source").in("character_id", ids)
@@ -2051,6 +2064,25 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           if (result.error) throw result.error;
         }
 
+        if (patch.spells !== undefined) {
+          const spellRows = patch.spells.flatMap((entry) => {
+            const dbSpellId = maps.spellByDbId.get(entry.spellId) ?? maps.spellByAppId.get(entry.spellId);
+            return dbSpellId ? [{
+              character_id: id,
+              spell_id: dbSpellId,
+              prepared: Boolean(entry.prepared),
+              dm_granted: entry.source === "dm",
+              source: entry.source === "magical-secrets" ? "Magical Secrets" : entry.source === "normal" ? "Normal" : entry.source === "dm" ? "DM Grant" : "Migrated",
+            }] : [];
+          });
+          const deleteResult = await supabase.from("character_spells").delete().eq("character_id", id);
+          if (deleteResult.error) throw deleteResult.error;
+          if (spellRows.length) {
+            const insertResult = await supabase.from("character_spells").insert(spellRows);
+            if (insertResult.error) throw insertResult.error;
+          }
+        }
+
         if (patch.inventory !== undefined) {
           const inventoryRows = patch.inventory.flatMap((entry) => {
             const dbItemId = maps.itemByDbId.get(entry.itemId) ?? maps.itemByAppId.get(entry.itemId);
@@ -2390,7 +2422,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           const accessOverrides = !spellAllowed && override && accessMode === "dm" && !hasOverride(entry, "spell", spellId)
             ? [...entry.accessOverrides, { type: "spell" as const, contentId: spellId, reason: "Granted by DM" }]
             : entry.accessOverrides;
-          return { ...entry, spells: [...entry.spells, { spellId, prepared }], accessOverrides };
+          return { ...entry, spells: [...entry.spells, { spellId, prepared, source: !spellAllowed && override && accessMode === "dm" ? "dm" : "normal" }], accessOverrides };
         }));
       }
 
