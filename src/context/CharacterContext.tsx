@@ -467,13 +467,13 @@ function extractStartingEquipment(raw: unknown): EquipmentChoiceGroup[] {
   const starting = (raw as Record<string, unknown>).startingEquipment;
   if (!starting) return [];
 
-  const groups = Array.isArray(starting)
+  const groups: unknown[] = Array.isArray(starting)
     ? starting
     : starting && typeof starting === "object" && Array.isArray((starting as Record<string, unknown>).defaultData)
-      ? (starting as Record<string, unknown>).defaultData
+      ? ((starting as Record<string, unknown>).defaultData as unknown[])
       : [];
 
-  return groups.flatMap((group, groupIndex) => {
+  return groups.flatMap((group: unknown, groupIndex: number) => {
     if (!group || typeof group !== "object") return [];
     const object = group as Record<string, unknown>;
     const optionEntries = Object.entries(object).filter(([key]) => /^[a-z]+$/.test(key));
