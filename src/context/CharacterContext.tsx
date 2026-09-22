@@ -314,14 +314,27 @@ function proficiencyChoiceOptions(field: string, key: string): string[] {
   return [];
 }
 
+function findRawFieldValues(raw: unknown, field: string, depth = 0, seen = new Set<object>()): unknown[] {
+  if (depth > 6 || !raw || typeof raw !== "object") return [];
+  if (seen.has(raw as object)) return [];
+  seen.add(raw as object);
+  const object = raw as Record<string, unknown>;
+  const values: unknown[] = [];
+  if (field in object) values.push(object[field]);
+  for (const value of Object.values(object)) values.push(...findRawFieldValues(value, field, depth + 1, seen));
+  return values;
+}
+
 function extractProficiencyRules(raw: unknown, field: string): ProficiencyRules {
   const fixed: string[] = [];
   const choices: ProficiencyChoice[] = [];
   if (!raw || typeof raw !== "object") return { fixed, choices };
-  const value = (raw as Record<string, unknown>)[field];
-  if (!Array.isArray(value)) return { fixed, choices };
+  const values = findRawFieldValues(raw, field);
+  if (!values.length) return { fixed, choices };
 
-  for (const entry of value) {
+  for (const value of values) {
+    if (!Array.isArray(value)) continue;
+    for (const entry of value) {
     if (!entry || typeof entry !== "object") continue;
     const object = entry as Record<string, unknown>;
     for (const [key, enabled] of Object.entries(object)) {
@@ -344,7 +357,8 @@ function extractProficiencyRules(raw: unknown, field: string): ProficiencyRules 
     }
     for (const [key, enabled] of Object.entries(object)) {
       if (key === "choose" || key === "any" || key.startsWith("any")) continue;
-      if (enabled === true) fixed.push(displayProficiencyName(key));
+        if (enabled === true) fixed.push(displayProficiencyName(key));
+      }
     }
   }
 
