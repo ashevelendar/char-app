@@ -1941,10 +1941,10 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        if (patch.features !== undefined) {
+        if (localPatch.features !== undefined) {
           const dbFeatureIds = Array.from(
             new Set(
-              patch.features
+              localPatch.features
                 .map((featureId) => maps.featureByDbId.get(featureId) ?? maps.featureByAppId.get(featureId))
                 .filter(Boolean),
             ),
