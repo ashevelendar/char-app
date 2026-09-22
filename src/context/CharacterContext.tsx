@@ -1896,7 +1896,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       if (supabase && user && isUuid(characterId)) {
         try {
           const maps = await getMapsForWrite();
-          const dbOptionalFeatureId = maps.optionalFeatureByKey.get(optionalFeatureKey);
+          const dbOptionalFeatureId = isUuid(optionalFeatureKey) && maps.optionalFeatureByDbId.has(optionalFeatureKey)
+            ? optionalFeatureKey
+            : maps.optionalFeatureByKey.get(optionalFeatureKey);
           if (dbOptionalFeatureId) {
             const result = await supabase
               .from("character_optional_features")
