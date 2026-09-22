@@ -391,37 +391,6 @@ function CharacterEditor({
 
   const effectiveSelectedSpells = selectedSpells;
 
-  useEffect(() => {
-    setAsiChoices((current) => {
-      const next = allAsiLevels.map((_, index) => current[index] ?? "");
-      return current.length === next.length && current.every((value, index) => value === next[index]) ? current : next;
-    });
-  }, [allAsiLevels]);
-
-  useEffect(() => {
-    setAsiChoices((current) => {
-      const prerequisiteCharacter = {
-        level: form.level,
-        abilities,
-        race: form.race,
-        subrace: form.subrace,
-        className: form.className,
-        background: form.background,
-        feats: current.filter(Boolean),
-        skills: selectedSkills,
-        tools: selectedTools,
-        languages: selectedLanguages,
-      };
-      const next = current.slice(0, allAsiLevels.length).map((featId) => {
-        if (!featId) return "";
-        const feat = featCatalogue.find((entry) => entry.id === featId);
-        return feat && isFeatAvailable(prerequisiteCharacter, feat) ? featId : "";
-      });
-      return current.every((value, index) => value === next[index]) && current.length === next.length ? current : next;
-    });
-  }, [allAsiLevels, form.level, abilities, form.race, form.subrace, form.className, form.background, selectedSkills, selectedTools, selectedLanguages, featCatalogue]);
-
-
 
   function selectRace(race: string, subrace = "") {
     const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
@@ -510,21 +479,21 @@ function CharacterEditor({
     event.preventDefault();
     setSaveError("");
 
-    const incompleteAsi = newAsiLevels.some((level, index) => {
-      const absoluteIndex = allAsiLevels.indexOf(level);
-      const featId = absoluteIndex >= 0 ? (asiChoices[absoluteIndex] ?? "") : "";
-      if (featId) {
-        const feat = featCatalogue.find((entry) => entry.id === featId);
+    const incompleteAsi = allAsiLevels.some((level) => {
+      const entry = asiHistory.find((item) => item.level === level);
+      if (!entry || !entry.mode) return true;
+      if (entry.mode === "feat") {
+        if (!entry.featId) return true;
+        const feat = featCatalogue.find((candidate) => candidate.id === entry.featId);
         const options = feat ? getFeatAbilityOptions(feat) : [];
-        return options.length > 1 && !featAbilityChoices[featId];
+        return options.length > 1 && !entry.featAbility && !featAbilityChoices[entry.featId];
       }
-      const choice = asiAbilityChoices[index];
-      return !choice?.first || (choice.mode === "one" && (!choice.second || choice.second === choice.first));
+      return !entry.first || (entry.mode === "one" && (!entry.second || entry.second === entry.first));
     });
 
     if (incompleteAsi) {
       setStep("abilities");
-      setSaveError("Please complete every new Ability Score Improvement: choose a feat, or complete the required ability score choice.");
+      setSaveError("Please complete every Ability Score Improvement before saving. Existing ASIs must also be recorded so the character's ability-score history is unambiguous.");
       return;
     }
 
@@ -550,6 +519,7 @@ function CharacterEditor({
         notes: [
           form.notes,
           expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
+          asiHistory.length ? "ASI History: " + JSON.stringify(asiHistory) : "",
           Object.keys(featAbilityChoices).length ? "Feat Ability Choices: " + JSON.stringify(featAbilityChoices) : "",
         ].filter(Boolean).join("\n\n"),
       });
@@ -563,16 +533,16 @@ function CharacterEditor({
   const canAdvanceFromStep = (currentStep: BuilderStep) => {
     if (currentStep === "class") return Boolean(form.className);
     if (currentStep === "abilities") {
-      return newAsiLevels.every((level, index) => {
-        const absoluteIndex = allAsiLevels.indexOf(level);
-        const featId = absoluteIndex >= 0 ? (asiChoices[absoluteIndex] ?? "") : "";
-        if (featId) {
-          const feat = featCatalogue.find((entry) => entry.id === featId);
+      return allAsiLevels.every((level) => {
+        const entry = asiHistory.find((item) => item.level === level);
+        if (!entry) return false;
+        if (entry.mode === "feat") {
+          if (!entry.featId) return false;
+          const feat = featCatalogue.find((candidate) => candidate.id === entry.featId);
           const options = feat ? getFeatAbilityOptions(feat) : [];
-          return !options.length || Boolean(featAbilityChoices[featId]);
+          return !options.length || Boolean(entry.featAbility || featAbilityChoices[entry.featId]);
         }
-        const choice = asiAbilityChoices[index];
-        return Boolean(choice?.first) && (choice.mode !== "one" || Boolean(choice.second && choice.second !== choice.first));
+        return Boolean(entry.first) && (entry.mode !== "one" || Boolean(entry.second && entry.second !== entry.first));
       });
     }
     if (currentStep === "background") {
@@ -668,24 +638,21 @@ function CharacterEditor({
                   onChange={setMagicalSecretSelections}
                 />
               )}
-              {newAsiLevels.length > 0 && (
+              {allAsiLevels.length > 0 && (
                 <AsiSelectionSection
-                  levels={newAsiLevels}
+                  levels={allAsiLevels}
                   allAsiLevels={allAsiLevels}
-                  selectedFeatIds={asiChoices}
-                  onFeatChange={(absoluteIndex, featId) => {
-                    setAsiChoices((current) => {
-                      const next = [...current];
-                      next[absoluteIndex] = featId;
-                      return next;
-                    });
-                  }}
+                  characterLevel={character.level}
+                  asiHistory={asiHistory}
+                  onAsiChange={updateAsiHistory}
                   featCatalogue={featCatalogue}
                   character={spellCharacter}
                   featAbilityChoices={featAbilityChoices}
-                  onFeatAbilityChoiceChange={(featId, ability) => setFeatAbilityChoices((current) => ({ ...current, [featId]: ability }))}
-                  abilityChoices={asiAbilityChoices}
-                  onAbilityChoicesChange={setAsiAbilityChoices}
+                  onFeatAbilityChoiceChange={(featId, ability) => {
+                    setFeatAbilityChoices((current) => ({ ...current, [featId]: ability }));
+                    const entry = asiHistory.find((item) => item.featId === featId);
+                    if (entry) updateAsiHistory(entry.level, { ...entry, featAbility: ability });
+                  }}
                 />
               )}
             </>
@@ -897,7 +864,7 @@ function CharacterEditor({
                           subrace: form.subrace,
                           className: form.className,
                           background: form.background,
-                          feats: asiChoices.filter(Boolean),
+                          feats: asiHistory.filter((entry) => entry.mode === "feat" && entry.featId).map((entry) => entry.featId as string),
                           skills: selectedSkills,
                           tools: selectedTools,
                           languages: selectedLanguages,
