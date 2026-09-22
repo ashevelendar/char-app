@@ -253,25 +253,6 @@ export default function NewCharacterPage() {
     [featCatalogue, featPrerequisiteCharacter],
   );
 
-  useEffect(() => {
-    if (!catalogue.classes.length) return;
-    setForm((current) => {
-      const className = catalogue.classes.includes(current.className) ? current.className : catalogue.classes[0];
-      const race = catalogue.races.includes(current.race) ? current.race : catalogue.races[0] ?? "";
-      const background = catalogue.backgrounds.includes(current.background) ? current.background : catalogue.backgrounds[0] ?? "";
-      const unlockLevel = getClassDefinition(className)?.subclassUnlockLevel ?? 1;
-      const nextSubclasses = catalogue.subclasses.filter((entry) => entry.className === className && current.level >= unlockLevel);
-      const subclass = nextSubclasses.some((entry) => entry.name === current.subclass) ? current.subclass : nextSubclasses[0]?.name ?? "";
-      const raceSubraces = catalogue.subraces.filter((entry) => entry.parentRace === race);
-      const subrace = raceSubraces.some((entry) => entry.name === current.subrace) ? current.subrace : "";
-      const abilities = applyAbilityBonuses(
-        applyAbilityBonuses(baseAbilities, raceRules[race]?.abilityBonuses ?? {}),
-        catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race)?.abilityBonuses ?? {},
-      );
-      return { ...current, className, race, subrace, background, subclass, abilities, savingThrows: classRules[className]?.savingThrows ?? [] };
-    });
-  }, [catalogue, raceRules, baseAbilities, classRules]);
-
   function selectRace(race: string, subrace = "") {
     const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
     setRaceLanguageSelections([]);
@@ -453,6 +434,7 @@ export default function NewCharacterPage() {
     void createCharacter({
       ...form,
       abilities: asiBonusScores,
+      savingThrows: selectedClassRules?.savingThrows ?? [],
       feats: asiChoices.filter(Boolean),
       skills: selectedSkills,
       tools: selectedTools,
