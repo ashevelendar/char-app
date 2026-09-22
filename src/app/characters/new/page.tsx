@@ -8,9 +8,10 @@ import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } fro
 import { useCharacters } from "../../../context/CharacterContext";
 import { defaultCharacter } from "../../../lib/data";
 import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, SpellEntry } from "../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getWizardSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getWizardSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
+const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
@@ -100,7 +101,8 @@ export default function NewCharacterPage() {
   const [equipmentMode, setEquipmentMode] = useState<"equipment" | "gold">("equipment");
   const [step, setStep] = useState<BuilderStep>("class");
 
-  const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className);
+  const subclassUnlockLevel = getClassDefinition(form.className)?.subclassUnlockLevel ?? 1;
+  const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className && form.level >= subclassUnlockLevel);
   const selectedSubclass = subclassOptions.find((entry) => entry.name === form.subclass);
   const selectedRaceRules = raceRules[form.race];
   const selectedSubrace = catalogue.subraces.find((entry) => entry.name === form.subrace && entry.parentRace === form.race);
@@ -198,7 +200,7 @@ export default function NewCharacterPage() {
     subrace: form.subrace,
     className: form.className,
     background: form.background,
-    feats: form.feats,
+    feats: asiChoices.filter(Boolean),
     skills: selectedSkills,
     tools: selectedTools,
     languages: selectedLanguages,
@@ -213,7 +215,7 @@ export default function NewCharacterPage() {
     className: form.className,
     subclass: form.subclass,
     background: form.background,
-    feats: form.feats,
+    feats: asiChoices.filter(Boolean),
     skills: selectedSkills,
     tools: selectedTools,
     languages: selectedLanguages,
@@ -233,52 +235,22 @@ export default function NewCharacterPage() {
   const magicalSecretCount = featureCatalogue.filter((feature) => feature.name.toLowerCase().includes("magical secrets") && feature.className === form.className && feature.requiredLevel <= form.level).length * 2;
   const normalSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : knownSpellLimit === null ? null : Math.max(0, knownSpellLimit - magicalSecretCount);
 
-  useEffect(() => {
-    setSelectedSpells((current) => {
-      const valid = current.filter((entry) => availableSpells.some((spell) => spell.id === entry.spellId));
-      const cantrips = valid.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0).slice(0, cantripsKnown);
-      const leveled = valid.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level !== 0).slice(0, normalSpellLimit ?? 0);
-      const next = [...cantrips, ...leveled];
-      return next.length === current.length && next.every((entry, index) => entry.spellId === current[index]?.spellId && entry.prepared === current[index]?.prepared) ? current : next;
-    });
-  }, [availableSpells, cantripsKnown, normalSpellLimit]);
+  const effectiveSelectedSpells = useMemo(() => {
+    const valid = selectedSpells.filter((entry) => availableSpells.some((spell) => spell.id === entry.spellId));
+    const cantrips = valid
+      .filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0)
+      .slice(0, cantripsKnown);
+    const leveled = valid
+      .filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level !== 0)
+      .slice(0, normalSpellLimit ?? 0);
+    return [...cantrips, ...leveled];
+  }, [selectedSpells, availableSpells, cantripsKnown, normalSpellLimit]);
 
 
   const availableFeats = useMemo(
     () => featCatalogue.filter((feat) => isFeatAvailable(featPrerequisiteCharacter, feat)),
     [featCatalogue, featPrerequisiteCharacter],
   );
-
-  useEffect(() => {
-    setAsiChoices((current) => {
-      const next = asiLevels.map((_, index) => current[index] ?? "");
-      return current.length === next.length && current.every((value, index) => value === next[index]) ? current : next;
-    });
-  }, [asiLevels]);
-
-  useEffect(() => {
-    setAsiAbilityChoices((current) => asiLevels.map((_, index) => current[index] ?? { mode: "two" as const, first: "str" as AbilityKey, second: "dex" as AbilityKey }));
-    setExpertiseSelections((current) => current.slice(0, expertiseLevels.length * 2));
-    setMagicalSecretSelections((current) => current.slice(0, magicalSecretFeatures.length * 2));
-  }, [asiLevels, expertiseLevels, magicalSecretFeatures]);
-
-  useEffect(() => {
-    const nextFeats = asiChoices.filter(Boolean);
-    setForm((current) => current.feats.length === nextFeats.length && current.feats.every((value, index) => value === nextFeats[index])
-      ? current
-      : { ...current, feats: nextFeats });
-  }, [asiChoices]);
-
-  useEffect(() => {
-    const nextMaxHp = getExpectedMaxHp(form.className, form.level, form.abilities.con);
-    const nextHitDice = getExpectedHitDice(form.className, form.level);
-    const nextProficiencyBonus = getProficiencyBonus(form.level);
-    setForm((current) => {
-      const hpDelta = nextMaxHp - current.maxHp;
-      if (current.maxHp === nextMaxHp && current.hitDice === nextHitDice && current.proficiencyBonus === nextProficiencyBonus) return current;
-      return { ...current, maxHp: nextMaxHp, hp: Math.max(0, Math.min(nextMaxHp, current.hp + hpDelta)), hitDice: nextHitDice, proficiencyBonus: nextProficiencyBonus };
-    });
-  }, [form.className, form.level, form.abilities.con]);
 
   useEffect(() => {
     if (!catalogue.classes.length) return;
@@ -298,23 +270,9 @@ export default function NewCharacterPage() {
     });
   }, [catalogue, raceRules, baseAbilities, classRules]);
 
-  useEffect(() => {
-    setClassSkillSelections([]);
-    setClassLanguageSelections([]);
-  }, [form.className]);
-
-  useEffect(() => {
-    setBackgroundSkillSelections([]);
-    setBackgroundToolSelections([]);
-    setBackgroundLanguageSelections([]);
-  }, [form.background]);
-
-  useEffect(() => {
-    setRaceLanguageSelections([]);
-  }, [form.race]);
-
   function selectRace(race: string, subrace = "") {
     const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
+    setRaceLanguageSelections([]);
     setForm((current) => ({ ...current, race, subrace, abilities: applyAbilityBonuses(applyAbilityBonuses(baseAbilities, raceRules[race]?.abilityBonuses ?? {}), subraceRules?.abilityBonuses ?? {}) }));
   }
 
@@ -330,6 +288,9 @@ export default function NewCharacterPage() {
   }
 
   function setBackground(value: string) {
+    setBackgroundSkillSelections([]);
+    setBackgroundToolSelections([]);
+    setBackgroundLanguageSelections([]);
     setForm((current) => ({ ...current, background: value }));
   }
 
@@ -378,8 +339,67 @@ export default function NewCharacterPage() {
     });
   }
 
+  const expectedMaxHp = getExpectedMaxHp(form.className, form.level, asiBonusScores.con);
+  const expectedHitDice = getExpectedHitDice(form.className, form.level);
+  const expectedProficiencyBonus = getProficiencyBonus(form.level);
+
+  const requiredChoiceCount = (choices: Array<{ count: number }>) =>
+    choices.reduce((sum, choice) => sum + Math.max(0, Number(choice.count) || 0), 0);
+
+  const choiceSelectionsComplete = (choices: Array<{ count: number }>, selections: string[]) => {
+    const required = requiredChoiceCount(choices);
+    return selections.length >= required && selections.slice(0, required).every(Boolean);
+  };
+
+  const asiChoicesComplete = asiLevels.every((_, index) => {
+    if (asiChoices[index]) return true;
+    const choice = asiAbilityChoices[index];
+    if (!choice) return false;
+    if (choice.mode === "two") return baseAbilityScoresWithRace[choice.first] + 2 <= 20;
+    return choice.first !== choice.second
+      && baseAbilityScoresWithRace[choice.first] + 1 <= 20
+      && baseAbilityScoresWithRace[choice.second] + 1 <= 20;
+  });
+
+  const equipmentGroups = [
+    ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: "class-" + index })),
+    ...(selectedBackgroundRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: "background-" + index })),
+  ];
+
+  const equipmentChoicesComplete = equipmentMode === "gold" || equipmentGroups.every((group) => {
+    const optionIndex = startingEquipmentSelections[group.id];
+    const option = optionIndex === undefined ? undefined : group.options[optionIndex];
+    if (!option) return false;
+    return option.items.every((entry, entryIndex) =>
+      !entry.choiceType || Boolean(startingItemChoices[group.id + ":" + optionIndex + ":" + entryIndex]),
+    );
+  });
+
+  const creationRequirements = {
+    identity: Boolean(form.name.trim() && form.race && form.className && form.background),
+    subclass: subclassOptions.length === 0 || Boolean(form.subclass),
+    classSkills: choiceSelectionsComplete(selectedClassRules?.skills.choices ?? [], classSkillSelections),
+    classLanguages: choiceSelectionsComplete(selectedClassRules?.languages.choices ?? [], classLanguageSelections),
+    backgroundSkills: choiceSelectionsComplete(selectedBackgroundRules?.skillChoices ?? [], backgroundSkillSelections),
+    backgroundTools: choiceSelectionsComplete(selectedBackgroundRules?.toolChoices ?? [], backgroundToolSelections),
+    backgroundLanguages: choiceSelectionsComplete(selectedBackgroundRules?.languageChoices ?? [], backgroundLanguageSelections),
+    raceLanguages: choiceSelectionsComplete(selectedRaceRules?.languages.choices ?? [], raceLanguageSelections),
+    asi: asiChoicesComplete,
+    expertise: expertiseSelections.length >= expertiseLevels.length * 2
+      && expertiseSelections.slice(0, expertiseLevels.length * 2).every(Boolean),
+    magicalSecrets: magicalSecretSelections.length >= magicalSecretFeatures.length * 2
+      && magicalSecretSelections.slice(0, magicalSecretFeatures.length * 2).every(Boolean),
+    spells: effectiveSelectedSpells.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0).length === cantripsKnown
+      && (normalSpellLimit === null
+        || effectiveSelectedSpells.filter((entry) => (availableSpells.find((spell) => spell.id === entry.spellId)?.level ?? 0) > 0).length === normalSpellLimit),
+    equipment: equipmentChoicesComplete,
+  };
+
+  const canCreate = Object.values(creationRequirements).every(Boolean);
+
   function submit() {
-    const maxHp = getExpectedMaxHp(form.className, form.level, form.abilities.con);
+    if (!canCreate) return;
+    const maxHp = expectedMaxHp;
     void createCharacter({
       ...form,
       abilities: asiBonusScores,
@@ -388,7 +408,7 @@ export default function NewCharacterPage() {
       tools: selectedTools,
       languages: selectedLanguages,
       spells: [
-        ...selectedSpells,
+        ...effectiveSelectedSpells,
         ...magicalSecretSelections.filter(Boolean).filter((id) => !selectedSpells.some((entry) => entry.spellId === id)).map((spellId) => ({ spellId, prepared: true })),
       ],
       inventory: equipmentMode === "equipment" ? equipmentSelections : [],
@@ -425,8 +445,16 @@ export default function NewCharacterPage() {
                   <Field label="Player name" value={form.playerName} onChange={(value) => setForm((current) => ({ ...current, playerName: value }))} />
                   <NumberField label="Level" value={form.level} min={1} max={20} onChange={(value) => setForm((current) => ({ ...current, level: value }))} />
                   <Select label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
-                    const next = catalogue.subclasses.filter((entry) => entry.className === value);
-                    setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "" }));
+                    const unlockLevel = getClassDefinition(value)?.subclassUnlockLevel ?? 1;
+                    const next = catalogue.subclasses.filter((entry) => entry.className === value && form.level >= unlockLevel);
+                    setClassSkillSelections([]);
+                    setClassLanguageSelections([]);
+                    setSelectedSpells([]);
+                    setAsiChoices([]);
+                    setAsiAbilityChoices([]);
+                    setExpertiseSelections([]);
+                    setMagicalSecretSelections([]);
+                    setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "", feats: [] }));
                   }} />
                   <Select label="Subclass" value={form.subclass} options={subclassOptions.map((entry) => entry.name)} onChange={(value) => setForm((current) => ({ ...current, subclass: value }))} />
                 </div>
@@ -461,7 +489,7 @@ export default function NewCharacterPage() {
                 </div>
               </SectionCard>
 
-              {(cantripsKnown > 0 || knownSpellLimit !== null) && <SpellSelectionSection className={form.className} level={form.level} availableSpells={availableSpells} cantripsKnown={cantripsKnown} spellLimit={normalSpellLimit} selectedSpells={selectedSpells} onChange={setSelectedSpells} />}
+              {(cantripsKnown > 0 || knownSpellLimit !== null) && <SpellSelectionSection className={form.className} level={form.level} availableSpells={availableSpells} cantripsKnown={cantripsKnown} spellLimit={normalSpellLimit} selectedSpells={effectiveSelectedSpells} onChange={setSelectedSpells} />}
 
               {asiLevels.length > 0 && (
                 <AsiSelectionSection levels={asiLevels} choices={asiChoices} onChoicesChange={setAsiChoices} abilityChoices={asiAbilityChoices} onAbilityChoicesChange={setAsiAbilityChoices} availableFeats={availableFeats} featCatalogue={featCatalogue} />
@@ -546,7 +574,7 @@ export default function NewCharacterPage() {
                       ),
                     }));
                   }}
-                  raceBonuses={{ ...(selectedRaceRules?.abilityBonuses ?? {}), ...(selectedSubrace?.abilityBonuses ?? {}) }}
+                  raceBonuses={Object.fromEntries(abilityKeys.map((key) => [key, (selectedRaceRules?.abilityBonuses?.[key] ?? 0) + (selectedSubrace?.abilityBonuses?.[key] ?? 0)]))}
                   raceLabel={[form.race, form.subrace].filter(Boolean).join(" / ")}
                   method={abilityMethod}
                   onMethodChange={setAbilityMethod}
@@ -693,10 +721,10 @@ export default function NewCharacterPage() {
                   <Field label="Alignment" value={form.alignment} onChange={(value) => setForm((current) => ({ ...current, alignment: value }))} />
                   <NumberField label="Speed" value={form.speed} min={0} onChange={(value) => setForm((current) => ({ ...current, speed: value }))} />
                   <NumberField label="Current HP" value={form.hp} min={0} onChange={(value) => setForm((current) => ({ ...current, hp: value }))} />
-                  <NumberField label="Maximum HP" value={form.maxHp} min={1} onChange={() => undefined} />
+                  <NumberField label="Maximum HP" value={expectedMaxHp} min={1} onChange={() => undefined} />
                   <NumberField label="Armor Class" value={form.ac} min={0} onChange={(value) => setForm((current) => ({ ...current, ac: value }))} />
-                  <Field label="Hit Dice" value={form.hitDice} onChange={() => undefined} />
-                  <NumberField label="Proficiency Bonus" value={form.proficiencyBonus} min={0} onChange={() => undefined} />
+                  <Field label="Hit Dice" value={expectedHitDice} onChange={() => undefined} />
+                  <NumberField label="Proficiency Bonus" value={expectedProficiencyBonus} min={0} onChange={() => undefined} />
                 </div>
               </SectionCard>
 
@@ -714,13 +742,13 @@ export default function NewCharacterPage() {
               </SectionCard>
 
               <div className="flex justify-end">
-                <button type="button" onClick={submit} disabled={!form.name.trim() || !form.race || !form.className || !form.background} data-create-character="true" className="rounded-xl bg-stone-100 px-6 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-300 disabled:opacity-40">Create Character</button>
+                <button type="button" onClick={submit} disabled={!canCreate} data-create-character="true" className="rounded-xl bg-stone-100 px-6 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-300 disabled:opacity-40">Create Character</button>
               </div>
             </>
           )}
         </div>
 
-        <BuilderFooter step={step} onStepChange={setStep} canCreate={Boolean(form.name.trim() && form.race && form.className && form.background)} />
+        <BuilderFooter step={step} onStepChange={setStep} canCreate={canCreate} />
       </div>
     </div>
   );
