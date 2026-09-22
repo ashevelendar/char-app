@@ -119,6 +119,14 @@ export interface OptionalFeatureDefinition {
   contentKey?: string;
 }
 
+export interface Currency {
+  cp: number;
+  sp: number;
+  ep: number;
+  gp: number;
+  pp: number;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -149,6 +157,7 @@ export interface Character {
   optionalFeatures: string[];
   accessOverrides: ContentOverride[];
   resourceUses: Record<string, number>;
+  currency: Currency;
   notes: string;
 }
 
@@ -178,6 +187,7 @@ export interface NewCharacterInput {
   feats?: string[];
   inventory?: InventoryEntry[];
   resourceUses?: Record<string, number>;
+  currency?: Currency;
 }
 
 export interface ClassDefinition {
