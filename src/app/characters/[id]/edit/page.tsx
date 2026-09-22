@@ -612,6 +612,15 @@ function CharacterEditor({
       return;
     }
 
+    const incompleteMagicalSecrets = magicalSecretFeatures.some((feature) =>
+      (magicalSecretHistory.find((entry) => entry.level === feature.requiredLevel)?.spellIds.length ?? 0) !== 2,
+    );
+    if (incompleteMagicalSecrets) {
+      setStep("class");
+      setSaveError("Please choose exactly two Magical Secrets spells for each Magical Secrets feature before saving.");
+      return;
+    }
+
     setSaving(true);
     try {
       await onSave({
