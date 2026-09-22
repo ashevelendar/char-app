@@ -242,6 +242,11 @@ function CharacterEditor({
   const magicalSecretHistoryFromNotes = useMemo(() => parseMagicalSecretsHistory(character.notes), [character.notes]);
   const [magicalSecretHistory, setMagicalSecretHistory] = useState<MagicalSecretsHistoryEntry[]>(magicalSecretHistoryFromNotes);
   const magicalSecretSelections = magicalSecretHistory.flatMap((entry) => entry.spellIds);
+  const [selectedSpells, setSelectedSpells] = useState<SpellEntry[]>(() =>
+    (character.spells ?? [])
+      .filter((entry) => entry.source !== "magical-secrets" && !magicalSecretSelections.includes(entry.spellId))
+      .map((entry) => ({ ...entry, source: entry.source ?? "legacy" })),
+  );
 
   function updateMagicalSecretHistory(level: number, spellIds: string[]) {
     setMagicalSecretHistory((current) => {
@@ -250,7 +255,6 @@ function CharacterEditor({
       return unique.length ? [...filtered, { level, spellIds: unique }].sort((a, b) => a.level - b.level) : filtered;
     });
   }
-  const [selectedSpells, setSelectedSpells] = useState<SpellEntry[]>(character.spells ?? []);
   const [optionalFeatures, setOptionalFeatures] = useState<string[]>(character.optionalFeatures ?? []);
   const [classSkillSelections, setClassSkillSelections] = useState<string[]>([]);
   const [backgroundSkillSelections, setBackgroundSkillSelections] = useState<string[]>([]);
@@ -504,7 +508,7 @@ function CharacterEditor({
   const magicalSecretCount = magicalSecretFeatures.length * 2;
   const normalSpellLimit = spellbookLimit ?? (knownSpellLimit === null ? null : Math.max(0, knownSpellLimit - magicalSecretCount));
 
-  const effectiveSelectedSpells = selectedSpells;
+  const effectiveSelectedSpells = selectedSpells.filter((entry) => !magicalSecretSelections.includes(entry.spellId));
 
   const inventoryRuleCharacter = useMemo(() => ({
     ...character,
@@ -673,11 +677,10 @@ function CharacterEditor({
         abilities: progressionAbilities,
         feats: asiChoices.filter(Boolean),
         spells: [
-          ...effectiveSelectedSpells,
+          ...effectiveSelectedSpells.map((entry) => ({ ...entry, source: entry.source === "dm" ? "dm" as const : "normal" as const })),
           ...magicalSecretSelections
             .filter(Boolean)
-            .filter((id) => !selectedSpells.some((entry) => entry.spellId === id))
-            .map((spellId) => ({ spellId, prepared: true })),
+            .map((spellId) => ({ spellId, prepared: true, source: "magical-secrets" as const })),
         ],
         optionalFeatures,
         notes: [
