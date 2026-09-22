@@ -34,6 +34,7 @@ import type {
   SubraceDefinition,
   Feat,
   Feature,
+  FeatureGrantHistoryEntry,
   HomebrewContent,
   Spell,
   SpellEntry,
@@ -209,6 +210,13 @@ function normalizeCharacter(value: Character): Character {
     languages: Array.isArray(value.languages) ? value.languages : [],
     feats: Array.isArray(value.feats) ? value.feats : [],
     features: Array.isArray(value.features) ? value.features : [],
+    featureProvenance: Array.isArray(value.featureProvenance)
+      ? value.featureProvenance.filter((entry): entry is FeatureGrantHistoryEntry =>
+          Boolean(entry && typeof entry === "object" &&
+            typeof (entry as Record<string, unknown>).featureId === "string" &&
+            ["automatic", "manual", "dm"].includes(String((entry as Record<string, unknown>).source))),
+        )
+      : [],
     spells: normalizeSpells(value.spells),
     inventory: normalizeInventory(value.inventory),
     optionalFeatures: Array.isArray(value.optionalFeatures) ? value.optionalFeatures : [],
@@ -1488,6 +1496,14 @@ function toCharacter(
     optionalFeatures: optionalFeaturesForCharacter,
     homebrew: homebrewForCharacter,
     features: featuresForCharacter,
+    featureProvenance: featuresForCharacter.map((featureId) => {
+      const rowEntry = featureRows.find((entry) => entry.character_id === row.id && maps.featureByDbId.get(entry.feature_id) === featureId);
+      const source = String(rowEntry?.source ?? "").toLowerCase();
+      if (Boolean(rowEntry?.dm_granted) || source.includes("dm")) return { featureId, source: "dm" as const };
+      if (source.includes("manual")) return { featureId, source: "manual" as const };
+      if (source.includes("automatic")) return { featureId, source: "automatic" as const };
+      return { featureId, source: "automatic" as const };
+    }),
     spells: spellsForCharacter,
     inventory: inventoryForCharacter,
     accessOverrides: overrides,
@@ -1612,7 +1628,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             ? supabase!.from("character_spells").select("character_id,spell_id,prepared").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
           ids.length
-            ? supabase!.from("character_features").select("character_id,feature_id").in("character_id", ids)
+            ? supabase!.from("character_features").select("character_id,feature_id,dm_granted,source").in("character_id", ids)
             : Promise.resolve({ data: [], error: null }),
           ids.length
             ? supabase!.from("character_items").select("character_id,item_id,quantity,equipped").in("character_id", ids)
@@ -1752,6 +1768,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         optionalFeatures: input.optionalFeatures ?? [],
         homebrew: input.homebrew ?? [],
         features: [],
+        featureProvenance: [],
         spells: input.spells ?? [],
         accessOverrides: [],
         notes: input.notes,
@@ -1763,7 +1780,11 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           !/gain a feature from your|gain a feature from the|optional feature/i.test(feature.description),
         )
         .map((feature) => feature.id);
-      const character: Character = { ...baseCharacter, features: starterFeatures };
+      const character: Character = {
+        ...baseCharacter,
+        features: starterFeatures,
+        featureProvenance: starterFeatures.map((featureId) => ({ featureId, source: "automatic" as const })),
+      };
 
       if (supabase && user) {
         try {
@@ -1865,10 +1886,23 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           background: patch.background ?? currentCharacter.background,
           feats: patch.feats ?? currentCharacter.feats,
         };
-        const oldAutoFeatures = new Set(getAutomaticallyGrantedFeatureIds(currentCharacter, featureCatalogue));
-        const preservedFeatures = currentCharacter.features.filter((featureId) => !oldAutoFeatures.has(featureId));
-        const nextAutoFeatures = getAutomaticallyGrantedFeatureIds(nextCharacter, featureCatalogue);
+        const oldAutomatic = new Set(
+          currentCharacter.featureProvenance.length
+            ? currentCharacter.featureProvenance.filter((entry) => entry.source === "automatic").map((entry) => entry.featureId)
+            : getAutomaticallyGrantedFeatureIds(currentCharacter, featureCatalogue),
+        );
+        const preservedFeatures = currentCharacter.features.filter((featureId) => !oldAutomatic.has(featureId));
+        const nextAutoFeatures = getAutomaticallyGrantedFeatureIds(
+          { ...nextCharacter, features: preservedFeatures },
+          featureCatalogue,
+        );
         localPatch.features = Array.from(new Set([...preservedFeatures, ...nextAutoFeatures]));
+        localPatch.featureProvenance = localPatch.features.map((featureId) => ({
+          featureId,
+          source: preservedFeatures.includes(featureId)
+            ? (currentCharacter.featureProvenance.find((entry) => entry.featureId === featureId)?.source ?? "manual")
+            : "automatic",
+        }));
       }
 
       setCharacters((current) =>
@@ -2030,12 +2064,16 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             const insertResult = await supabase
               .from("character_features")
               .insert(
-                dbFeatureIds.map((featureId) => ({
-                  character_id: id,
-                  feature_id: featureId,
-                  dm_granted: false,
-                  source: "Normal",
-                })),
+                dbFeatureIds.map((featureId) => {
+                  const appFeatureId = maps.featureByDbId.get(featureId) ?? featureId;
+                  const provenance = localPatch.featureProvenance?.find((entry) => entry.featureId === appFeatureId)?.source ?? "automatic";
+                  return {
+                    character_id: id,
+                    feature_id: featureId,
+                    dm_granted: provenance === "dm",
+                    source: provenance === "dm" ? "DM Grant" : provenance === "manual" ? "Manual" : "Automatic",
+                  };
+                }),
               );
 
             if (insertResult.error) throw insertResult.error;
@@ -2677,10 +2715,14 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     }] : [];
   });
 
-  const featureRows = character.features.flatMap((featureId) => {    const featureIdDb = maps.featureByAppId.get(featureId);    return featureIdDb ? [{
+  const featureRows = character.features.flatMap((featureId) => {
+    const featureIdDb = maps.featureByAppId.get(featureId);
+    const provenance = character.featureProvenance.find((entry) => entry.featureId === featureId)?.source ?? "automatic";
+    return featureIdDb ? [{
       character_id: dbId,
       feature_id: featureIdDb,
-      source: "Migrated",
+      dm_granted: provenance === "dm",
+      source: provenance === "dm" ? "DM Grant" : provenance === "manual" ? "Manual" : "Automatic",
     }] : [];
   });
 
