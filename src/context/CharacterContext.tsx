@@ -400,7 +400,6 @@ function extractProficiencyNames(raw: unknown, field: string): string[] {
 
 function extractBackgroundFeature(raw: unknown): { name: string; description: string } {
   if (!raw || typeof raw !== "object") return { name: "", description: "" };
-  const entries = (raw as Record<string, unknown>).entries;
   let found = { name: "", description: "" };
   function visit(value: unknown) {
     if (found.name) return;
@@ -420,7 +419,7 @@ function extractBackgroundFeature(raw: unknown): { name: string; description: st
     visit(object.entries);
     visit(object.entry);
   }
-  visit(entries);
+  visit(raw);
   return found;
 }
 
