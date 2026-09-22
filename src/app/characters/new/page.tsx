@@ -11,6 +11,31 @@ import { getExpectedHitDice, getExpectedMaxHp, getProficiencyBonus } from "../..
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
 
+type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
+
+function getOptionalChoiceGroups(classEntries: OptionalChoiceEntry[], subclassEntries: OptionalChoiceEntry[], level: number) {
+  const consolidate = (entries: OptionalChoiceEntry[]) => {
+    const groups = new Map<string, { id: string; title: string; count: number; featureTypes: string[] }>();
+    for (const entry of entries.filter((item) => item.level <= level && item.count > 0)) {
+      const key = entry.title + "::" + entry.featureTypes.join("|");
+      const current = groups.get(key);
+      if (current) current.count = Math.max(current.count, entry.count);
+      else groups.set(key, { id: key, title: entry.title, count: entry.count, featureTypes: entry.featureTypes });
+    }
+    return groups;
+  };
+
+  const classGroups = consolidate(classEntries);
+  const subclassGroups = consolidate(subclassEntries);
+  const merged = new Map<string, { id: string; title: string; count: number; featureTypes: string[] }>();
+  for (const group of [...classGroups.values(), ...subclassGroups.values()]) {
+    const current = merged.get(group.id);
+    if (current) current.count += group.count;
+    else merged.set(group.id, { ...group });
+  }
+  return [...merged.values()];
+}
+
 export default function NewCharacterPage() {
   const router = useRouter();
   const {
@@ -105,21 +130,14 @@ export default function NewCharacterPage() {
     [selectedRaceRules, selectedClassRules, selectedBackgroundRules, raceLanguageSelections, classLanguageSelections, backgroundLanguageSelections],
   );
 
-  const optionalChoiceGroups = useMemo(() => {
-    const entries = [
-      ...(selectedClassRules?.optionalFeatureProgression ?? []),
-      ...(subclassOptionalFeatureProgression[form.subclass] ?? []),
-    ].filter((entry) => entry.level <= form.level && entry.count > 0);
-
-    const grouped = new Map<string, { id: string; title: string; count: number; featureTypes: string[] }>();
-    for (const entry of entries) {
-      const key = entry.title + "::" + entry.featureTypes.join("|");
-      const current = grouped.get(key);
-      if (current) current.count = Math.max(current.count, entry.count);
-      else grouped.set(key, { id: key, title: entry.title, count: entry.count, featureTypes: entry.featureTypes });
-    }
-    return [...grouped.values()];
-  }, [selectedClassRules, subclassOptionalFeatureProgression, form.subclass, form.level]);
+  const optionalChoiceGroups = useMemo(
+    () => getOptionalChoiceGroups(
+      selectedClassRules?.optionalFeatureProgression ?? [],
+      subclassOptionalFeatureProgression[form.subclass] ?? [],
+      form.level,
+    ),
+    [selectedClassRules, subclassOptionalFeatureProgression, form.subclass, form.level],
+  );
 
   useEffect(() => {
     const nextMaxHp = getExpectedMaxHp(form.className, form.level, form.abilities.con);
@@ -290,6 +308,19 @@ export default function NewCharacterPage() {
                     <ChoiceGroup title="Choose class languages" choices={selectedClassRules.languages.choices} value={classLanguageSelections} onChange={setClassLanguageSelections} />
                   </div>
                 )}
+              </SectionCard>
+
+              <SectionCard title="Class Features" description="All class and subclass features unlocked by the selected level are shown here. They are granted automatically when the character is created.">
+                <div className="space-y-3">
+                  {featureCatalogue
+                    .filter((feature) => feature.requiredLevel <= form.level && feature.className === form.className && (!feature.subclassName || feature.subclassName === form.subclass))
+                    .map((feature) => (
+                      <article key={feature.id} className="rounded-xl border border-stone-800 bg-stone-950/60 p-4">
+                        <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{feature.name}</h3><Badge>Level {feature.requiredLevel}</Badge><Badge tone={feature.sourceType === "subclass" ? "warn" : "neutral"}>{feature.sourceType === "subclass" ? "Subclass" : "Class"}</Badge></div>
+                        <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-400">{feature.description}</p>
+                      </article>
+                    ))}
+                </div>
               </SectionCard>
 
               <SectionCard title="Class options" description="Choose Fighting Styles and other optional class features available at this level.">
