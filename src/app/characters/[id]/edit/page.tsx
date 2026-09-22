@@ -267,7 +267,7 @@ function CharacterEditor({
       }
     });
     return next;
-  }, [abilities, newAsiLevels, asiAbilityChoices, asiChoices, featCatalogue, featAbilityChoices]);
+  }, [baseAbilities, form.race, selectedSubrace, raceRules, newAsiLevels, asiAbilityChoices, asiChoices, featCatalogue, featAbilityChoices]);
 
   const expertiseLevels = useMemo(
     () => featureCatalogue
