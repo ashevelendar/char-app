@@ -46,7 +46,7 @@ type DatabaseStatus = "loading" | "connected" | "error" | "local-only";
 type ProficiencyChoice = { count: number; options: string[] };
 type ProficiencyRules = { fixed: string[]; choices: ProficiencyChoice[] };
 type ClassRules = {
-  savingThrows: string[];
+  savingThrows: AbilityKey[];
   skills: ProficiencyRules;
   tools: ProficiencyRules;
   languages: ProficiencyRules;
@@ -258,6 +258,25 @@ function displayProficiencyName(value: string) {
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase())
     .trim();
+}
+
+function abilityKeyFromName(value: string): AbilityKey | null {
+  const normalized = value.toLowerCase().replace(/[\s_-]/g, "");
+  const aliases: Record<string, AbilityKey> = {
+    str: "str",
+    strength: "str",
+    dex: "dex",
+    dexterity: "dex",
+    con: "con",
+    constitution: "con",
+    int: "int",
+    intelligence: "int",
+    wis: "wis",
+    wisdom: "wis",
+    cha: "cha",
+    charisma: "cha",
+  };
+  return aliases[normalized] ?? null;
 }
 
 function extractProficiencyRules(raw: unknown, field: string): ProficiencyRules {
@@ -650,7 +669,9 @@ function makeMaps(
       const raw = row.raw_data && typeof row.raw_data === "object" ? row.raw_data as Record<string, unknown> : {};
       const starting = raw.startingProficiencies;
       const savingThrows = Array.isArray(raw.proficiency)
-        ? raw.proficiency.map((entry) => displayProficiencyName(String(entry)))
+        ? raw.proficiency
+            .map((entry) => abilityKeyFromName(String(entry)))
+            .filter((entry): entry is AbilityKey => entry !== null)
         : [];
       const progression = Array.isArray(raw.optionalfeatureProgression)
         ? raw.optionalfeatureProgression.flatMap((entry) => {
@@ -1287,6 +1308,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       const baseCharacter: Character = {
         id: baseId,
         ...input,
+        subrace: input.subrace ?? "",
         level,
         hp: Math.max(0, Math.min(maxHp, input.hp || maxHp)),
         maxHp,
