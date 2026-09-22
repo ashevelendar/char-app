@@ -15,6 +15,16 @@ import {
   getProficiencyBonus,
 } from "../../../../lib/rules";
 
+const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
+const abilityLabels: Record<AbilityKey, string> = {
+  str: "Strength",
+  dex: "Dexterity",
+  con: "Constitution",
+  int: "Intelligence",
+  wis: "Wisdom",
+  cha: "Charisma",
+};
+
 
 export default function EditCharacterPage() {
   const params = useParams<{ id: string }>();
