@@ -256,7 +256,20 @@ function CharacterEditor({
   const newAsiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level, classRules);
 
   const progressionAbilities = useMemo(() => {
-    const next = { ...abilities };
+    const next = applyAbilityBonuses(
+      applyAbilityBonuses({ ...baseAbilities }, raceRules[form.race]?.abilityBonuses ?? {}),
+      selectedSubrace?.abilityBonuses ?? {},
+    );
+
+    asiChoices.filter(Boolean).forEach((featId) => {
+      const feat = featCatalogue.find((entry) => entry.id === featId);
+      if (!feat) return;
+      const bonuses = getFeatAbilityBonuses(feat, featAbilityChoices[featId]);
+      (Object.keys(bonuses) as AbilityKey[]).forEach((key) => {
+        next[key] = Math.min(20, next[key] + (bonuses[key] ?? 0));
+      });
+    });
+
     newAsiLevels.forEach((_, index) => {
       const choice = asiAbilityChoices[index];
       if (!choice?.first) return;
@@ -267,6 +280,7 @@ function CharacterEditor({
         next[choice.second] = Math.min(20, next[choice.second] + 1);
       }
     });
+
     return next;
   }, [baseAbilities, form.race, selectedSubrace, raceRules, newAsiLevels, asiAbilityChoices, asiChoices, featCatalogue, featAbilityChoices]);
 
@@ -434,6 +448,7 @@ function CharacterEditor({
       notes: [
         form.notes,
         expertiseSelections.filter(Boolean).length ? "Expertise: " + expertiseSelections.filter(Boolean).join(", ") : "",
+        Object.keys(featAbilityChoices).length ? "Feat Ability Choices: " + JSON.stringify(featAbilityChoices) : "",
       ].filter(Boolean).join("\n\n"),
     });
   }
