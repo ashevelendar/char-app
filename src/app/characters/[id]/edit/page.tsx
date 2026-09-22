@@ -8,7 +8,7 @@ import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell"
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, SpellEntry } from "../../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getWizardSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
@@ -300,10 +300,10 @@ function CharacterEditor({
   const cantripsKnown = getCantripsKnown(form.className, form.level, classRules);
   const spellsKnown = getSpellsKnown(form.className, form.level, classRules);
   const preparedSpellLimit = getPreparedSpellCount(spellCharacter, classRules);
-  const wizardSpellbookLimit = form.className === "Wizard" ? getWizardSpellbookProgression(form.level) : null;
-  const knownSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : spellsKnown ?? preparedSpellLimit;
+  const spellbookLimit = getSpellbookProgression(form.className, form.level, classRules);
+  const knownSpellLimit = spellbookLimit ?? spellsKnown ?? preparedSpellLimit;
   const magicalSecretCount = magicalSecretFeatures.length * 2;
-  const normalSpellLimit = form.className === "Wizard" ? wizardSpellbookLimit : knownSpellLimit === null ? null : Math.max(0, knownSpellLimit - magicalSecretCount);
+  const normalSpellLimit = spellbookLimit ?? (knownSpellLimit === null ? null : Math.max(0, knownSpellLimit - magicalSecretCount));
 
   const effectiveSelectedSpells = selectedSpells;
 
@@ -489,7 +489,7 @@ function CharacterEditor({
                   level={form.level}
                   availableSpells={availableSpells}
                   cantripsKnown={cantripsKnown}
-                  spellLimit={normalSpellLimit}
+                  spellLimit={normalSpellLimit} spellbook={spellbookLimit !== null}
                   selectedSpells={effectiveSelectedSpells}
                   onChange={setSelectedSpells}
                 />
@@ -919,15 +919,14 @@ function MagicalSecretsSection({ features, spells, excluded, selected, onChange 
   </SectionCard>;
 }
 
-function SpellSelectionSection({ className, level, availableSpells, cantripsKnown, spellLimit, selectedSpells, onChange }: { className: string; level: number; availableSpells: Array<{ id: string; name: string; level: number; school: string; description: string }>; cantripsKnown: number; spellLimit: number | null; selectedSpells: SpellEntry[]; onChange: (value: SpellEntry[]) => void }) {
+function SpellSelectionSection({ className, level, availableSpells, cantripsKnown, spellLimit, spellbook, selectedSpells, onChange }: { className: string; level: number; availableSpells: Array<{ id: string; name: string; level: number; school: string; description: string }>; cantripsKnown: number; spellLimit: number | null; spellbook: boolean; selectedSpells: SpellEntry[]; onChange: (value: SpellEntry[]) => void }) {
   if (!cantripsKnown && spellLimit === null) return null;
   const selectedCantrips = selectedSpells.filter((entry) => availableSpells.find((spell) => spell.id === entry.spellId)?.level === 0);
   const selectedLeveled = selectedSpells.filter((entry) => {
     const spell = availableSpells.find((candidate) => candidate.id === entry.spellId);
     return Boolean(spell && spell.level > 0);
   });
-  const isWizard = className === "Wizard";
-  const label = isWizard ? "Spellbook" : spellLimit === null ? "Prepared spells" : "Spells known";
+  const label = spellbook ? "Spellbook" : spellLimit === null ? "Prepared spells" : "Spells known";
   const remainingCantrips = Math.max(0, cantripsKnown - selectedCantrips.length);
   const remainingLeveled = spellLimit === null ? 0 : Math.max(0, spellLimit - selectedLeveled.length);
   function toggle(spellId: string) {
@@ -940,7 +939,7 @@ function SpellSelectionSection({ className, level, availableSpells, cantripsKnow
     const count = spell.level === 0 ? selectedCantrips.length : selectedLeveled.length;
     const limit = spell.level === 0 ? cantripsKnown : spellLimit;
     if (limit !== null && count >= limit) return;
-    onChange([...selectedSpells, { spellId, prepared: spell.level === 0 || !isWizard }]);
+    onChange([...selectedSpells, { spellId, prepared: spell.level === 0 || !spellbook }]);
   }
   return <SectionCard title="Spells" description={isWizard ? "Edit the spells in the Wizard spellbook." : "Edit the character's known or prepared spells."}>
     <div className="grid gap-5 lg:grid-cols-2">
