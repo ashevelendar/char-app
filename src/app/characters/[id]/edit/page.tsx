@@ -168,9 +168,10 @@ function CharacterEditor({
   const initialAsiHistory = useMemo(() => parseAsiHistory(character.notes), [character.notes]);
   const initialAsiBonuses = getAsiHistoryBonusTotal(initialAsiHistory);
 
-  const getExistingFeatBonus = (ability: AbilityKey) => character.feats.reduce((total, featId) => {
-    const feat = featCatalogue.find((entry) => entry.id === featId);
-    return total + (feat ? (getFeatAbilityBonuses(feat, initialFeatAbilityChoices[featId])[ability] ?? 0) : 0);
+  const getExistingFeatBonus = (ability: AbilityKey) => initialAsiHistory.reduce((total, entry) => {
+    if (entry.mode !== "feat" || !entry.featId) return total;
+    const feat = featCatalogue.find((candidate) => candidate.id === entry.featId);
+    return total + (feat ? (getFeatAbilityBonuses(feat, entry.featAbility ?? initialFeatAbilityChoices[entry.featId])[ability] ?? 0) : 0);
   }, 0);
 
   const [baseAbilities, setBaseAbilities] = useState<AbilityScores>(() => ({
@@ -301,16 +302,32 @@ function CharacterEditor({
 
   function updateAsiHistory(level: number, entry: AsiHistoryEntry | undefined) {
     const previous = asiHistory.find((item) => item.level === level);
-    const previousBonuses = getAsiAbilityBonuses(previous);
-    const nextBonuses = getAsiAbilityBonuses(entry);
+    const previousAbilityBonuses = getAsiAbilityBonuses(previous);
+    const nextAbilityBonuses = getAsiAbilityBonuses(entry);
+    const getFeatBonuses = (item?: AsiHistoryEntry) => {
+      if (!item || item.mode !== "feat" || !item.featId) return {};
+      const feat = featCatalogue.find((candidate) => candidate.id === item.featId);
+      return feat ? getFeatAbilityBonuses(feat, item.featAbility ?? featAbilityChoices[item.featId]) : {};
+    };
+    const previousFeatBonuses = getFeatBonuses(previous);
+    const nextFeatBonuses = getFeatBonuses(entry);
+
     setAsiHistory((current) => {
       const without = current.filter((item) => item.level !== level);
       return entry ? [...without, { ...entry, level }].sort((a, b) => a.level - b.level) : without;
     });
+
     setBaseAbilities((current) => {
       const next = { ...current };
       for (const key of abilityKeys) {
-        next[key] = Math.max(1, next[key] + (previousBonuses[key] ?? 0) - (nextBonuses[key] ?? 0));
+        next[key] = Math.max(
+          1,
+          next[key]
+            + (previousAbilityBonuses[key] ?? 0)
+            - (nextAbilityBonuses[key] ?? 0)
+            + (previousFeatBonuses[key] ?? 0)
+            - (nextFeatBonuses[key] ?? 0),
+        );
       }
       return next;
     });
