@@ -2146,7 +2146,21 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
     addOptionalFeature: async (characterId, optionalFeatureKey, override = false) => {
       const character = characters.find((entry) => entry.id === characterId);
-      if (!character) return false;
+      const optionalFeature = optionalFeatureCatalogue.find(
+        (entry) => entry.id === optionalFeatureKey || entry.contentKey === optionalFeatureKey,
+      );
+      if (!character || !optionalFeature) return false;
+
+      const progression = [
+        ...(classRules[character.className]?.optionalFeatureProgression ?? []),
+        ...(character.subclass ? subclassOptionalFeatureProgression[character.subclass] ?? [] : []),
+      ];
+      const normallyAvailable = progression.some((entry) =>
+        entry.level <= character.level &&
+        entry.featureTypes.some((type) => optionalFeature.featureTypes.includes(type)),
+      );
+      const allowed = normallyAvailable || (accessMode === "dm" && override);
+      if (!allowed) return false;
 
       if (!character.optionalFeatures.includes(optionalFeatureKey)) {
         setCharacters((current) => current.map((entry) =>
@@ -2169,8 +2183,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
           const result = await supabase.from("character_optional_features").upsert({
             character_id: characterId,
             optional_feature_id: dbOptionalFeatureId,
-            dm_granted: accessMode === "dm" && override,
-            source: accessMode === "dm" && override ? "DM Grant" : "Normal",
+            dm_granted: !normallyAvailable && override && accessMode === "dm",
+            source: !normallyAvailable && override && accessMode === "dm" ? "DM Grant" : "Normal",
           }, { onConflict: "character_id,optional_feature_id" });
 
           if (result.error) throw result.error;
