@@ -169,6 +169,7 @@ export interface NewCharacterInput {
   hitDice: string;
   proficiencyBonus: number;
   abilities: AbilityScores;
+  savingThrows?: AbilityKey[];
   notes: string;
   skills?: string[];
   tools?: string[];
