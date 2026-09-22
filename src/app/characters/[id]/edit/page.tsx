@@ -8,7 +8,7 @@ import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell"
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
 import { useCharacters } from "../../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, SpellEntry } from "../../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getCarryingCapacity, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getInventoryWeight, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, getAvailableItems, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getCarryingCapacity, getClassDefinition, validateAsiHistory, validateExpertiseHistory, validateMagicalSecretsHistory, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getInventoryWeight, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, getAvailableItems, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
@@ -650,12 +650,30 @@ function CharacterEditor({
       return;
     }
 
-    const incompleteMagicalSecrets = magicalSecretFeatures.some((feature) =>
-      (magicalSecretHistory.find((entry) => entry.level === feature.requiredLevel)?.spellIds.length ?? 0) !== 2,
-    );
-    if (incompleteMagicalSecrets) {
+    const asiErrors = validateAsiHistory(asiHistory, form.className, form.level, featCatalogue, classRules);
+    if (asiErrors.length) {
+      setStep("abilities");
+      setSaveError(asiErrors[0]);
+      return;
+    }
+
+    const expertiseErrors = validateExpertiseHistory(expertiseHistory, expertiseLevels, selectedSkills);
+    if (expertiseErrors.length) {
       setStep("class");
-      setSaveError("Please choose exactly two Magical Secrets spells for each Magical Secrets feature before saving.");
+      setSaveError(expertiseErrors[0]);
+      return;
+    }
+
+    const magicalSecretsErrors = validateMagicalSecretsHistory(
+      magicalSecretHistory,
+      magicalSecretFeatures.map((feature) => feature.requiredLevel),
+      spellCatalogue,
+      spellCharacter,
+      classRules,
+    );
+    if (magicalSecretsErrors.length) {
+      setStep("class");
+      setSaveError(magicalSecretsErrors[0]);
       return;
     }
 
