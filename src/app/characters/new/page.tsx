@@ -57,7 +57,10 @@ export default function NewCharacterPage() {
   const [backgroundSkillSelections, setBackgroundSkillSelections] = useState<string[]>([]);
   const [backgroundToolSelections, setBackgroundToolSelections] = useState<string[]>([]);
   const [backgroundLanguageSelections, setBackgroundLanguageSelections] = useState<string[]>([]);
+  const [raceLanguageSelections, setRaceLanguageSelections] = useState<string[]>([]);
   const [equipmentSelections, setEquipmentSelections] = useState<InventoryEntry[]>([]);
+  const [startingEquipmentSelections, setStartingEquipmentSelections] = useState<Record<string, number>>({});
+  const [equipmentSearch, setEquipmentSearch] = useState("");
   const [step, setStep] = useState<BuilderStep>("class");
 
   const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className);
@@ -89,7 +92,9 @@ export default function NewCharacterPage() {
   const selectedLanguages = useMemo(
     () => [...new Set([
       ...(selectedRaceRules?.languages.fixed ?? []),
+      ...((selectedRaceRules?.languages.choices ?? []).length ? raceLanguageSelections : []),
       ...(selectedClassRules?.languages.fixed ?? []),
+      ...((selectedClassRules?.languages.choices ?? []).flatMap((choice) => choice.options.length ? [] : []) : []),
       ...(selectedBackgroundRules?.languages ?? []),
       ...backgroundLanguageSelections.filter(Boolean),
     ])],
@@ -150,6 +155,10 @@ export default function NewCharacterPage() {
     setBackgroundToolSelections([]);
     setBackgroundLanguageSelections([]);
   }, [form.background]);
+
+  useEffect(() => {
+    setRaceLanguageSelections([]);
+  }, [form.race]);
 
   function selectRace(race: string, subrace = "") {
     const subraceRules = catalogue.subraces.find((entry) => entry.name === subrace && entry.parentRace === race);
@@ -318,38 +327,71 @@ export default function NewCharacterPage() {
 
           {step === "equipment" && (
             <>
-              <SectionCard title="Choose equipment" description="Select the equipment your character starts with. Selected equipment will appear in the character's inventory.">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {itemCatalogue.slice(0, 60).map((item) => {
-                    const selected = equipmentSelections.some((entry) => entry.itemId === item.id);
-                    return (
-                      <button key={item.id} type="button" onClick={() => {
-                        setEquipmentSelections((current) => selected
-                          ? current.filter((entry) => entry.itemId !== item.id)
-                          : [...current, { itemId: item.id, quantity: 1, equipped: false }]);
-                      }} className={`rounded-xl border p-4 text-left transition ${selected ? "border-amber-500 bg-amber-950/30" : "border-stone-800 bg-stone-950/50 hover:border-stone-600"}`}>
-                        <div className="font-semibold">{item.name}</div>
-                        <div className="mt-1 text-xs text-stone-500">{item.category}{item.rarity ? ` • ${item.rarity}` : ""}</div>
-                        {item.description && <p className="mt-2 line-clamp-3 text-xs leading-5 text-stone-400">{item.description}</p>}
-                      </button>
-                    );
-                  })}
+              <SectionCard title="Starting Equipment" description="Choose the equipment granted by your class and background. Each choice adds the selected items to Current Inventory.">
+                <div className="mb-5 flex items-center justify-center gap-1 rounded-xl border border-stone-800 bg-stone-950/70 p-1">
+                  <div className="flex-1 rounded-lg bg-stone-100 px-4 py-2.5 text-center text-sm font-semibold text-stone-950">Equipment</div>
+                  <div className="flex-1 rounded-lg px-4 py-2.5 text-center text-sm font-semibold text-stone-600" aria-disabled="true">Gold</div>
+                </div>
+                <div className="space-y-4">
+                  {[
+                    ...(selectedClassRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `class-${index}`, heading: "Class equipment" })),
+                    ...(selectedBackgroundRules?.startingEquipment ?? []).map((group, index) => ({ ...group, id: `background-${index}`, heading: "Background equipment" })),
+                  ].map((group) => (
+                    <div key={group.id} className="rounded-2xl border border-stone-800 bg-stone-950/60 p-5">
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold">{group.heading}</h3>
+                        <Badge>{group.label}</Badge>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {group.options.map((option, optionIndex) => {
+                          const selected = startingEquipmentSelections[group.id] === optionIndex;
+                          return (
+                            <button
+                              key={optionIndex}
+                              type="button"
+                              onClick={() => {
+                                setStartingEquipmentSelections((current) => ({ ...current, [group.id]: optionIndex }));
+                                const keys = new Set([
+                                  ...Object.keys(startingEquipmentSelections).filter((key) => key.startsWith(group.id.split("-")[0])),
+                                ]);
+                                void keys;
+                              }}
+                              className={`rounded-xl border p-4 text-left transition ${selected ? "border-amber-500 bg-amber-950/30" : "border-stone-800 bg-stone-950/50 hover:border-stone-600"}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className={`h-4 w-4 rounded-full border-2 ${selected ? "border-amber-400 bg-amber-400" : "border-stone-600"}`} />
+                                <span className="font-semibold">{option.label}</span>
+                              </div>
+                              {option.items.length > 0 && (
+                                <p className="mt-2 text-xs leading-5 text-stone-500">
+                                  {option.items.map((entry) => `${entry.quantity > 1 ? entry.quantity + "× " : ""}${entry.name}`).join(", ")}
+                                </p>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  {!((selectedClassRules?.startingEquipment?.length ?? 0) + (selectedBackgroundRules?.startingEquipment?.length ?? 0)) && (
+                    <p className="text-sm text-stone-500">No parsed starting-equipment bundles were found. You can still add items manually below.</p>
+                  )}
                 </div>
               </SectionCard>
 
-              <SectionCard title="Selected equipment" description="Equip armor, shields and weapons here.">
-                {equipmentSelections.length === 0 ? <p className="text-sm text-stone-500">No equipment selected yet.</p> : (
+              <SectionCard title={`Current Inventory (${equipmentSelections.length})`} description="This is the equipment that will be placed on the character.">
+                {equipmentSelections.length === 0 ? <p className="text-sm text-stone-500">Nothing selected yet.</p> : (
                   <div className="space-y-2">
                     {equipmentSelections.map((entry) => {
                       const item = itemCatalogue.find((candidate) => candidate.id === entry.itemId);
                       if (!item) return null;
-                      return <div key={entry.itemId} className="flex flex-col gap-3 rounded-xl border border-stone-800 bg-stone-950/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      return <div key={entry.itemId} className="flex items-center justify-between gap-4 rounded-xl border border-stone-800 bg-stone-950/60 p-4">
                         <div><div className="font-semibold">{item.name}</div><div className="text-xs text-stone-500">{item.category}</div></div>
                         <div className="flex items-center gap-2">
                           <button type="button" onClick={() => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, quantity: Math.max(1, candidate.quantity - 1) } : candidate))} className="rounded-lg border border-stone-700 px-2 py-1">−</button>
                           <span className="w-8 text-center text-sm">{entry.quantity}</span>
                           <button type="button" onClick={() => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, quantity: candidate.quantity + 1 } : candidate))} className="rounded-lg border border-stone-700 px-2 py-1">+</button>
-                          <label className="ml-2 flex items-center gap-2 text-sm text-stone-300"><input type="checkbox" checked={entry.equipped} onChange={(event) => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, equipped: event.target.checked } : candidate))} /> Equipped</label>
+                          <label className="flex items-center gap-2 text-sm text-stone-300"><input type="checkbox" checked={entry.equipped} onChange={(event) => setEquipmentSelections((current) => current.map((candidate) => candidate.itemId === entry.itemId ? { ...candidate, equipped: event.target.checked } : candidate))} /> Equip</label>
                           <button type="button" onClick={() => setEquipmentSelections((current) => current.filter((candidate) => candidate.itemId !== entry.itemId))} className="rounded-lg border border-red-900/60 px-2 py-1 text-red-400">Remove</button>
                         </div>
                       </div>;
@@ -357,6 +399,26 @@ export default function NewCharacterPage() {
                   </div>
                 )}
               </SectionCard>
+
+              <SectionCard title="Add Items" description="Add anything else from the imported 2014 equipment catalogue.">
+                <div className="mb-4 flex gap-3">
+                  <input value={equipmentSearch} onChange={(event) => setEquipmentSearch(event.target.value)} placeholder="Search equipment..." className="flex-1 rounded-xl border border-stone-700 bg-stone-950 px-4 py-2.5 text-sm text-stone-100 outline-none focus:border-amber-400" />
+                  <Badge>{itemCatalogue.length} items</Badge>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {itemCatalogue
+                    .filter((item) => `${item.name} ${item.category}`.toLowerCase().includes(equipmentSearch.toLowerCase()))
+                    .slice(0, 40)
+                    .map((item) => (
+                      <div key={item.id} className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/60 p-3">
+                        <div><div className="font-medium">{item.name}</div><div className="text-xs text-stone-600">{item.category}</div></div>
+                        <button type="button" onClick={() => setEquipmentSelections((current) => current.some((entry) => entry.itemId === item.id) ? current : [...current, { itemId: item.id, quantity: 1, equipped: false }])} className="rounded-lg border border-stone-700 px-3 py-1.5 text-sm">Add</button>
+                      </div>
+                    ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Other Possessions" description="Use Notes on the final step for free-form possessions that are not represented by an item record." />
             </>
           )}
 
