@@ -320,7 +320,7 @@ function CharacterEditor({
     const getFeatBonuses = (item?: AsiHistoryEntry) => {
       if (!item || item.mode !== "feat" || !item.featId) return {};
       const feat = featCatalogue.find((candidate) => candidate.id === item.featId);
-      return feat ? getFeatAbilityBonuses(feat, item.featAbility ?? featAbilityChoices[item.featId]) : {};
+      return feat ? getFeatAbilityBonuses(feat, item.featAbility) : {};
     };
     const previousFeatBonuses = getFeatBonuses(previous);
     const nextFeatBonuses = getFeatBonuses(entry);
