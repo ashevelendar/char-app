@@ -912,6 +912,28 @@ function makeMaps(
             Array.isArray(row) ? row.map((value) => Number(value) || 0) : [],
           )
         : [];
+      const pactTableGroup = Array.isArray(raw.classTableGroups)
+        ? raw.classTableGroups.find((group) => {
+            if (!group || typeof group !== "object") return false;
+            const labels = (group as Record<string, unknown>).colLabels;
+            return Array.isArray(labels) &&
+              labels.some((label) => String(label).toLowerCase().includes("spell slots")) &&
+              labels.some((label) => String(label).toLowerCase().includes("slot level"));
+          }) as Record<string, unknown> | undefined
+        : undefined;
+      const pactLabels = Array.isArray(pactTableGroup?.colLabels) ? pactTableGroup.colLabels.map(String) : [];
+      const pactSlotsColumn = pactLabels.findIndex((label) => label.toLowerCase().includes("spell slots"));
+      const pactLevelColumn = pactLabels.findIndex((label) => label.toLowerCase().includes("slot level"));
+      const pactSlotProgression = Array.isArray(pactTableGroup?.rows) && pactSlotsColumn >= 0 && pactLevelColumn >= 0
+        ? (pactTableGroup.rows as unknown[]).map((row) => {
+            if (!Array.isArray(row)) return null;
+            const count = Number(row[pactSlotsColumn]);
+            const levelText = String(row[pactLevelColumn] ?? "");
+            const levelMatch = levelText.match(/(\d+)/);
+            const level = levelMatch ? Number(levelMatch[1]) : 0;
+            return Number.isFinite(count) && level > 0 ? { count, level } : null;
+          }).filter((entry): entry is { count: number; level: number } => Boolean(entry))
+        : [];
       const asiLevels = featureCatalogue
         .filter((feature) => feature.sourceType === "class" && feature.className === row.name && feature.name.toLowerCase() === "ability score improvement")
         .map((feature) => feature.requiredLevel)
@@ -932,6 +954,7 @@ function makeMaps(
           : [],
         preparedSpells: typeof raw.preparedSpells === "string" ? raw.preparedSpells : null,
         spellSlots,
+        pactSlotProgression,
         subclassUnlockLevel: Number.isFinite(subclassUnlockLevel) ? subclassUnlockLevel : undefined,
         asiLevels: [...new Set(asiLevels)],
         savingThrows,
