@@ -9,7 +9,7 @@ import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } fro
 import MulticlassEditor from "../../../../components/MulticlassEditor";
 import { useCharacters } from "../../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, CharacterClassLevel, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, Spell, SpellEntry } from "../../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getAbilityScoreImprovementLevelsForCharacter, getCantripsKnown, getCarryingCapacity, getClassDefinition, validateAsiHistory, validateExpertiseHistory, validateMagicalSecretsHistory, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getInventoryWeight, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, getAvailableItems, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getAbilityScoreImprovementLevelsForCharacter, getCantripsKnown, getCarryingCapacity, getClassDefinition, validateAsiHistoryForCharacter, validateAsiHistory, validateExpertiseHistory, validateMagicalSecretsHistory, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getInventoryWeight, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, getAvailableItems, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
@@ -715,7 +715,10 @@ function CharacterEditor({
       return;
     }
 
-    const asiErrors = validateAsiHistory(asiHistory, form.className, form.level, featCatalogue, classRules);
+    const asiValidationCharacter = { ...character, ...form, abilities: progressionAbilities, classLevels: form.classLevels } as Character;
+    const asiErrors = form.classLevels?.length
+      ? validateAsiHistoryForCharacter(asiHistory, asiValidationCharacter, featCatalogue, classRules)
+      : validateAsiHistory(asiHistory, form.className, form.level, featCatalogue, classRules);
     if (asiErrors.length) {
       setStep("abilities");
       setSaveError(asiErrors[0]);
