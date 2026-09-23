@@ -20,6 +20,13 @@ jobs:
         run: npm ci
       - name: Test rules
         run: npm run test:rules
+      - name: Export Supabase fuzz catalogue
+        if: ${{ secrets.SUPABASE_SECRET_KEY != '' }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: npm run fuzz:catalogue
+
       - name: Fuzz rules
         run: npm run test:fuzz -- --iterations 5000 --seed 20260923
       - name: Build
