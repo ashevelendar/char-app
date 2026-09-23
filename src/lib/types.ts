@@ -188,6 +188,12 @@ export interface Currency {
   pp: number;
 }
 
+export interface CharacterClassLevel {
+  className: string;
+  level: number;
+  subclass?: string;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -196,6 +202,8 @@ export interface Character {
   className: string;
   subclass: string;
   level: number;
+  /** Full multiclass breakdown. Legacy characters omit this and use className/level/subclass. */
+  classLevels?: CharacterClassLevel[];
   background: string;
   alignment: string;
   playerName: string;
@@ -234,6 +242,7 @@ export interface NewCharacterInput {
   className: string;
   subclass: string;
   level: number;
+  classLevels?: CharacterClassLevel[];
   background: string;
   alignment: string;
   playerName: string;
