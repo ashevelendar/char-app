@@ -29,5 +29,8 @@ jobs:
 
       - name: Fuzz rules
         run: npm run test:fuzz -- --iterations 5000 --seed 20260923
+      - name: Fuzz character transitions
+        run: npm run test:transitions -- 5000 --seed 20260923
+
       - name: Build
         run: npm run build
