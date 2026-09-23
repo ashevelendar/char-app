@@ -447,10 +447,9 @@ function runDeterministicCoverage() {
   // rather than generating impossible class/subclass pairs.
   for (const { className, subclass } of validClassSubclasses) {
     for (const race of races) {
-        for (let level = 1; level <= 20; level += 1) {
-          fuzzCharacter(character({ className, race, subclass, level }));
-          cases += 1;
-        }
+      for (let level = 1; level <= 20; level += 1) {
+        fuzzCharacter(character({ className, race, subclass, level }));
+        cases += 1;
       }
     }
   }
@@ -461,15 +460,14 @@ function runDeterministicCoverage() {
   for (const feat of feats) {
     for (const { className, subclass } of validClassSubclasses) {
       for (const race of races) {
-          fuzzCharacter(character({
-            className,
-            race,
-            subclass,
-            level: 20,
-            feats: [feat.id],
-          }));
-          cases += 1;
-        }
+        fuzzCharacter(character({
+          className,
+          race,
+          subclass,
+          level: 20,
+          feats: [feat.id],
+        }));
+        cases += 1;
       }
     }
   }
