@@ -118,6 +118,10 @@ function character(overrides = {}) {
     notes: "",
     ...overrides,
   };
+  const expectedMaxHp = rules.getExpectedMaxHp(className, level, abilities.con);
+  base.maxHp = expectedMaxHp;
+  base.hp = expectedMaxHp;
+
   const automatic = rules.getAutomaticallyGrantedFeatureIds(base, features);
   return {
     ...base,
