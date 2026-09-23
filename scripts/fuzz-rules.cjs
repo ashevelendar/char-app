@@ -281,6 +281,31 @@ function fuzzCharacter(characterValue, coverage = {}) {
     }
   }, c);
 
+  if (Array.isArray(c.classLevels) && c.classLevels.length > 1) {
+    check("multiclass progression", () => {
+      const total = c.classLevels.reduce((sum, entry) => sum + entry.level, 0);
+      assert.ok(total >= 2 && total <= 20);
+      assert.equal(rules.getTotalCharacterLevel(c), total);
+      assert.equal(rules.getProficiencyBonus(total), 2 + Math.floor((total - 1) / 4));
+      assert.deepEqual(
+        rules.validateMulticlassClassLevels(c.classLevels, c.abilities),
+        [],
+      );
+      const hitDice = rules.getMulticlassHitDice(c.classLevels);
+      assert.ok(typeof hitDice === "string" && hitDice.length > 0);
+      const maxHp = rules.getExpectedMulticlassMaxHp(c.classLevels, c.abilities.con);
+      assert.ok(Number.isInteger(maxHp) && maxHp > 0);
+
+      const slots = rules.getMulticlassSpellSlotSummary(c);
+      const maxSpellLevel = rules.getMulticlassMaxSpellLevel(c);
+      assert.ok(maxSpellLevel >= 0 && maxSpellLevel <= 9);
+      for (const slot of slots) {
+        assert.ok(slot.level >= 1 && slot.level <= 9);
+        assert.ok(slot.count > 0);
+      }
+    }, c);
+  }
+
   check("spell progression", () => {
     const maxSpellLevel = rules.getMaxSpellLevel(c);
     const mode = rules.getSpellcastingMode(c);
@@ -581,7 +606,37 @@ function runDeterministicCoverage() {
     }
   }
 
-  // 4. Full feature dependency graph is exercised once against every class,
+  // 4. Multiclass coverage: every supported class paired with every other
+  // class at representative splits. All ability scores are 13 so only class
+  // compatibility, subclass availability and progression rules are under test.
+  for (const primary of supportedClasses) {
+    for (const secondary of supportedClasses) {
+      if (primary === secondary) continue;
+      for (const primaryLevel of [1, 2, 3, 4, 5, 8, 12, 16]) {
+        const secondaryLevel = 1;
+        if (primaryLevel + secondaryLevel > 20) continue;
+        const primarySubclass = subclasses.find((entry) => entry.className === primary && entry.requiredLevel <= primaryLevel)?.name ?? "";
+        const secondarySubclass = subclasses.find((entry) => entry.className === secondary && entry.requiredLevel <= secondaryLevel)?.name ?? "";
+        fuzzCharacter(character({
+          className: primary,
+          subclass: primarySubclass,
+          level: primaryLevel + secondaryLevel,
+          abilities: { str: 13, dex: 13, con: 13, int: 13, wis: 13, cha: 13 },
+          classLevels: [
+            { className: primary, level: primaryLevel, subclass: primarySubclass || undefined },
+            { className: secondary, level: secondaryLevel, subclass: secondarySubclass || undefined },
+          ],
+        }), {
+          skipFeatureGraph: true,
+          skipFeatScan: true,
+          spellScan: spells,
+        });
+        cases += 1;
+      }
+    }
+  }
+
+  // 5. Full feature dependency graph is exercised once against every class,
   // subclass and level where the graph can change. This avoids rescanning all
   // 1,291 features for every unrelated character.
   for (const className of supportedClasses) {
