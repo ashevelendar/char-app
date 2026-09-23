@@ -35,18 +35,48 @@ const supabase = createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientJwtTimingError(error) {
+  return error && (
+    error.code === "PGRST303" ||
+    /JWT issued at future/i.test(error.message ?? "")
+  );
+}
+
 async function fetchAll(table, select, filters = []) {
   const pageSize = 1000;
   const rows = [];
+  const maxAttempts = 4;
+  const retryDelays = [500, 1000, 2000];
 
   for (let start = 0; ; start += pageSize) {
-    let query = supabase.from(table).select(select).range(start, start + pageSize - 1);
-    for (const filter of filters) {
-      query = query[filter.method](...filter.args);
+    let data;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      let query = supabase.from(table).select(select).range(start, start + pageSize - 1);
+      for (const filter of filters) {
+        query = query[filter.method](...filter.args);
+      }
+
+      const result = await query;
+      data = result.data;
+
+      if (!result.error) break;
+
+      if (!isTransientJwtTimingError(result.error) || attempt === maxAttempts) {
+        throw new Error(`Failed to export ${table}: ${result.error.message}`);
+      }
+
+      const delay = retryDelays[attempt - 1];
+      console.warn(
+        `  ${table}: transient Supabase JWT timing error, retrying in ${delay}ms (${attempt}/${maxAttempts - 1})...`,
+      );
+      await sleep(delay);
     }
 
-    const { data, error } = await query;
-    if (error) throw new Error(`Failed to export ${table}: ${error.message}`);
     rows.push(...(data ?? []));
 
     if (!data || data.length < pageSize) break;
