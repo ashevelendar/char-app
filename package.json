@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:rules": "node scripts/test-rules.cjs"
+    "test:rules": "node scripts/test-rules.cjs",
+    "test:fuzz": "node scripts/fuzz-rules.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
