@@ -18,6 +18,7 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const rules = require(path.resolve(__dirname, "../src/lib/rules.ts"));
+const { spells } = require(path.resolve(__dirname, "../src/lib/data.ts"));
 
 const character = (overrides = {}) => ({
   id: "test",
