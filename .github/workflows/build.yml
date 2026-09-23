@@ -9,6 +9,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
     steps:
       - uses: actions/checkout@v6
       - name: Use Node.js 22
@@ -21,10 +24,7 @@ jobs:
       - name: Test rules
         run: npm run test:rules
       - name: Export Supabase fuzz catalogue
-        if: ${{ secrets.SUPABASE_SECRET_KEY != '' }}
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        if: ${{ env.SUPABASE_SECRET_KEY != '' }}
         run: npm run fuzz:catalogue
 
       - name: Fuzz rules
