@@ -787,18 +787,18 @@ export function getAvailableSpells(character: Character, includeOverrides = true
   return sourceSpells.filter((spell) => isSpellNormallyAvailable(character, spell, classCatalogue) || (includeOverrides && hasOverride(character, "spell", spell.id)));
 }
 
-export function getAvailableFeatures(character: Character, includeOverrides = true) {
-  return features.filter((feature) => isFeatureNormallyAvailable(character, feature) || (includeOverrides && hasOverride(character, "feature", feature.id)));
+export function getAvailableFeatures(character: Character, includeOverrides = true, sourceFeatures: Feature[] = features) {
+  return sourceFeatures.filter((feature) => isFeatureNormallyAvailable(character, feature) || (includeOverrides && hasOverride(character, "feature", feature.id)));
 }
 
 export function getAvailableItems(character: Character, includeOverrides = true, sourceItems: Item[] = items) {
   return sourceItems.filter((item) => isItemNormallyAvailable(character, item) || (includeOverrides && hasOverride(character, "item", item.id)));
 }
 
-export function getSubclassOptionsForClass(className: string) {
-  return subclasses.filter((entry) => entry.className === className);
+export function getSubclassOptionsForClass(className: string, sourceSubclasses: SubclassDefinition[] = subclasses) {
+  return sourceSubclasses.filter((entry) => entry.className === className);
 }
 
-export function getRaceNames() {
-  return races.map((entry) => entry.name);
+export function getRaceNames(sourceRaces: Array<{ name: string }> | string[] = races) {
+  return sourceRaces.map((entry) => typeof entry === "string" ? entry : entry.name);
 }
