@@ -282,8 +282,8 @@ for (let index = 0; index < iterations; index += 1) {
 
 console.log("");
 
-const multiclassBase = makeCharacter("Fighter", 5, {
-  str: 13, dex: 13, con: 14, int: 13, wis: 10, cha: 8,
+const multiclassBase = character("Fighter", 5, {
+  str: 13, dex: 13, con: 14, int: 13, wis: 10, cha: 13,
 });
 const multiclassResult = rules.applyCharacterTransition(
   multiclassBase,
@@ -294,10 +294,9 @@ const multiclassResult = rules.applyCharacterTransition(
     ],
   },
   {
-    classCatalogue: catalogue.classRules,
-    subclasses: catalogue.subclasses,
-    features: catalogue.features,
-    spells: catalogue.spells,
+    subclasses,
+    features,
+    spells,
   },
 );
 assert.deepEqual(multiclassResult.classLevels, [
