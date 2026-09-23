@@ -825,7 +825,7 @@ export function applyCharacterTransition(
   if (!subclassIsValid) {
     throw new Error(
       nextLevel < unlockLevel
-        ? nextClassName + ' subclasses are not available until level ' + unlockLevel + '.',
+        ? nextClassName + ' subclasses are not available until level ' + unlockLevel + '.'
         : 'Subclass "' + nextSubclass + '" is not valid for ' + nextClassName + '.',
     );
   }
