@@ -454,20 +454,45 @@ function runDeterministicCoverage() {
     }
   }
 
-  // Exercise every feat against every valid class/race/subclass combination.
-  // Level 20 ensures level-gated feat parsing is exercised without making
-  // prerequisite satisfaction the thing that determines whether the parser runs.
+  // Exercise every feat against every valid class/race/subclass combination
+  // at every character level. This catches level-gated prerequisite regressions.
   for (const feat of feats) {
     for (const { className, subclass } of validClassSubclasses) {
       for (const race of races) {
-        fuzzCharacter(character({
-          className,
-          race,
-          subclass,
-          level: 20,
-          feats: [feat.id],
-        }));
-        cases += 1;
+        for (let level = 1; level <= 20; level += 1) {
+          fuzzCharacter(character({
+            className,
+            race,
+            subclass,
+            level,
+            feats: [feat.id],
+          }));
+          cases += 1;
+        }
+      }
+    }
+  }
+
+  // Exercise every item against every valid class/race/subclass combination
+  // at every character level. The item is placed in inventory so availability,
+  // restriction, weight, carrying-capacity, and equipment rules all see it.
+  for (const item of items) {
+    for (const { className, subclass } of validClassSubclasses) {
+      for (const race of races) {
+        for (let level = 1; level <= 20; level += 1) {
+          fuzzCharacter(character({
+            className,
+            race,
+            subclass,
+            level,
+            inventory: [{
+              itemId: item.id,
+              quantity: 1,
+              equipped: false,
+            }],
+          }));
+          cases += 1;
+        }
       }
     }
   }
@@ -511,7 +536,8 @@ console.log("Random iterations:", options.iterations);
 console.log("Catalogue:", classes.length, "classes,", races.length, "races,", subclasses.length, "subclasses,", feats.length, "feats,", spells.length, "spells,", items.length, "items,", features.length, "features");
 console.log("Valid class/subclass combinations:", validClassSubclasses.length);
 console.log("Deterministic base matrix:", validClassSubclasses.length * races.length * 20, "cases");
-console.log("Deterministic feat matrix:", feats.length * validClassSubclasses.length * races.length, "cases");
+console.log("Deterministic feat matrix:", feats.length * validClassSubclasses.length * races.length * 20, "cases");
+console.log("Deterministic item matrix:", items.length * validClassSubclasses.length * races.length * 20, "cases");
 
 const coverageCases = runDeterministicCoverage();
 runRandomFuzz(options.iterations);
