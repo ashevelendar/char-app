@@ -1,6 +1,37 @@
-const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const nodeAssert = require("node:assert/strict");
+
+const assertionMetrics = { total: 0, ok: 0, equal: 0, deepEqual: 0 };
+const assert = {
+  ok(...args) {
+    assertionMetrics.total += 1;
+    assertionMetrics.ok += 1;
+    return nodeAssert.ok(...args);
+  },
+  equal(...args) {
+    assertionMetrics.total += 1;
+    assertionMetrics.equal += 1;
+    return nodeAssert.equal(...args);
+  },
+  deepEqual(...args) {
+    assertionMetrics.total += 1;
+    assertionMetrics.deepEqual += 1;
+    return nodeAssert.deepEqual(...args);
+  },
+};
+
+function loadFuzzCatalogue() {
+  const snapshotPath = path.join(__dirname, "fixtures", "fuzz-catalogue.json");
+  if (!fs.existsSync(snapshotPath)) {
+    console.warn("  Catalogue snapshot not found. Using the small src/lib/data.ts fixture catalogue.");
+    console.warn("  Run: npm run fuzz:catalogue");
+    return null;
+  }
+  return JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
+}
+
+const fuzzCatalogue = loadFuzzCatalogue();
 const ts = require("typescript");
 
 require.extensions[".ts"] = function loadTypeScript(module, filename) {
