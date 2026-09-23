@@ -783,6 +783,117 @@ export function getEquipRestrictionReason(character: Character, item: Item) {
   return "";
 }
 
+export type CharacterTransitionPatch = Partial<Character>;
+
+export type CharacterTransitionContext = {
+  classCatalogue?: RuleClassCatalogue;
+  subclasses?: SubclassDefinition[];
+  features?: Feature[];
+  spells?: Spell[];
+};
+
+/**
+ * Apply the rules-owned part of a character mutation without touching persistence.
+ * UI/context code can handle presentation concerns such as AC and movement separately.
+ */
+export function applyCharacterTransition(
+  currentCharacter: Character,
+  patch: CharacterTransitionPatch,
+  context: CharacterTransitionContext = {},
+): Character {
+  const classCatalogue = context.classCatalogue;
+  const subclassCatalogue = context.subclasses ?? subclasses;
+  const featureCatalogue = context.features ?? features;
+  const spellCatalogue = context.spells ?? spells;
+
+  const nextClassName = patch.className ?? currentCharacter.className;
+  const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
+  const nextSubclass = patch.subclass ?? currentCharacter.subclass;
+  const nextRace = patch.race ?? currentCharacter.race;
+  const nextBackground = patch.background ?? currentCharacter.background;
+  const nextFeats = patch.feats ?? currentCharacter.feats;
+  const nextAbilities = { ...currentCharacter.abilities, ...(patch.abilities ?? {}) };
+
+  const definition = getClassDefinition(nextClassName, classCatalogue);
+  if (!definition) throw new Error('Unknown class "' + nextClassName + '".');
+
+  const unlockLevel = definition.subclassUnlockLevel ?? 1;
+  const subclassIsValid = !nextSubclass || (
+    nextLevel >= unlockLevel &&
+    subclassCatalogue.some((entry) => entry.className === nextClassName && entry.name === nextSubclass)
+  );
+  if (!subclassIsValid) {
+    throw new Error(
+      nextLevel < unlockLevel
+        ? nextClassName + ' subclasses are not available until level ' + unlockLevel + '.',
+        : 'Subclass "' + nextSubclass + '" is not valid for ' + nextClassName + '.',
+    );
+  }
+
+  const progressionChanged =
+    patch.level !== undefined ||
+    patch.className !== undefined ||
+    patch.abilities?.con !== undefined;
+  const featureSetChanged =
+    patch.level !== undefined ||
+    patch.className !== undefined ||
+    patch.subclass !== undefined ||
+    patch.race !== undefined ||
+    patch.background !== undefined ||
+    patch.feats !== undefined;
+
+  const next: Character = {
+    ...currentCharacter,
+    ...patch,
+    level: nextLevel,
+    className: nextClassName,
+    subclass: nextSubclass,
+    race: nextRace,
+    background: nextBackground,
+    feats: nextFeats,
+    abilities: nextAbilities,
+  };
+
+  if (progressionChanged) {
+    const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextAbilities.con, classCatalogue);
+    const hpDelta = nextMaxHp - currentCharacter.maxHp;
+    next.maxHp = nextMaxHp;
+    next.hp = Math.max(0, Math.min(nextMaxHp, currentCharacter.hp + hpDelta));
+    next.hitDice = getExpectedHitDice(nextClassName, nextLevel, classCatalogue);
+    next.proficiencyBonus = getProficiencyBonus(nextLevel);
+  }
+
+  if (featureSetChanged && patch.features === undefined) {
+    const oldAutomatic = new Set(
+      currentCharacter.featureProvenance.length
+        ? currentCharacter.featureProvenance.filter((entry) => entry.source === "automatic").map((entry) => entry.featureId)
+        : getAutomaticallyGrantedFeatureIds(currentCharacter, featureCatalogue),
+    );
+    const preservedFeatures = currentCharacter.features.filter((featureId) => !oldAutomatic.has(featureId));
+    const nextAutoFeatures = getAutomaticallyGrantedFeatureIds(
+      { ...next, features: preservedFeatures },
+      featureCatalogue,
+    );
+    next.features = Array.from(new Set([...preservedFeatures, ...nextAutoFeatures]));
+    next.featureProvenance = next.features.map((featureId) => ({
+      featureId,
+      source: preservedFeatures.includes(featureId)
+        ? (currentCharacter.featureProvenance.find((entry) => entry.featureId === featureId)?.source ?? "legacy")
+        : "automatic",
+    }));
+  }
+
+  if (featureSetChanged && patch.spells === undefined) {
+    next.spells = currentCharacter.spells.filter((entry) => {
+      if (entry.source !== "normal") return true;
+      const spell = spellCatalogue.find((candidate) => candidate.id === entry.spellId);
+      return Boolean(spell && isSpellNormallyAvailable(next, spell, classCatalogue));
+    });
+  }
+
+  return next;
+}
+
 export function getAvailableSpells(character: Character, includeOverrides = true, sourceSpells: Spell[] = spells, classCatalogue?: RuleClassCatalogue) {
   return sourceSpells.filter((spell) => isSpellNormallyAvailable(character, spell, classCatalogue) || (includeOverrides && hasOverride(character, "spell", spell.id)));
 }
