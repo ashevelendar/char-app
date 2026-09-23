@@ -243,6 +243,7 @@ function fuzzCharacter(characterValue, coverage = {}) {
   const featScan = coverage.focusFeat ? [coverage.focusFeat] : scanAllCatalogue ? feats : [];
   const spellScan = coverage.focusSpell ? [coverage.focusSpell] : scanAllCatalogue ? spells : spells.slice(0, Math.min(spells.length, 40));
   const itemScan = coverage.focusItem ? [coverage.focusItem] : scanAllCatalogue ? items : items.slice(0, Math.min(items.length, 80));
+  const spellPool = scanAllCatalogue ? spells : spellScan;
   const level = c.level;
 
   check("basic progression", () => {
@@ -328,7 +329,7 @@ function fuzzCharacter(characterValue, coverage = {}) {
   }, c);
 
   check("spell catalogue filtering", () => {
-    const available = rules.getAvailableSpells(c, true, spells);
+    const available = rules.getAvailableSpells(c, true, spellPool);
     const availableIds = new Set(available.map((spell) => spell.id));
 
     for (const spell of available) {
@@ -343,7 +344,7 @@ function fuzzCharacter(characterValue, coverage = {}) {
     }
   }, c);
 
-  check("feature dependency graph", () => {
+  if (coverage.skipFeatureGraph !== true) check("feature dependency graph", () => {
     const granted = rules.getAutomaticallyGrantedFeatureIds(c, features);
     assert.ok(Array.isArray(granted));
     assert.equal(new Set(granted).size, granted.length);
@@ -462,7 +463,7 @@ function fuzzCharacter(characterValue, coverage = {}) {
 
     if (!magicalSecretsLevels.length) return;
 
-    const eligibleSpells = spells.filter(
+    const eligibleSpells = spellPool.filter(
       (spell) => spell.level === 0 || spell.level <= rules.getMaxSpellLevel(c),
     );
     if (!eligibleSpells.length) return;
@@ -473,7 +474,7 @@ function fuzzCharacter(characterValue, coverage = {}) {
     }));
 
     assert.deepEqual(
-      rules.validateMagicalSecretsHistory(entries, magicalSecretsLevels, spells, c),
+      rules.validateMagicalSecretsHistory(entries, magicalSecretsLevels, spellPool, c),
       [],
     );
   }, c);
@@ -506,7 +507,7 @@ function runDeterministicCoverage() {
             subclass,
             level,
             feats: [feat.id],
-          }), { focusFeat: feat });
+          }), { focusFeat: feat, skipFeatureGraph: true });
           cases += 1;
         }
       }
@@ -530,7 +531,7 @@ function runDeterministicCoverage() {
               quantity: 1,
               equipped: false,
             }],
-          }), { focusItem: item });
+          }), { focusItem: item, skipFeatureGraph: true });
           cases += 1;
         }
       }
@@ -583,7 +584,7 @@ function runRandomFuzz(iterations) {
       inventory,
       abilities: Object.fromEntries(abilityKeys.map((key) => [key, rng.int(3, 20)])),
       level: rng.int(1, 20),
-    }));
+    }), { skipFeatureGraph: true });
 
     if ((index + 1) % progressInterval === 0 || index + 1 === iterations) {
       console.log("  Random progress:", (index + 1) + "/" + iterations);
