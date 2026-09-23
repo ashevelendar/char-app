@@ -231,13 +231,15 @@ export function getExpectedMulticlassMaxHp(
   return Math.max(1, hp);
 }
 
-function getCasterContribution(className: string, level: number, classCatalogue?: RuleClassCatalogue): number {
+function getCasterContribution(className: string, level: number, subclass?: string, classCatalogue?: RuleClassCatalogue): number {
   const rule = getDynamicClassRule(className, classCatalogue);
   const progression = rule?.casterProgression;
   if (progression === "full") return level;
   if (progression === "artificer") return Math.ceil(level / 2);
   if (progression === "half") return Math.floor(level / 2);
   if (progression === "third") return Math.floor(level / 3);
+  if (className === "Fighter" && subclass === "Eldritch Knight") return Math.floor(level / 3);
+  if (className === "Rogue" && subclass === "Arcane Trickster") return Math.floor(level / 3);
   return 0;
 }
 
