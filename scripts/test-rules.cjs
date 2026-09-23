@@ -126,6 +126,21 @@ test("multiclass HP and hit dice use each class hit die", () => {
   assert.equal(rules.getExpectedMulticlassMaxHp(c.classLevels, 14), 42);
 });
 
+test("multiclass spell eligibility remains class-level specific", () => {
+  const wizard = character({
+    className: "Wizard",
+    level: 5,
+    abilities: { str: 8, dex: 10, con: 10, int: 13, wis: 13, cha: 8 },
+    classLevels: [
+      { className: "Wizard", level: 1 },
+      { className: "Cleric", level: 4 },
+    ],
+  });
+  const secondLevelWizardSpell = spells.find((spell) => spell.level === 2 && spell.classes.includes("Wizard"));
+  assert.ok(secondLevelWizardSpell);
+  assert.equal(rules.isSpellNormallyAvailable(wizard, secondLevelWizardSpell), false);
+});
+
 test("multiclass spellcasting combines caster levels but keeps Warlock pact magic separate", () => {
   const clericWizard = character({
     className: "Cleric",
