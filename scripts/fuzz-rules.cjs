@@ -151,7 +151,6 @@ const spells = fuzzCatalogue?.spells?.length ? fuzzCatalogue.spells : data.spell
 const features = fuzzCatalogue?.features?.length ? fuzzCatalogue.features : data.features ?? [];
 
 const supportedClasses = classes.filter((className) => Boolean(rules.getClassDefinition(className)));
-const unsupportedClasses = classes.filter((className) => !supportedClasses.includes(className));
 
 const validClassSubclasses = supportedClasses.flatMap((className) => {
   const names = subclasses
@@ -162,6 +161,11 @@ const validClassSubclasses = supportedClasses.flatMap((className) => {
 
 assert.ok(classes.length > 0, "No classes loaded from " + catalogueSource);
 assert.ok(races.length > 0, "No races loaded from " + catalogueSource);
+assert.equal(
+  supportedClasses.length,
+  classes.length,
+  "Every catalogue class must be supported by the rules engine",
+);
 
 function character(overrides = {}) {
   const className = overrides.className ?? rng.pick(classes);
@@ -504,7 +508,7 @@ function runDeterministicCoverage() {
   // 2. Spell progression: every class at every level, plus every real subclass
   // at its owning class and every level. The full spell catalogue is checked
   // separately below, so these cases focus on progression mechanics.
-  for (const className of classes) {
+  for (const className of supportedClasses) {
     for (const level of levels) {
       fuzzCharacter(character({ className, level }), {
         skipFeatureGraph: true,
@@ -580,7 +584,7 @@ function runDeterministicCoverage() {
   // 4. Full feature dependency graph is exercised once against every class,
   // subclass and level where the graph can change. This avoids rescanning all
   // 1,291 features for every unrelated character.
-  for (const className of classes) {
+  for (const className of supportedClasses) {
     for (const level of levels) {
       fuzzCharacter(character({ className, level }), {
         scanAllCatalogue: true,
@@ -653,10 +657,7 @@ console.log("Random iterations:", options.iterations);
 console.log("Catalogue source:", catalogueSource);
 console.log("Catalogue:", classes.length, "classes,", races.length, "races,", subclasses.length, "subclasses,", feats.length, "feats,", spells.length, "spells,", features.length, "features");
 console.log("Supported rules-engine classes:", supportedClasses.length);
-if (unsupportedClasses.length) {
-  console.log("Catalogue classes outside current rules engine:", unsupportedClasses.join(", "));
-}
-console.log("Valid class/subclass combinations:", validClassSubclasses.length);
+console.log("Catalogue/rules-engine class parity: exact");
 console.log("Deterministic coverage: rule-aware, no item selection");
 console.log("Deterministic feat coverage: targeted by prerequisite type");
 console.log("Intentional coverage gap: item selection/equipment rules are excluded by request.");
