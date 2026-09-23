@@ -85,6 +85,16 @@ test("ability modifiers use floor((score - 10) / 2)", () => {
   assert.equal(rules.getAbilityModifier(20), 5);
 });
 
+test("single-class characters do not require multiclass prerequisites", () => {
+  const wizard = character({
+    className: "Wizard",
+    level: 1,
+    abilities: { str: 8, dex: 10, con: 10, int: 10, wis: 10, cha: 8 },
+    classLevels: [{ className: "Wizard", level: 1 }],
+  });
+  assert.deepEqual(rules.validateMulticlassClassLevels(wizard.classLevels, wizard.abilities), []);
+});
+
 test("multiclass prerequisites and total level are enforced", () => {
   const fighterWizard = character({ className: "Fighter", subclass: "", level: 7, abilities: { str: 13, dex: 10, con: 14, int: 13, wis: 10, cha: 8 }, classLevels: [
     { className: "Fighter", level: 3 },
