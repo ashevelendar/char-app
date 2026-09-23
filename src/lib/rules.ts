@@ -965,37 +965,43 @@ export function applyCharacterTransition(
   const featureCatalogue = context.features ?? features;
   const spellCatalogue = context.spells ?? spells;
 
-  const nextClassName = patch.className ?? currentCharacter.className;
-  const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
-  const nextSubclass = patch.subclass ?? currentCharacter.subclass;
+  const currentLevels = getCharacterClassLevels(currentCharacter);
+  let nextClassLevels = patch.classLevels
+    ? patch.classLevels.map((entry) => ({ ...entry, level: Math.max(1, Math.min(20, Number(entry.level) || 1)) }))
+    : currentLevels.map((entry) => ({ ...entry }));
+
+  if (!patch.classLevels && patch.level !== undefined && nextClassLevels.length === 1) {
+    nextClassLevels[0].level = Math.max(1, Math.min(20, patch.level));
+  }
+  if (!patch.classLevels && patch.className !== undefined && nextClassLevels.length === 1) {
+    nextClassLevels[0].className = patch.className;
+  }
+  if (!patch.classLevels && patch.subclass !== undefined && nextClassLevels.length === 1) {
+    nextClassLevels[0].subclass = patch.subclass || undefined;
+  }
+
+  const nextTotalLevel = Math.min(20, nextClassLevels.reduce((sum, entry) => sum + entry.level, 0));
+  const nextClassName = nextClassLevels[0]?.className ?? patch.className ?? currentCharacter.className;
+  const nextSubclass = nextClassLevels[0]?.subclass ?? patch.subclass ?? "";
+  const nextLevel = nextTotalLevel || Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
   const nextRace = patch.race ?? currentCharacter.race;
   const nextBackground = patch.background ?? currentCharacter.background;
   const nextFeats = patch.feats ?? currentCharacter.feats;
   const nextAbilities = { ...currentCharacter.abilities, ...(patch.abilities ?? {}) };
 
-  const definition = getClassDefinition(nextClassName, classCatalogue);
-  if (!definition) throw new Error('Unknown class "' + nextClassName + '".');
-
-  const unlockLevel = definition.subclassUnlockLevel ?? 1;
-  const subclassIsValid = !nextSubclass || (
-    nextLevel >= unlockLevel &&
-    subclassCatalogue.some((entry) => entry.className === nextClassName && entry.name === nextSubclass)
-  );
-  if (!subclassIsValid) {
-    throw new Error(
-      nextLevel < unlockLevel
-        ? nextClassName + ' subclasses are not available until level ' + unlockLevel + '.'
-        : 'Subclass "' + nextSubclass + '" is not valid for ' + nextClassName + '.',
-    );
-  }
+  const multiclassErrors = validateMulticlassClassLevels(nextClassLevels, nextAbilities, subclassCatalogue, classCatalogue);
+  if (multiclassErrors.length) throw new Error(multiclassErrors[0]);
 
   const progressionChanged =
     patch.level !== undefined ||
     patch.className !== undefined ||
+    patch.classLevels !== undefined ||
     patch.abilities?.con !== undefined;
+
   const featureSetChanged =
     patch.level !== undefined ||
     patch.className !== undefined ||
+    patch.classLevels !== undefined ||
     patch.subclass !== undefined ||
     patch.race !== undefined ||
     patch.background !== undefined ||
@@ -1007,6 +1013,9 @@ export function applyCharacterTransition(
     level: nextLevel,
     className: nextClassName,
     subclass: nextSubclass,
+    classLevels: nextClassLevels.length > 1 || patch.classLevels !== undefined
+      ? nextClassLevels
+      : undefined,
     race: nextRace,
     background: nextBackground,
     feats: nextFeats,
@@ -1014,11 +1023,15 @@ export function applyCharacterTransition(
   };
 
   if (progressionChanged) {
-    const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextAbilities.con, classCatalogue);
+    const nextMaxHp = nextClassLevels.length > 1
+      ? getExpectedMulticlassMaxHp(nextClassLevels, nextAbilities.con, classCatalogue)
+      : getExpectedMaxHp(nextClassName, nextLevel, nextAbilities.con, classCatalogue);
     const hpDelta = nextMaxHp - currentCharacter.maxHp;
     next.maxHp = nextMaxHp;
     next.hp = Math.max(0, Math.min(nextMaxHp, currentCharacter.hp + hpDelta));
-    next.hitDice = getExpectedHitDice(nextClassName, nextLevel, classCatalogue);
+    next.hitDice = nextClassLevels.length > 1
+      ? getMulticlassHitDice(nextClassLevels, classCatalogue)
+      : getExpectedHitDice(nextClassName, nextLevel, classCatalogue);
     next.proficiencyBonus = getProficiencyBonus(nextLevel);
   }
 
