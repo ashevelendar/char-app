@@ -85,6 +85,81 @@ test("ability modifiers use floor((score - 10) / 2)", () => {
   assert.equal(rules.getAbilityModifier(20), 5);
 });
 
+test("multiclass prerequisites and total level are enforced", () => {
+  const fighterWizard = character({ className: "Fighter", subclass: "", level: 7, abilities: { str: 13, dex: 10, con: 14, int: 13, wis: 10, cha: 8 }, classLevels: [
+    { className: "Fighter", level: 3 },
+    { className: "Wizard", level: 4 },
+  ] });
+  assert.equal(rules.getTotalCharacterLevel(fighterWizard), 7);
+  assert.equal(rules.getClassLevel(fighterWizard, "Fighter"), 3);
+  assert.equal(rules.getClassLevel(fighterWizard, "Wizard"), 4);
+  assert.deepEqual(rules.validateMulticlassClassLevels(fighterWizard.classLevels, fighterWizard.abilities), []);
+
+  const badFighter = character({ className: "Fighter", subclass: "", level: 2, abilities: { str: 12, dex: 12, con: 10, int: 10, wis: 10, cha: 10 }, classLevels: [
+    { className: "Fighter", level: 1 },
+    { className: "Wizard", level: 1 },
+  ] });
+  assert.ok(rules.validateMulticlassClassLevels(badFighter.classLevels, badFighter.abilities).some((error) => error.includes("Fighter")));
+});
+
+test("multiclass HP and hit dice use each class hit die", () => {
+  const c = character({
+    className: "Fighter",
+    level: 5,
+    abilities: { str: 13, dex: 10, con: 14, int: 13, wis: 10, cha: 8 },
+    classLevels: [
+      { className: "Fighter", level: 3 },
+      { className: "Wizard", level: 2 },
+    ],
+  });
+  assert.equal(rules.getMulticlassHitDice(c.classLevels), "3d10 + 2d6");
+  assert.equal(rules.getExpectedMulticlassMaxHp(c.classLevels, 14), 42);
+});
+
+test("multiclass spellcasting combines caster levels but keeps Warlock pact magic separate", () => {
+  const clericWizard = character({
+    className: "Cleric",
+    level: 5,
+    abilities: { str: 8, dex: 10, con: 10, int: 13, wis: 13, cha: 8 },
+    classLevels: [
+      { className: "Cleric", level: 3 },
+      { className: "Wizard", level: 2 },
+    ],
+  });
+  assert.equal(rules.getMulticlassSpellcastingLevel(clericWizard), 5);
+  assert.deepEqual(rules.getMulticlassSpellSlotSummary(clericWizard), [
+    { level: 1, count: 4 },
+    { level: 2, count: 3 },
+    { level: 3, count: 2 },
+  ]);
+
+  const warlockWizard = character({
+    className: "Wizard",
+    level: 5,
+    abilities: { str: 8, dex: 10, con: 10, int: 13, wis: 10, cha: 13 },
+    classLevels: [
+      { className: "Wizard", level: 3 },
+      { className: "Warlock", level: 2 },
+    ],
+  });
+  assert.equal(rules.getMulticlassSpellcastingLevel(warlockWizard), 3);
+  assert.equal(rules.getMulticlassMaxSpellLevel(warlockWizard), 2);
+  assert.deepEqual(rules.getSpellSlotSummary("Warlock", 2), [{ level: 1, count: 2 }]);
+});
+
+test("multiclass ASIs are derived from class levels", () => {
+  const c = character({
+    className: "Fighter",
+    level: 8,
+    abilities: { str: 13, dex: 13, con: 10, int: 10, wis: 10, cha: 10 },
+    classLevels: [
+      { className: "Fighter", level: 4 },
+      { className: "Rogue", level: 4 },
+    ],
+  });
+  assert.deepEqual(rules.getAbilityScoreImprovementLevelsForCharacter(c), [4, 8]);
+});
+
 test("HP progression uses class hit die and Constitution", () => {
   assert.equal(rules.getExpectedMaxHp("Wizard", 1, 10), 6);
   assert.equal(rules.getExpectedMaxHp("Wizard", 5, 14), 32);
