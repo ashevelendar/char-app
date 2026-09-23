@@ -10,6 +10,9 @@ import {
   getAvailableSpells,
   getExpectedMaxHp,
   getExpectedHitDice,
+  getExpectedMulticlassMaxHp,
+  getMulticlassHitDice,
+  getCharacterClassLevels,
   getProficiencyBonus,
   getCantripsKnown,
   getPreparedSpellCount,
@@ -244,10 +247,27 @@ function normalizeCharacter(value: Character): Character {
     asiHistory: Array.isArray(value.asiHistory) ? value.asiHistory : [],
     expertiseHistory: Array.isArray(value.expertiseHistory) ? value.expertiseHistory : [],
     magicalSecretsHistory: Array.isArray(value.magicalSecretsHistory) ? value.magicalSecretsHistory : [],
+    classLevels: Array.isArray(value.classLevels)
+      ? value.classLevels
+          .filter((entry) => entry && typeof entry === "object" && typeof (entry as { className?: unknown }).className === "string")
+          .map((entry) => {
+            const candidate = entry as { className: string; level?: unknown; subclass?: unknown };
+            return {
+              className: candidate.className,
+              level: Math.max(1, Math.min(20, Number(candidate.level) || 1)),
+              subclass: typeof candidate.subclass === "string" && candidate.subclass ? candidate.subclass : undefined,
+            };
+          })
+      : undefined,
   };
 
-  const level = Math.max(1, Math.min(20, Number(merged.level) || 1));
-  const maxHp = getExpectedMaxHp(merged.className, level, merged.abilities.con);
+  const classLevels = Array.isArray(merged.classLevels) && merged.classLevels.length ? merged.classLevels : undefined;
+  const level = classLevels
+    ? Math.min(20, classLevels.reduce((sum, entry) => sum + entry.level, 0))
+    : Math.max(1, Math.min(20, Number(merged.level) || 1));
+  const maxHp = classLevels && classLevels.length > 1
+    ? getExpectedMulticlassMaxHp(classLevels, merged.abilities.con)
+    : getExpectedMaxHp(merged.className, level, merged.abilities.con);
   const wasAtMax = Number(merged.hp) >= Number(merged.maxHp);
   const hp = wasAtMax
     ? maxHp
@@ -258,7 +278,9 @@ function normalizeCharacter(value: Character): Character {
     level,
     maxHp,
     hp,
-    hitDice: getExpectedHitDice(merged.className, level),
+    hitDice: classLevels && classLevels.length > 1
+      ? getMulticlassHitDice(classLevels)
+      : getExpectedHitDice(merged.className, level),
     proficiencyBonus: getProficiencyBonus(level),
   };
 }
@@ -1658,6 +1680,7 @@ function toCharacter(
     subclass: maps.subclassByDbId.get(row.subclass_id) ?? relationName(row.subclass),
     background: relationName(row.background),
     level: row.level,
+    classLevels: Array.isArray(row.class_levels) ? row.class_levels : undefined,
     alignment: row.alignment ?? "",
     playerName: row.player_name ?? "",
     hp: row.current_hp ?? 0,
@@ -1795,7 +1818,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         const characterResult = await supabase!
           .from("characters")
           .select(`
-            id,name,race_id,class_id,subclass_id,background_id,level,alignment,player_name,
+            id,name,race_id,class_id,subclass_id,background_id,level,class_levels,alignment,player_name,
             current_hp,max_hp,temporary_hp,armor_class,speed,hit_dice,proficiency_bonus,
             subrace_id,tools,
             strength,dexterity,constitution,intelligence,wisdom,charisma,
@@ -1943,17 +1966,24 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     createCharacter: async (input) => {
       const baseId = crypto.randomUUID();
       const level = Math.max(1, Math.min(20, Number(input.level) || 1));
-      const maxHp = getExpectedMaxHp(input.className, level, input.abilities.con, classRules);
+      const classLevels = input.classLevels?.length ? input.classLevels : [{ className: input.className, level, subclass: input.subclass || undefined }];
+      const totalLevel = Math.min(20, classLevels.reduce((sum, entry) => sum + Math.max(1, Number(entry.level) || 1), 0));
+      const maxHp = classLevels.length > 1
+        ? getExpectedMulticlassMaxHp(classLevels, input.abilities.con, classRules)
+        : getExpectedMaxHp(input.className, totalLevel, input.abilities.con, classRules);
       const baseCharacter: Character = {
         id: baseId,
         ...input,
         subrace: input.subrace ?? "",
         inventory: input.inventory ?? [],
-        level,
+        level: totalLevel,
+        classLevels: classLevels.length > 1 ? classLevels : undefined,
         hp: Math.max(0, Math.min(maxHp, input.hp || maxHp)),
         maxHp,
-        hitDice: getExpectedHitDice(input.className, level, classRules),
-        proficiencyBonus: getProficiencyBonus(level),
+        hitDice: classLevels.length > 1
+          ? getMulticlassHitDice(classLevels, classRules)
+          : getExpectedHitDice(input.className, totalLevel, classRules),
+        proficiencyBonus: getProficiencyBonus(totalLevel),
         speed: input.speed ?? catalogue.subraces.find((entry) => entry.parentRace === input.race && entry.name === (input.subrace ?? ""))?.speed ?? raceRules[input.race]?.speed ?? 30,
         tempHp: 0,
         savingThrows: input.savingThrows ?? [],
@@ -2052,6 +2082,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         });
         localPatch.level = transitioned.level;
         localPatch.className = transitioned.className;
+        localPatch.classLevels = transitioned.classLevels;
         localPatch.subclass = transitioned.subclass;
         localPatch.race = transitioned.race;
         localPatch.background = transitioned.background;
@@ -2094,6 +2125,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             persistedCharacter.race.trim().toLowerCase() + "::" + persistedCharacter.subrace.trim().toLowerCase(),
           ) ?? null,
           class_id: maps.classByName.get(persistedCharacter.className) ?? null,
+          class_levels: persistedCharacter.classLevels ?? null,
           subclass_id: maps.subclassByName.get(persistedCharacter.subclass) ?? null,
           background_id: maps.backgroundByName.get(persistedCharacter.background) ?? null,
           level: persistedCharacter.level,
@@ -2852,6 +2884,7 @@ async function insertCharacterToDb(userId: string, character: Character, maps: C
     race_id: maps.raceByName.get(character.race) ?? null,
     subrace_id: maps.subraceByName.get(character.race.trim().toLowerCase() + "::" + character.subrace.trim().toLowerCase()) ?? null,
     class_id: maps.classByName.get(character.className) ?? null,
+    class_levels: character.classLevels ?? null,
     subclass_id: maps.subclassByName.get(character.subclass) ?? null,
     background_id: maps.backgroundByName.get(character.background) ?? null,
     level: character.level,
