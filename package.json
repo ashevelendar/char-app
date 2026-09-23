@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:rules": "node scripts/test-rules.cjs",
     "test:fuzz": "node scripts/fuzz-rules.cjs",
-    "fuzz:catalogue": "node scripts/export-fuzz-catalogue.cjs"
+    "fuzz:catalogue": "node scripts/export-fuzz-catalogue.cjs",
+    "test:transitions": "node scripts/test-transitions.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
