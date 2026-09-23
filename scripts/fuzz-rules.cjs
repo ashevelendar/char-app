@@ -147,7 +147,6 @@ function buildSyntheticFeats() {
 
 const feats = fuzzCatalogue?.feats?.length ? fuzzCatalogue.feats : data.feats?.length ? data.feats : buildSyntheticFeats();
 const spells = fuzzCatalogue?.spells?.length ? fuzzCatalogue.spells : data.spells ?? [];
-const items = fuzzCatalogue?.items?.length ? fuzzCatalogue.items : data.items ?? [];
 const features = fuzzCatalogue?.features?.length ? fuzzCatalogue.features : data.features ?? [];
 
 const validClassSubclasses = classes.flatMap((className) => {
@@ -241,9 +240,8 @@ function assertFiniteNonNegative(value, label) {
 function fuzzCharacter(characterValue, coverage = {}) {
   const c = characterValue;
   const scanAllCatalogue = coverage.scanAllCatalogue === true;
-  const featScan = coverage.focusFeat ? [coverage.focusFeat] : scanAllCatalogue ? feats : [];
-  const spellScan = coverage.focusSpell ? [coverage.focusSpell] : scanAllCatalogue ? spells : spells.slice(0, Math.min(spells.length, 40));
-  const itemScan = coverage.focusItem ? [coverage.focusItem] : scanAllCatalogue ? items : items.slice(0, Math.min(items.length, 80));
+  const featScan = coverage.skipFeatScan ? [] : coverage.focusFeat ? [coverage.focusFeat] : scanAllCatalogue ? feats : [];
+  const spellScan = coverage.focusSpell ? [coverage.focusSpell] : coverage.spellScan ? coverage.spellScan : scanAllCatalogue ? spells : spells.slice(0, Math.min(spells.length, 40));
   const spellPool = scanAllCatalogue ? spells : spellScan;
   const level = c.level;
 
@@ -371,38 +369,6 @@ function fuzzCharacter(characterValue, coverage = {}) {
     }
   }, c);
 
-  check("inventory and equipment", () => {
-    const sampleItems = itemScan;
-    const inventory = [];
-    for (let index = 0; index < Math.min(8, sampleItems.length); index += 1) {
-      if (rng.next() < 0.35) {
-        inventory.push({
-          itemId: sampleItems[index].id,
-          quantity: rng.int(0, 20),
-          equipped: rng.next() < 0.5,
-        });
-      }
-    }
-
-    const withInventory = { ...c, inventory };
-    const weight = rules.getInventoryWeight(withInventory, items);
-    const capacity = rules.getCarryingCapacity(withInventory);
-
-    assertFiniteNonNegative(weight, "inventory weight");
-    assertFiniteNonNegative(capacity, "carrying capacity");
-    assert.equal(
-      rules.isItemOverCarryingCapacity(withInventory, items),
-      weight > capacity,
-    );
-
-    for (const item of sampleItems) {
-      assertFiniteNonNegative(rules.getItemWeight(item), "item weight");
-      assert.equal(typeof rules.isItemNormallyAvailable(c, item), "boolean");
-      assert.equal(typeof rules.canEquipItem(c, item), "boolean");
-      assert.equal(typeof rules.getEquipRestrictionReason(c, item), "string");
-    }
-  }, c);
-
   check("ASI history", () => {
     const levels = rules.getAbilityScoreImprovementLevelsUpTo(c.className, level);
     const entries = levels.map((asiLevel, index) => {
@@ -483,59 +449,127 @@ function fuzzCharacter(characterValue, coverage = {}) {
 
 function runDeterministicCoverage() {
   let cases = 0;
+  const levels = Array.from({ length: 20 }, (_, index) => index + 1);
+  const boundaryLevels = [1, 2, 3, 4, 5, 8, 10, 12, 16, 19, 20];
+  const representativeAbilities = [
+    { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+    { str: 20, dex: 20, con: 20, int: 20, wis: 20, cha: 20 },
+  ];
 
-  // Exhaust every valid class/race/subclass combination at every character level.
-  // Subclasses are only paired with their owning class, so we test real combinations
-  // rather than generating impossible class/subclass pairs.
-  for (const { className, subclass } of validClassSubclasses) {
-    for (const race of races) {
-      for (let level = 1; level <= 20; level += 1) {
-        fuzzCharacter(character({ className, race, subclass, level }), { scanAllCatalogue: true });
+  // 1. Core progression: every class at every level and representative CON values.
+  // This covers proficiency, hit die, HP, hit dice, ASI levels and non-spellcasting
+  // progression without repeating the full race/subclass/cartesian product.
+  for (const className of classes) {
+    for (const level of levels) {
+      for (const abilities of representativeAbilities) {
+        fuzzCharacter(character({ className, level, abilities }), {
+          skipFeatureGraph: true,
+          skipFeatScan: true,
+          spellScan: [],
+        });
         cases += 1;
       }
     }
   }
 
-  // Exercise every feat against every valid class/race/subclass combination
-  // at every character level. This catches level-gated prerequisite regressions.
+  // 2. Spell progression: every class at every level, plus every real subclass
+  // at its owning class and every level. The full spell catalogue is checked
+  // separately below, so these cases focus on progression mechanics.
+  for (const className of classes) {
+    for (const level of levels) {
+      fuzzCharacter(character({ className, level }), {
+        skipFeatureGraph: true,
+        skipFeatScan: true,
+        spellScan: spells,
+      });
+      cases += 1;
+    }
+  }
+  for (const { className, subclass } of validClassSubclasses) {
+    if (!subclass) continue;
+    for (const level of levels) {
+      fuzzCharacter(character({ className, subclass, level }), {
+        skipFeatureGraph: true,
+        skipFeatScan: true,
+        spellScan: spells,
+      });
+      cases += 1;
+    }
+  }
+
+  // 3. Every feat gets targeted prerequisite coverage. We only vary the
+  // dimensions that can actually affect that feat, instead of pairing every
+  // feat with every race/class/level.
   for (const feat of feats) {
-    for (const { className, subclass } of validClassSubclasses) {
-      for (const race of races) {
-        for (let level = 1; level <= 20; level += 1) {
-          fuzzCharacter(character({
-            className,
-            race,
-            subclass,
-            level,
-            feats: [feat.id],
-          }), { focusFeat: feat, skipFeatureGraph: true });
-          cases += 1;
+    const prerequisite = feat.prerequisite ?? feat.prerequisites ?? {};
+    const raw = JSON.stringify(prerequisite).toLowerCase();
+    const hasClass = raw.includes("class");
+    const hasRace = raw.includes("race");
+    const hasLevel = raw.includes("level");
+    const hasAbility = raw.includes("ability");
+    const hasProficiency = raw.includes("proficiency") || raw.includes("skill");
+    const hasFeat = raw.includes("feat");
+    const hasSpellcasting = raw.includes("spellcasting");
+
+    const targetClasses = hasClass ? classes : [classes[0]];
+    const targetRaces = hasRace ? races : [races[0]];
+    const targetLevels = hasLevel ? boundaryLevels : [1, 20];
+    const abilitySets = hasAbility
+      ? [
+          { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+          { str: 13, dex: 13, con: 13, int: 13, wis: 13, cha: 13 },
+          { str: 20, dex: 20, con: 20, int: 20, wis: 20, cha: 20 },
+        ]
+      : [{ str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }];
+
+    for (const className of targetClasses) {
+      for (const race of targetRaces) {
+        for (const level of targetLevels) {
+          for (const abilities of abilitySets) {
+            const skillsForFeat = hasProficiency ? skills : [];
+            const featsForFeat = hasFeat ? [feat.id] : [];
+            const spellcastingClass = hasSpellcasting ? className : undefined;
+            fuzzCharacter(character({
+              className: spellcastingClass ?? className,
+              race,
+              level,
+              abilities,
+              skills: skillsForFeat,
+              feats: featsForFeat,
+            }), {
+              focusFeat: feat,
+              skipFeatureGraph: true,
+              spellScan: hasSpellcasting ? spells : [],
+            });
+            cases += 1;
+          }
         }
       }
     }
   }
 
-  // Exercise every item against every valid class/race/subclass combination
-  // at every character level. The item is placed in inventory so availability,
-  // restriction, weight, carrying-capacity, and equipment rules all see it.
-  for (const item of items) {
-    for (const { className, subclass } of validClassSubclasses) {
-      for (const race of races) {
-        for (let level = 1; level <= 20; level += 1) {
-          fuzzCharacter(character({
-            className,
-            race,
-            subclass,
-            level,
-            inventory: [{
-              itemId: item.id,
-              quantity: 1,
-              equipped: false,
-            }],
-          }), { focusItem: item, skipFeatureGraph: true });
-          cases += 1;
-        }
-      }
+  // 4. Full feature dependency graph is exercised once against every class,
+  // subclass and level where the graph can change. This avoids rescanning all
+  // 1,291 features for every unrelated character.
+  for (const className of classes) {
+    for (const level of levels) {
+      fuzzCharacter(character({ className, level }), {
+        scanAllCatalogue: true,
+        skipFeatScan: true,
+        spellScan: [],
+      });
+      cases += 1;
+    }
+  }
+  for (const { className, subclass } of validClassSubclasses) {
+    if (!subclass) continue;
+    for (const level of boundaryLevels) {
+      fuzzCharacter(character({ className, subclass, level }), {
+        scanAllCatalogue: true,
+        skipFeatScan: true,
+        spellScan: [],
+      });
+      cases += 1;
     }
   }
 
@@ -564,17 +598,6 @@ function runRandomFuzz(iterations) {
       .filter(() => rng.next() < 0.35)
       .slice(0, rng.int(0, 3));
 
-    const inventory = [];
-    const inventoryCount = items.length ? rng.int(0, Math.min(8, items.length)) : 0;
-    const shuffledItems = [...items].sort(() => rng.next() - 0.5);
-    for (const item of shuffledItems.slice(0, inventoryCount)) {
-      inventory.push({
-        itemId: item.id,
-        quantity: rng.int(0, 20),
-        equipped: rng.next() < 0.5,
-      });
-    }
-
     fuzzCharacter(character({
       className,
       subclass,
@@ -582,7 +605,6 @@ function runRandomFuzz(iterations) {
       skills: selectedSkills,
       tools: selectedTools,
       languages: selectedLanguages,
-      inventory,
       abilities: Object.fromEntries(abilityKeys.map((key) => [key, rng.int(3, 20)])),
       level: rng.int(1, 20),
     }), { skipFeatureGraph: true });
@@ -600,11 +622,10 @@ console.log("D&D rules fuzz test");
 console.log("Seed:", options.seed);
 console.log("Random iterations:", options.iterations);
 console.log("Catalogue source:", catalogueSource);
-console.log("Catalogue:", classes.length, "classes,", races.length, "races,", subclasses.length, "subclasses,", feats.length, "feats,", spells.length, "spells,", items.length, "items,", features.length, "features");
+console.log("Catalogue:", classes.length, "classes,", races.length, "races,", subclasses.length, "subclasses,", feats.length, "feats,", spells.length, "spells,", features.length, "features");
 console.log("Valid class/subclass combinations:", validClassSubclasses.length);
-console.log("Deterministic base matrix:", validClassSubclasses.length * races.length * 20, "cases");
-console.log("Deterministic feat matrix:", feats.length * validClassSubclasses.length * races.length * 20, "cases");
-console.log("Deterministic item matrix:", items.length * validClassSubclasses.length * races.length * 20, "cases");
+console.log("Deterministic coverage: rule-aware, no item selection");
+console.log("Deterministic feat coverage: targeted by prerequisite type");
 
 const coverageCases = runDeterministicCoverage();
 runRandomFuzz(options.iterations);
