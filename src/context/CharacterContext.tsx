@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { defaultCharacter, features, items, spells } from "../lib/data";
 import {
+  applyCharacterTransition,
   getAvailableFeatures,
   getAvailableItems,
   getAvailableSpells,
@@ -2029,25 +2030,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         localPatch.speed = subraceRule?.speed ?? raceRules[nextRace]?.speed ?? currentCharacter.speed;
       }
 
-      if (currentCharacter && (patch.subclass !== undefined || patch.className !== undefined || patch.level !== undefined)) {
-        const nextClassName = patch.className ?? currentCharacter.className;
-        const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
-        const nextSubclass = patch.subclass ?? currentCharacter.subclass;
-        const unlockLevel = getClassDefinition(nextClassName, classRules)?.subclassUnlockLevel ?? 1;
-        const subclassIsValid = !nextSubclass
-          || (nextLevel >= unlockLevel && catalogue.subclasses.some(
-            (entry) => entry.className === nextClassName && entry.name === nextSubclass,
-          ));
-
-        if (!subclassIsValid) {
-          throw new Error(
-            nextLevel < unlockLevel
-              ? `${nextClassName} subclasses are not available until level ${unlockLevel}.`
-              : `Subclass "${nextSubclass}" is not valid for ${nextClassName}.`,
-          );
-        }
-      }
-
       if (currentCharacter && acCalculationChanged) {
         const nextAbilities = { ...currentCharacter.abilities, ...(patch.abilities ?? {}) };
         const nextInventory = patch.inventory ?? currentCharacter.inventory;
@@ -2059,49 +2041,27 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      if (currentCharacter && progressionChanged) {
-        const nextClassName = patch.className ?? currentCharacter.className;
-        const nextLevel = Math.max(1, Math.min(20, patch.level ?? currentCharacter.level));
-        const nextConstitution = patch.abilities?.con ?? currentCharacter.abilities.con;
-        const nextMaxHp = getExpectedMaxHp(nextClassName, nextLevel, nextConstitution, classRules);
-        const hpDelta = nextMaxHp - currentCharacter.maxHp;
-
-        localPatch.level = nextLevel;
-        localPatch.maxHp = nextMaxHp;
-        localPatch.hp = Math.max(0, Math.min(nextMaxHp, currentCharacter.hp + hpDelta));
-        localPatch.hitDice = getExpectedHitDice(nextClassName, nextLevel, classRules);
-        localPatch.proficiencyBonus = getProficiencyBonus(nextLevel);
-      }
-
-      if (currentCharacter && featureSetChanged && patch.features === undefined) {
-        const nextCharacter: Character = {
-          ...currentCharacter,
-          ...localPatch,
-          abilities: { ...currentCharacter.abilities, ...(localPatch.abilities ?? {}) },
-          level: Math.max(1, Math.min(20, patch.level ?? currentCharacter.level)),
-          className: patch.className ?? currentCharacter.className,
-          subclass: patch.subclass ?? currentCharacter.subclass,
-          race: patch.race ?? currentCharacter.race,
-          background: patch.background ?? currentCharacter.background,
-          feats: patch.feats ?? currentCharacter.feats,
-        };
-        const oldAutomatic = new Set(
-          currentCharacter.featureProvenance.length
-            ? currentCharacter.featureProvenance.filter((entry) => entry.source === "automatic").map((entry) => entry.featureId)
-            : getAutomaticallyGrantedFeatureIds(currentCharacter, featureCatalogue),
-        );
-        const preservedFeatures = currentCharacter.features.filter((featureId) => !oldAutomatic.has(featureId));
-        const nextAutoFeatures = getAutomaticallyGrantedFeatureIds(
-          { ...nextCharacter, features: preservedFeatures },
-          featureCatalogue,
-        );
-        localPatch.features = Array.from(new Set([...preservedFeatures, ...nextAutoFeatures]));
-        localPatch.featureProvenance = localPatch.features.map((featureId) => ({
-          featureId,
-          source: preservedFeatures.includes(featureId)
-            ? (currentCharacter.featureProvenance.find((entry) => entry.featureId === featureId)?.source ?? "legacy")
-            : "automatic",
-        }));
+      if (currentCharacter) {
+        const transitioned = applyCharacterTransition(currentCharacter, patch, {
+          classCatalogue: classRules,
+          subclasses: catalogue.subclasses,
+          features: featureCatalogue,
+          spells: spellCatalogue,
+        });
+        localPatch.level = transitioned.level;
+        localPatch.className = transitioned.className;
+        localPatch.subclass = transitioned.subclass;
+        localPatch.race = transitioned.race;
+        localPatch.background = transitioned.background;
+        localPatch.feats = transitioned.feats;
+        localPatch.abilities = transitioned.abilities;
+        localPatch.hp = transitioned.hp;
+        localPatch.maxHp = transitioned.maxHp;
+        localPatch.hitDice = transitioned.hitDice;
+        localPatch.proficiencyBonus = transitioned.proficiencyBonus;
+        localPatch.features = transitioned.features;
+        localPatch.featureProvenance = transitioned.featureProvenance;
+        localPatch.spells = transitioned.spells;
       }
 
       setCharacters((current) =>
