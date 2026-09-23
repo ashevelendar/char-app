@@ -697,6 +697,21 @@ export function getCantripsKnown(className: string, level: number, classCatalogu
   return fallback[safeLevel] ?? 0;
 }
 
+export function getMulticlassCantripsKnown(character: Character, classCatalogue?: RuleClassCatalogue): number {
+  return getCharacterClassLevels(character).reduce(
+    (sum, entry) => sum + getCantripsKnown(entry.className, entry.level, classCatalogue),
+    0,
+  );
+}
+
+export function getMulticlassSpellsKnown(character: Character, classCatalogue?: RuleClassCatalogue): Array<{ className: string; level: number; count: number | null }> {
+  return getCharacterClassLevels(character).map((entry) => ({
+    className: entry.className,
+    level: entry.level,
+    count: getSpellsKnown(entry.className, entry.level, classCatalogue),
+  }));
+}
+
 export function getSpellsKnown(className: string, level: number, classCatalogue?: RuleClassCatalogue) {
   const progression = getDynamicClassRule(className, classCatalogue)?.spellsKnownProgression;
   if (progression?.length) {
@@ -817,6 +832,25 @@ export function getSpellSlotSummary(className: string, level: number, classCatal
 }
 
 export function getSpellcastingSummary(character: Character, classCatalogue?: RuleClassCatalogue) {
+  const classLevels = getCharacterClassLevels(character);
+  if (classLevels.length > 1) {
+    const modes = classLevels.map((entry) => getClassDefinition(entry.className, classCatalogue)?.spellcasting ?? "none");
+    const prepared = modes.includes("prepared");
+    return {
+      mode: prepared ? "prepared" as const : modes.some((mode) => mode === "known") ? "known" as const : "none" as const,
+      maxSpellLevel: getMulticlassMaxSpellLevel(character, classCatalogue),
+      cantripsKnown: getMulticlassCantripsKnown(character, classCatalogue),
+      spellsKnown: null,
+      preparedSpells: classLevels.reduce((sum, entry) => sum + (getPreparedSpellCount(
+        { ...character, className: entry.className, level: entry.level, subclass: entry.subclass ?? "" },
+        classCatalogue,
+      ) ?? 0), 0),
+      wizardSpellbookProgression: classLevels.find((entry) => entry.className === "Wizard")
+        ? getWizardSpellbookProgression(classLevels.find((entry) => entry.className === "Wizard")!.level, classCatalogue)
+        : null,
+      slots: getMulticlassSpellSlotSummary(character, classCatalogue),
+    };
+  }
   return {
     mode: getSpellcastingMode(character, classCatalogue),
     maxSpellLevel: getMaxSpellLevel(character, classCatalogue),
