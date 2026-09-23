@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:rules": "node scripts/test-rules.cjs",
-    "test:fuzz": "node scripts/fuzz-rules.cjs"
+    "test:fuzz": "node scripts/fuzz-rules.cjs",
+    "fuzz:catalogue": "node scripts/export-fuzz-catalogue.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
