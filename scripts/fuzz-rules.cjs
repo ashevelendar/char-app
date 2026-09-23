@@ -150,7 +150,10 @@ const feats = fuzzCatalogue?.feats?.length ? fuzzCatalogue.feats : data.feats?.l
 const spells = fuzzCatalogue?.spells?.length ? fuzzCatalogue.spells : data.spells ?? [];
 const features = fuzzCatalogue?.features?.length ? fuzzCatalogue.features : data.features ?? [];
 
-const validClassSubclasses = classes.flatMap((className) => {
+const supportedClasses = classes.filter((className) => Boolean(rules.getClassDefinition(className)));
+const unsupportedClasses = classes.filter((className) => !supportedClasses.includes(className));
+
+const validClassSubclasses = supportedClasses.flatMap((className) => {
   const names = subclasses
     .filter((entry) => entry.className === className)
     .map((entry) => entry.name);
@@ -485,7 +488,7 @@ function runDeterministicCoverage() {
   // 1. Core progression: every class at every level and representative CON values.
   // This covers proficiency, hit die, HP, hit dice, ASI levels and non-spellcasting
   // progression without repeating the full race/subclass/cartesian product.
-  for (const className of classes) {
+  for (const className of supportedClasses) {
     for (const level of levels) {
       for (const abilities of representativeAbilities) {
         fuzzCharacter(character({ className, level, abilities }), {
@@ -537,7 +540,7 @@ function runDeterministicCoverage() {
     const hasFeat = raw.includes("feat");
     const hasSpellcasting = raw.includes("spellcasting");
 
-    const targetClasses = hasClass ? classes : [classes[0]];
+    const targetClasses = hasClass ? supportedClasses : [supportedClasses[0]];
     const targetRaces = hasRace ? races : [races[0]];
     const targetLevels = hasLevel ? boundaryLevels : [1, 20];
     const abilitySets = hasAbility
@@ -605,7 +608,7 @@ function runDeterministicCoverage() {
 function runRandomFuzz(iterations) {
   const progressInterval = Math.max(1, Math.floor(iterations / 10));
   for (let index = 0; index < iterations; index += 1) {
-    const className = rng.pick(classes);
+    const className = rng.pick(supportedClasses);
     const classSubclasses = subclasses.filter((entry) => entry.className === className);
     const subclass = classSubclasses.length && rng.next() < 0.7
       ? rng.pick(classSubclasses).name
@@ -649,6 +652,10 @@ console.log("Seed:", options.seed);
 console.log("Random iterations:", options.iterations);
 console.log("Catalogue source:", catalogueSource);
 console.log("Catalogue:", classes.length, "classes,", races.length, "races,", subclasses.length, "subclasses,", feats.length, "feats,", spells.length, "spells,", features.length, "features");
+console.log("Supported rules-engine classes:", supportedClasses.length);
+if (unsupportedClasses.length) {
+  console.log("Catalogue classes outside current rules engine:", unsupportedClasses.join(", "));
+}
 console.log("Valid class/subclass combinations:", validClassSubclasses.length);
 console.log("Deterministic coverage: rule-aware, no item selection");
 console.log("Deterministic feat coverage: targeted by prerequisite type");
