@@ -27,6 +27,9 @@ export const classDefinitions: ClassDefinition[] = [
   { id: "warlock", name: "Warlock", spellcasting: "known", maxSpellLevelByCharacterLevel: warlockProgression, subclassUnlockLevel: 1 },
   { id: "wizard", name: "Wizard", spellcasting: "prepared", maxSpellLevelByCharacterLevel: fullCasterProgression, subclassUnlockLevel: 2 },
   { id: "artificer", name: "Artificer", spellcasting: "prepared", maxSpellLevelByCharacterLevel: artificerProgression, subclassUnlockLevel: 3 },
+  // Mystic is retained as the 2014-era Unearthed Arcana playtest class.
+  // Its psionic system is not represented by the normal spellcasting model.
+  { id: "mystic", name: "Mystic", spellcasting: "none", maxSpellLevelByCharacterLevel: Array(21).fill(0), subclassUnlockLevel: 1 },
 ];
 
 export const races: RaceDefinition[] = [
