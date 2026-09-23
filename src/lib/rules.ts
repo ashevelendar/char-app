@@ -183,12 +183,14 @@ export function validateMulticlassClassLevels(
     if (level < 1 || level > 20) errors.push(`${className} level must be between 1 and 20.`);
     total += level;
 
+    if (normalized.length > 1) {
     const prerequisites = getMulticlassPrerequisites(className);
-    if (className === "Fighter") {
-      if (abilities.str < 13 && abilities.dex < 13) errors.push("Multiclassing into Fighter requires STR 13 or DEX 13.");
-    } else {
-      for (const [ability, minimum] of Object.entries(prerequisites) as Array<[AbilityKey, number]>) {
-        if ((abilities[ability] ?? 0) < minimum) errors.push(`Multiclassing into ${className} requires ${ability.toUpperCase()} ${minimum}.`);
+      if (className === "Fighter") {
+        if (abilities.str < 13 && abilities.dex < 13) errors.push("Multiclassing into Fighter requires STR 13 or DEX 13.");
+      } else {
+        for (const [ability, minimum] of Object.entries(prerequisites) as Array<[AbilityKey, number]>) {
+          if ((abilities[ability] ?? 0) < minimum) errors.push(`Multiclassing into ${className} requires ${ability.toUpperCase()} ${minimum}.`);
+        }
       }
     }
 
