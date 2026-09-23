@@ -20,7 +20,7 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 const rules = require(path.resolve(__dirname, "../src/lib/rules.ts"));
 const data = require(path.resolve(__dirname, "../src/lib/data.ts"));
 
-const DEFAULT_ITERATIONS = 10000;
+const DEFAULT_ITERATIONS = 500000;
 
 function parseArgs(argv) {
   const args = { iterations: DEFAULT_ITERATIONS, seed: 20260923 };
@@ -31,7 +31,7 @@ function parseArgs(argv) {
     } else if (arg === "--seed") {
       args.seed = Number(argv[++index] ?? args.seed) >>> 0;
     } else if (arg === "--help" || arg === "-h") {
-      console.log("Usage: node scripts/fuzz-rules.cjs [--iterations 10000] [--seed 12345]");
+      console.log("Usage: node scripts/fuzz-rules.cjs [--iterations 500000] [--seed 12345]");
       process.exit(0);
     }
   }
@@ -112,6 +112,13 @@ const feats = data.feats?.length ? data.feats : buildSyntheticFeats();
 const spells = data.spells ?? [];
 const items = data.items ?? [];
 const features = data.features ?? [];
+
+const validClassSubclasses = classes.flatMap((className) => {
+  const names = subclasses
+    .filter((entry) => entry.className === className)
+    .map((entry) => entry.name);
+  return (names.length ? names : [""]).map((subclass) => ({ className, subclass }));
+});
 
 assert.ok(classes.length > 0, "No classes loaded from src/lib/data.ts");
 assert.ok(races.length > 0, "No races loaded from src/lib/data.ts");
@@ -269,6 +276,14 @@ function fuzzCharacter(characterValue) {
       const available = rules.isFeatAvailable(c, feat);
       assert.equal(typeof available, "boolean");
       assert.equal(typeof rules.getFeatRestrictionReason(c, feat), "string");
+
+      // Exercise prerequisite parsing with the feat explicitly owned as both
+      // the app-style id and the human-readable name. This catches regressions
+      // where feat prerequisites accidentally stop matching either representation.
+      const ownedById = { ...c, feats: [feat.id] };
+      const ownedByName = { ...c, feats: [feat.name] };
+      assert.equal(typeof rules.isFeatAvailable(ownedById, feat), "boolean");
+      assert.equal(typeof rules.isFeatAvailable(ownedByName, feat), "boolean");
     }
   }, c);
 
@@ -430,14 +445,8 @@ function runDeterministicCoverage() {
   // Exhaust every valid class/race/subclass combination at every character level.
   // Subclasses are only paired with their owning class, so we test real combinations
   // rather than generating impossible class/subclass pairs.
-  for (const className of classes) {
-    const classSubclasses = subclasses
-      .filter((entry) => entry.className === className)
-      .map((entry) => entry.name);
-    const subclassOptions = classSubclasses.length ? classSubclasses : [""];
-
+  for (const { className, subclass } of validClassSubclasses) {
     for (const race of races) {
-      for (const subclass of subclassOptions) {
         for (let level = 1; level <= 20; level += 1) {
           fuzzCharacter(character({ className, race, subclass, level }));
           cases += 1;
@@ -450,14 +459,8 @@ function runDeterministicCoverage() {
   // Level 20 ensures level-gated feat parsing is exercised without making
   // prerequisite satisfaction the thing that determines whether the parser runs.
   for (const feat of feats) {
-    for (const className of classes) {
-      const classSubclasses = subclasses
-        .filter((entry) => entry.className === className)
-        .map((entry) => entry.name);
-      const subclassOptions = classSubclasses.length ? classSubclasses : [""];
-
+    for (const { className, subclass } of validClassSubclasses) {
       for (const race of races) {
-        for (const subclass of subclassOptions) {
           fuzzCharacter(character({
             className,
             race,
@@ -475,6 +478,7 @@ function runDeterministicCoverage() {
 }
 
 function runRandomFuzz(iterations) {
+  const progressInterval = Math.max(1, Math.floor(iterations / 10));
   for (let index = 0; index < iterations; index += 1) {
     const className = rng.pick(classes);
     const classSubclasses = subclasses.filter((entry) => entry.className === className);
@@ -493,6 +497,10 @@ function runRandomFuzz(iterations) {
       abilities: Object.fromEntries(abilityKeys.map((key) => [key, rng.int(3, 20)])),
       level: rng.int(1, 20),
     }));
+
+    if ((index + 1) % progressInterval === 0 || index + 1 === iterations) {
+      console.log("  Random progress:", (index + 1) + "/" + iterations);
+    }
   }
 }
 
@@ -503,6 +511,9 @@ console.log("D&D rules fuzz test");
 console.log("Seed:", options.seed);
 console.log("Random iterations:", options.iterations);
 console.log("Catalogue:", classes.length, "classes,", races.length, "races,", subclasses.length, "subclasses,", feats.length, "feats,", spells.length, "spells,", items.length, "items,", features.length, "features");
+console.log("Valid class/subclass combinations:", validClassSubclasses.length);
+console.log("Deterministic base matrix:", validClassSubclasses.length * races.length * 20, "cases");
+console.log("Deterministic feat matrix:", feats.length * validClassSubclasses.length * races.length, "cases");
 
 const coverageCases = runDeterministicCoverage();
 runRandomFuzz(options.iterations);
