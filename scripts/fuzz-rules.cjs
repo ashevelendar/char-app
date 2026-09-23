@@ -427,22 +427,48 @@ function fuzzCharacter(characterValue) {
 function runDeterministicCoverage() {
   let cases = 0;
 
+  // Exhaust every valid class/race/subclass combination at every character level.
+  // Subclasses are only paired with their owning class, so we test real combinations
+  // rather than generating impossible class/subclass pairs.
   for (const className of classes) {
-    for (let level = 1; level <= 20; level += 1) {
-      const subclass = subclasses.find((entry) => entry.className === className)?.name ?? "";
-      fuzzCharacter(character({ className, level, subclass }));
-      cases += 1;
+    const classSubclasses = subclasses
+      .filter((entry) => entry.className === className)
+      .map((entry) => entry.name);
+    const subclassOptions = classSubclasses.length ? classSubclasses : [""];
+
+    for (const race of races) {
+      for (const subclass of subclassOptions) {
+        for (let level = 1; level <= 20; level += 1) {
+          fuzzCharacter(character({ className, race, subclass, level }));
+          cases += 1;
+        }
+      }
     }
   }
 
-  for (const race of races) {
-    fuzzCharacter(character({ race }));
-    cases += 1;
-  }
-
+  // Exercise every feat against every valid class/race/subclass combination.
+  // Level 20 ensures level-gated feat parsing is exercised without making
+  // prerequisite satisfaction the thing that determines whether the parser runs.
   for (const feat of feats) {
-    fuzzCharacter(character({ feats: [feat.id] }));
-    cases += 1;
+    for (const className of classes) {
+      const classSubclasses = subclasses
+        .filter((entry) => entry.className === className)
+        .map((entry) => entry.name);
+      const subclassOptions = classSubclasses.length ? classSubclasses : [""];
+
+      for (const race of races) {
+        for (const subclass of subclassOptions) {
+          fuzzCharacter(character({
+            className,
+            race,
+            subclass,
+            level: 20,
+            feats: [feat.id],
+          }));
+          cases += 1;
+        }
+      }
+    }
   }
 
   return cases;
