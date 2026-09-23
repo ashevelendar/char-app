@@ -97,7 +97,7 @@ function buildSyntheticFeats() {
       description: "Synthetic feat used by the headless rules fuzzer.",
       prerequisite,
       ability: index % 5 === 0
-        ? { choose: [ability, secondAbility], amount: 1 }
+        ? [{ from: [ability, secondAbility], amount: 1 }]
         : index % 5 === 1
           ? { ability, amount: 2 }
           : { [ability]: 1 },
