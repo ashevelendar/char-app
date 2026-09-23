@@ -9,7 +9,7 @@ import MulticlassEditor from "../../../components/MulticlassEditor";
 import { useCharacters } from "../../../context/CharacterContext";
 import { defaultCharacter } from "../../../lib/data";
 import type { AbilityKey, AbilityScores, Character, CharacterClassLevel, Currency, InventoryEntry, Item, Spell, SpellEntry } from "../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getAbilityScoreImprovementLevelsForCharacter, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
 const abilityKeys: AbilityKey[] = ["str", "dex", "con", "int", "wis", "cha"];
@@ -231,8 +231,10 @@ export default function NewCharacterPage() {
   );
 
   const asiLevels = useMemo(
-    () => getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules),
-    [form.className, form.level, classRules],
+    () => form.classLevels?.length
+      ? getAbilityScoreImprovementLevelsForCharacter({ ...defaultCharacter, ...form, classLevels: form.classLevels } as Character, classRules)
+      : getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules),
+    [form.className, form.level, form.classLevels, classRules],
   );
 
   const expertiseLevels = useMemo(
