@@ -23,11 +23,11 @@ loadEnvFile(path.join(process.cwd(), ".env.local"));
 loadEnvFile(path.join(process.cwd(), ".env"));
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
 
 if (!url || !key) {
   throw new Error(
-    "Supabase environment variables are missing. Expected NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in .env.local or the environment.",
+    "Supabase exporter credentials are missing. Expected NEXT_PUBLIC_SUPABASE_URL plus SUPABASE_SERVICE_ROLE_KEY (legacy projects) or SUPABASE_SECRET_KEY (new projects) in .env.local or the environment. Do not commit either secret key.",
   );
 }
 
@@ -144,6 +144,7 @@ function extractRequiredFeatureIds(raw, featureRows, currentId) {
 
 async function main() {
   console.log("Exporting the real 2014 Supabase catalogue for the headless rules fuzzer...");
+  console.log("  Using server-side Supabase credentials for the export. RLS is not modified.");
 
   const [classes, races, subclasses, backgrounds, spells, features, items, feats, subraces] =
     await Promise.all([
