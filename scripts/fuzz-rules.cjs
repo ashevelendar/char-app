@@ -512,14 +512,38 @@ function runRandomFuzz(iterations) {
       ? rng.pick(classSubclasses).name
       : "";
 
-    const selectedFeats = feats.length && rng.next() < 0.65
-      ? [rng.pick(feats).id]
-      : [];
+    const selectedFeats = [];
+    const featCount = feats.length ? rng.int(0, Math.min(4, feats.length)) : 0;
+    while (selectedFeats.length < featCount) {
+      const featId = rng.pick(feats).id;
+      if (!selectedFeats.includes(featId)) selectedFeats.push(featId);
+    }
+
+    const selectedSkills = skills.filter(() => rng.next() < 0.3).slice(0, rng.int(0, 6));
+    const selectedTools = skills.filter(() => rng.next() < 0.12).slice(0, rng.int(0, 3));
+    const selectedLanguages = ["Common", "Draconic", "Elvish", "Dwarvish", "Infernal", "Sylvan"]
+      .filter(() => rng.next() < 0.35)
+      .slice(0, rng.int(0, 3));
+
+    const inventory = [];
+    const inventoryCount = items.length ? rng.int(0, Math.min(8, items.length)) : 0;
+    const shuffledItems = [...items].sort(() => rng.next() - 0.5);
+    for (const item of shuffledItems.slice(0, inventoryCount)) {
+      inventory.push({
+        itemId: item.id,
+        quantity: rng.int(0, 20),
+        equipped: rng.next() < 0.5,
+      });
+    }
 
     fuzzCharacter(character({
       className,
       subclass,
       feats: selectedFeats,
+      skills: selectedSkills,
+      tools: selectedTools,
+      languages: selectedLanguages,
+      inventory,
       abilities: Object.fromEntries(abilityKeys.map((key) => [key, rng.int(3, 20)])),
       level: rng.int(1, 20),
     }));
