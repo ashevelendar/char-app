@@ -542,12 +542,13 @@ function CharacterEditor({
     subrace: form.subrace,
     className: form.className,
     subclass: form.subclass,
+    classLevels: form.classLevels,
     background: form.background,
     feats: asiChoices.filter(Boolean),
     skills: selectedSkills,
     tools: selectedTools,
     languages: selectedLanguages,
-  }), [character, form.level, progressionAbilities, form.race, form.subrace, form.className, form.subclass, form.background, asiChoices, selectedSkills, selectedTools, selectedLanguages]);
+  }), [character, form.level, progressionAbilities, form.race, form.subrace, form.className, form.subclass, form.classLevels, form.background, asiChoices, selectedSkills, selectedTools, selectedLanguages]);
 
   const availableSpells = useMemo(
     () => spellCatalogue.filter((spell) => isSpellNormallyAvailable(spellCharacter, spell, classRules)),
