@@ -223,12 +223,18 @@ export function getExpectedMulticlassMaxHp(
 ): number {
   const conMod = getAbilityModifier(constitution);
   let hp = 0;
+  let isFirstClass = true;
   for (const entry of classLevels) {
     const level = Math.max(0, Math.min(20, Number(entry.level) || 0));
     if (level <= 0) continue;
     const hitDie = getHitDieSize(entry.className, classCatalogue);
-    const averageGain = Math.floor(hitDie / 2) + 1;
-    hp += hitDie + conMod + Math.max(0, level - 1) * Math.max(1, averageGain + conMod);
+    const averageGain = Math.max(1, Math.floor(hitDie / 2) + 1 + conMod);
+    if (isFirstClass) {
+      hp += hitDie + conMod + Math.max(0, level - 1) * averageGain;
+      isFirstClass = false;
+    } else {
+      hp += level * averageGain;
+    }
   }
   return Math.max(1, hp);
 }
