@@ -33,6 +33,7 @@ import type {
   NewCharacterInput,
   OptionalFeatureDefinition,
   SubraceDefinition,
+  SubclassDefinition,
   Feat,
   Feature,
   FeatureGrantHistoryEntry,
@@ -104,7 +105,7 @@ type Catalogue = {
   classes: string[];
   races: string[];
   subraces: SubraceDefinition[];
-  subclasses: Array<{ name: string; className: string; description?: string; source?: string }>;
+  subclasses: Array<SubclassDefinition & { description?: string; source?: string }>;
   backgrounds: string[];
 };
 
@@ -1326,6 +1327,7 @@ function makeMaps(
                   Boolean(feature.description?.trim()),
               );
               return {
+                id: row.id,
                 name: row.name,
                 className,
                 description:
