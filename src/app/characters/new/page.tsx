@@ -5,9 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, PageHeader, SectionCard } from "../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../components/AbilityScoreBuilder";
+import MulticlassEditor from "../../../components/MulticlassEditor";
 import { useCharacters } from "../../../context/CharacterContext";
 import { defaultCharacter } from "../../../lib/data";
-import type { AbilityKey, AbilityScores, Character, Currency, InventoryEntry, Item, Spell, SpellEntry } from "../../../lib/types";
+import type { AbilityKey, AbilityScores, Character, CharacterClassLevel, Currency, InventoryEntry, Item, Spell, SpellEntry } from "../../../lib/types";
 import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getClassDefinition, getExpectedHitDice, getExpectedMaxHp, getMaxSpellLevel, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, isFeatAvailable, isSpellNormallyAvailable } from "../../../lib/rules";
 
 const defaults: AbilityScores = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
@@ -100,6 +101,7 @@ export default function NewCharacterPage() {
     subrace: "",
     className: "",
     subclass: "",
+    classLevels: undefined as CharacterClassLevel[] | undefined,
     background: "",
     alignment: "Unaligned",
     playerName: "",
@@ -143,8 +145,11 @@ export default function NewCharacterPage() {
   const [step, setStep] = useState<BuilderStep>("class");
   const [creationError, setCreationError] = useState("");
 
+  const primaryClassLevel = form.classLevels?.length
+    ? form.classLevels[0].level
+    : form.level;
   const subclassUnlockLevel = getClassDefinition(form.className, classRules)?.subclassUnlockLevel ?? 1;
-  const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className && form.level >= subclassUnlockLevel);
+  const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className && primaryClassLevel >= subclassUnlockLevel);
   const selectedSubclass = subclassOptions.find((entry) => entry.name === form.subclass);
   const selectedRaceRules = raceRules[form.race];
   const selectedSubrace = catalogue.subraces.find((entry) => entry.name === form.subrace && entry.parentRace === form.race);
@@ -290,6 +295,7 @@ export default function NewCharacterPage() {
     subrace: form.subrace,
     className: form.className,
     subclass: form.subclass,
+    classLevels: form.classLevels,
     background: form.background,
     feats: asiChoices.filter(Boolean),
     skills: selectedSkills,
@@ -348,12 +354,19 @@ export default function NewCharacterPage() {
   }
 
   function setLevel(value: number) {
+    const secondary = form.classLevels?.slice(1) ?? [];
+    const secondaryTotal = secondary.reduce((sum, entry) => sum + entry.level, 0);
+    const nextTotal = Math.max(1, Math.min(20, Math.max(value, secondaryTotal + 1)));
+    const primaryLevel = nextTotal - secondaryTotal;
     const unlockLevel = getClassDefinition(form.className, classRules)?.subclassUnlockLevel ?? 1;
-    const available = catalogue.subclasses.filter((entry) => entry.className === form.className && value >= unlockLevel);
+    const available = catalogue.subclasses.filter((entry) => entry.className === form.className && primaryLevel >= unlockLevel);
     setForm((current) => ({
       ...current,
-      level: value,
-      subclass: value >= unlockLevel ? (current.subclass || available[0]?.name || "") : "",
+      level: nextTotal,
+      classLevels: secondary.length
+        ? [{ className: current.className, level: primaryLevel, subclass: primaryLevel >= unlockLevel ? (current.subclass || available[0]?.name || "") : undefined }, ...secondary]
+        : undefined,
+      subclass: primaryLevel >= unlockLevel ? (current.subclass || available[0]?.name || "") : "",
     }));
   }
 
@@ -632,13 +645,40 @@ export default function NewCharacterPage() {
                     setAsiAbilityChoices([]);
                     setExpertiseSelections([]);
                     setMagicalSecretSelections([]);
-                    setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "", feats: [] }));
+                    setForm((current) => ({
+                      ...current,
+                      className: value,
+                      subclass: next[0]?.name ?? "",
+                      classLevels: current.classLevels?.length
+                        ? [{ className: value, level: current.classLevels[0].level, subclass: next[0]?.name ?? undefined }, ...current.classLevels.slice(1)]
+                        : undefined,
+                      feats: [],
+                    }));
                   }} />
-                  <Select label="Subclass" value={form.subclass} options={subclassOptions.map((entry) => entry.name)} onChange={(value) => setForm((current) => ({ ...current, subclass: value }))} />
+                  <Select label="Subclass" value={form.subclass} options={subclassOptions.map((entry) => entry.name)} onChange={(value) => setForm((current) => ({
+                    ...current,
+                    subclass: value,
+                    classLevels: current.classLevels?.length
+                      ? [{ ...current.classLevels[0], subclass: value || undefined }, ...current.classLevels.slice(1)]
+                      : undefined,
+                  }))} />
                 </div>
               </SectionCard>
 
               {selectedSubclass && <InfoBox title={selectedSubclass.name} badge={selectedSubclass.source} text={selectedSubclass.description || "No subclass description is available for this entry."} />}
+
+              {form.className && (
+                <MulticlassEditor
+                  totalLevel={form.level}
+                  primaryClass={form.className}
+                  primarySubclass={form.subclass}
+                  classLevels={form.classLevels}
+                  classes={catalogue.classes}
+                  subclasses={catalogue.subclasses}
+                  abilities={asiBonusScores}
+                  onChange={(levels) => setForm((current) => ({ ...current, classLevels: levels }))}
+                />
+              )}
 
               <SectionCard title="Proficiencies" description="These are granted by your class. Choices are selected here rather than being typed manually.">
                 {selectedClassRules && (
