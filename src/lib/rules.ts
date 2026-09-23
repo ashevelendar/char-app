@@ -79,6 +79,7 @@ export function getHitDieSize(className: string, classCatalogue?: RuleClassCatal
     Warlock: 8,
     Wizard: 6,
     Artificer: 8,
+    Mystic: 8,
   };
   return sizes[className] ?? 8;
 }
