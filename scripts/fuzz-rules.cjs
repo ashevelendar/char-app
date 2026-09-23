@@ -3,6 +3,7 @@ const path = require("node:path");
 const nodeAssert = require("node:assert/strict");
 
 const assertionMetrics = { total: 0, ok: 0, equal: 0, deepEqual: 0 };
+const checkMetrics = new Map();
 const assert = {
   ok(...args) {
     assertionMetrics.total += 1;
@@ -214,6 +215,7 @@ function character(overrides = {}) {
 }
 
 function check(name, fn, context) {
+  checkMetrics.set(name, (checkMetrics.get(name) ?? 0) + 1);
   try {
     fn();
   } catch (error) {
@@ -246,6 +248,13 @@ function fuzzCharacter(characterValue, coverage = {}) {
   const level = c.level;
 
   check("basic progression", () => {
+    const definition = rules.getClassDefinition(c.className);
+    assert.ok(definition && definition.name === c.className);
+    assert.equal(rules.getAbilityModifier(3), -4);
+    assert.equal(rules.getAbilityModifier(9), -1);
+    assert.equal(rules.getAbilityModifier(10), 0);
+    assert.equal(rules.getAbilityModifier(11), 0);
+    assert.equal(rules.getAbilityModifier(20), 5);
     assert.equal(rules.getProficiencyBonus(level), 2 + Math.floor((level - 1) / 4));
 
     const hitDie = rules.getHitDieSize(c.className);
@@ -289,6 +298,11 @@ function fuzzCharacter(characterValue, coverage = {}) {
     assert.ok(Number.isInteger(cantrips) && cantrips >= 0);
     assert.ok(known === null || (Number.isInteger(known) && known >= 0));
     assert.ok(prepared === null || (Number.isInteger(prepared) && prepared >= 1));
+
+    const spellbook = rules.getSpellbookProgression(c.className, level);
+    const wizardSpellbook = rules.getWizardSpellbookProgression(level);
+    assert.ok(spellbook === null || (Number.isInteger(spellbook) && spellbook >= 0));
+    assert.equal(wizardSpellbook, 6 + (level - 1) * 2);
 
     const summary = rules.getSpellcastingSummary(c);
     assert.equal(summary.mode, mode);
@@ -344,9 +358,21 @@ function fuzzCharacter(characterValue, coverage = {}) {
   }, c);
 
   if (coverage.skipFeatureGraph !== true) check("feature dependency graph", () => {
+    const availableFeatures = rules.getAvailableFeatures(c, false);
+    assert.ok(Array.isArray(availableFeatures));
+    for (const feature of features.slice(0, Math.min(features.length, 40))) {
+      assert.equal(typeof rules.isFeatureNormallyAvailable(c, feature), "boolean");
+      assert.equal(typeof rules.getFeatureRestrictionReason(c, feature), "string");
+    }
+
     const granted = rules.getAutomaticallyGrantedFeatureIds(c, features);
     assert.ok(Array.isArray(granted));
     assert.equal(new Set(granted).size, granted.length);
+
+    const subclassOptions = rules.getSubclassOptionsForClass(c.className);
+    assert.ok(Array.isArray(subclassOptions));
+    assert.ok(subclassOptions.every((entry) => entry.className === c.className));
+    assert.deepEqual(rules.getRaceNames().slice(0, races.length), races);
 
     const featureIds = new Set(features.map((feature) => feature.id));
     for (const featureId of granted) assert.ok(featureIds.has(featureId));
@@ -626,6 +652,7 @@ console.log("Catalogue:", classes.length, "classes,", races.length, "races,", su
 console.log("Valid class/subclass combinations:", validClassSubclasses.length);
 console.log("Deterministic coverage: rule-aware, no item selection");
 console.log("Deterministic feat coverage: targeted by prerequisite type");
+console.log("Intentional coverage gap: item selection/equipment rules are excluded by request.");
 
 const coverageCases = runDeterministicCoverage();
 runRandomFuzz(options.iterations);
@@ -638,6 +665,10 @@ console.log("  Random characters tested:", options.iterations);
 console.log("  Total cases:", coverageCases + options.iterations);
 console.log("  Seed:", options.seed);
 console.log("  Duration:", elapsed + "ms");
+console.log("  Assertion calls per deterministic/random check group:");
+for (const [name, count] of checkMetrics) {
+  console.log("    " + name + ": " + count);
+}
 console.log("  Exact assertion calls:", assertionMetrics.total);
 console.log("    assert.ok:", assertionMetrics.ok);
 console.log("    assert.equal:", assertionMetrics.equal);
