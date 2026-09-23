@@ -361,6 +361,19 @@ export function getNewAbilityScoreImprovementLevels(className: string, oldLevel:
   return getAbilityScoreImprovementLevels(className, classCatalogue).filter((level) => level > oldLevel && level <= newLevel);
 }
 
+
+export function getAbilityScoreImprovementLevelsForCharacter(character: Character, classCatalogue?: RuleClassCatalogue): number[] {
+  const levels = new Set<number>();
+  let cumulative = 0;
+  for (const entry of getCharacterClassLevels(character)) {
+    for (const classLevel of getAbilityScoreImprovementLevels(entry.className, classCatalogue)) {
+      if (classLevel <= entry.level) levels.add(cumulative + classLevel);
+    }
+    cumulative += entry.level;
+  }
+  return [...levels].sort((a, b) => a - b);
+}
+
 export function validateAsiHistory(
   entries: AsiHistoryEntry[],
   className: string,
