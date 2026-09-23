@@ -365,7 +365,7 @@ function fuzzCharacter(characterValue, coverage = {}) {
   }, c);
 
   if (coverage.skipFeatureGraph !== true) check("feature dependency graph", () => {
-    const availableFeatures = rules.getAvailableFeatures(c, false);
+    const availableFeatures = rules.getAvailableFeatures(c, false, features);
     assert.ok(Array.isArray(availableFeatures));
     for (const feature of features.slice(0, Math.min(features.length, 40))) {
       assert.equal(typeof rules.isFeatureNormallyAvailable(c, feature), "boolean");
@@ -376,10 +376,10 @@ function fuzzCharacter(characterValue, coverage = {}) {
     assert.ok(Array.isArray(granted));
     assert.equal(new Set(granted).size, granted.length);
 
-    const subclassOptions = rules.getSubclassOptionsForClass(c.className);
+    const subclassOptions = rules.getSubclassOptionsForClass(c.className, subclasses);
     assert.ok(Array.isArray(subclassOptions));
     assert.ok(subclassOptions.every((entry) => entry.className === c.className));
-    assert.deepEqual(rules.getRaceNames().slice(0, races.length), races);
+    assert.deepEqual(rules.getRaceNames(races), races);
 
     const featureIds = new Set(features.map((feature) => feature.id));
     for (const featureId of granted) assert.ok(featureIds.has(featureId));
