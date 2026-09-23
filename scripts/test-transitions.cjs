@@ -281,6 +281,33 @@ for (let index = 0; index < iterations; index += 1) {
 }
 
 console.log("");
+
+const multiclassBase = makeCharacter("Fighter", 5, {
+  str: 13, dex: 13, con: 14, int: 13, wis: 10, cha: 8,
+});
+const multiclassResult = rules.applyCharacterTransition(
+  multiclassBase,
+  {
+    classLevels: [
+      { className: "Fighter", level: 3 },
+      { className: "Wizard", level: 2 },
+    ],
+  },
+  {
+    classCatalogue: catalogue.classRules,
+    subclasses: catalogue.subclasses,
+    features: catalogue.features,
+    spells: catalogue.spells,
+  },
+);
+assert.deepEqual(multiclassResult.classLevels, [
+  { className: "Fighter", level: 3 },
+  { className: "Wizard", level: 2 },
+]);
+assert.equal(multiclassResult.level, 5);
+assert.equal(multiclassResult.hitDice, "3d10 + 2d6");
+assert.equal(multiclassResult.maxHp, rules.getExpectedMulticlassMaxHp(multiclassResult.classLevels, 14, catalogue.classRules));
+
 console.log("✓ Character transition fuzz test passed");
 console.log("  Catalogue source:", source);
 console.log("  Supported classes:", classes.length);
