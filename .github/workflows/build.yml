@@ -20,5 +20,7 @@ jobs:
         run: npm ci
       - name: Test rules
         run: npm run test:rules
+      - name: Fuzz rules
+        run: npm run test:fuzz -- --iterations 5000 --seed 20260923
       - name: Build
         run: npm run build
