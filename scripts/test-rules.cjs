@@ -124,7 +124,7 @@ test("multiclass HP and hit dice use each class hit die", () => {
     ],
   });
   assert.equal(rules.getMulticlassHitDice(c.classLevels), "3d10 + 2d6");
-  assert.equal(rules.getExpectedMulticlassMaxHp(c.classLevels, 14), 42);
+  assert.equal(rules.getExpectedMulticlassMaxHp(c.classLevels, 14), 40);
 });
 
 test("multiclass spell eligibility remains class-level specific", () => {
