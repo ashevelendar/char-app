@@ -62,12 +62,12 @@ function createRng(seed) {
 const rng = createRng(parseArgs(process.argv.slice(2)).seed);
 
 const classes = Array.from(new Set(
-  (data.classDefinitions ?? []).map((entry) => entry.name).filter(Boolean),
+  (fuzzCatalogue?.classes ?? (data.classDefinitions ?? []).map((entry) => entry.name)).filter(Boolean),
 ));
 const races = Array.from(new Set(
-  (data.races ?? []).map((entry) => entry.name).filter(Boolean),
+  (fuzzCatalogue?.races ?? (data.races ?? []).map((entry) => entry.name)).filter(Boolean),
 ));
-const subclasses = data.subclasses ?? [];
+const subclasses = fuzzCatalogue?.subclasses ?? data.subclasses ?? [];
 const abilityKeys = ["str", "dex", "con", "int", "wis", "cha"];
 const skills = [
   "Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception",
@@ -76,7 +76,9 @@ const skills = [
   "Sleight of Hand", "Stealth", "Survival",
 ];
 
-const backgrounds = Array.from(new Set(data.backgroundNames ?? (data.backgrounds ?? []).map((entry) => entry.name).filter(Boolean)));
+const backgrounds = Array.from(new Set(
+  (fuzzCatalogue?.backgrounds ?? data.backgroundNames ?? (data.backgrounds ?? []).map((entry) => entry.name)).filter(Boolean),
+));
 
 function buildSyntheticFeats() {
   const result = [];
@@ -111,10 +113,10 @@ function buildSyntheticFeats() {
   return result;
 }
 
-const feats = data.feats?.length ? data.feats : buildSyntheticFeats();
-const spells = data.spells ?? [];
-const items = data.items ?? [];
-const features = data.features ?? [];
+const feats = fuzzCatalogue?.feats?.length ? fuzzCatalogue.feats : data.feats?.length ? data.feats : buildSyntheticFeats();
+const spells = fuzzCatalogue?.spells?.length ? fuzzCatalogue.spells : data.spells ?? [];
+const items = fuzzCatalogue?.items?.length ? fuzzCatalogue.items : data.items ?? [];
+const features = fuzzCatalogue?.features?.length ? fuzzCatalogue.features : data.features ?? [];
 
 const validClassSubclasses = classes.flatMap((className) => {
   const names = subclasses
@@ -204,8 +206,12 @@ function assertFiniteNonNegative(value, label) {
   assert.ok(value >= 0, label + " must be non-negative");
 }
 
-function fuzzCharacter(characterValue) {
+function fuzzCharacter(characterValue, coverage = {}) {
   const c = characterValue;
+  const scanAllCatalogue = coverage.scanAllCatalogue === true;
+  const featScan = coverage.focusFeat ? [coverage.focusFeat] : scanAllCatalogue ? feats : [];
+  const spellScan = coverage.focusSpell ? [coverage.focusSpell] : scanAllCatalogue ? spells : spells.slice(0, Math.min(spells.length, 40));
+  const itemScan = coverage.focusItem ? [coverage.focusItem] : scanAllCatalogue ? items : items.slice(0, Math.min(items.length, 80));
   const level = c.level;
 
   check("basic progression", () => {
@@ -259,7 +265,7 @@ function fuzzCharacter(characterValue) {
   }, c);
 
   check("feat parsing and prerequisites", () => {
-    for (const feat of feats) {
+    for (const feat of featScan) {
       const options = rules.getFeatAbilityOptions(feat);
       const bonuses = rules.getFeatAbilityBonuses(feat);
       assert.ok(Array.isArray(options));
@@ -300,7 +306,7 @@ function fuzzCharacter(characterValue) {
       assert.ok(spell.level === 0 || spell.level <= rules.getMaxSpellLevel(c));
     }
 
-    for (const spell of spells.slice(0, Math.min(spells.length, 40))) {
+    for (const spell of spellScan) {
       assert.equal(typeof rules.isSpellNormallyAvailable(c, spell), "boolean");
       assert.equal(typeof rules.getSpellRestrictionReason(c, spell), "string");
     }
@@ -333,7 +339,7 @@ function fuzzCharacter(characterValue) {
   }, c);
 
   check("inventory and equipment", () => {
-    const sampleItems = items.slice(0, Math.min(items.length, 80));
+    const sampleItems = itemScan;
     const inventory = [];
     for (let index = 0; index < Math.min(8, sampleItems.length); index += 1) {
       if (rng.next() < 0.35) {
@@ -451,7 +457,7 @@ function runDeterministicCoverage() {
   for (const { className, subclass } of validClassSubclasses) {
     for (const race of races) {
       for (let level = 1; level <= 20; level += 1) {
-        fuzzCharacter(character({ className, race, subclass, level }));
+        fuzzCharacter(character({ className, race, subclass, level }), { scanAllCatalogue: true });
         cases += 1;
       }
     }
@@ -469,7 +475,7 @@ function runDeterministicCoverage() {
             subclass,
             level,
             feats: [feat.id],
-          }));
+          }), { focusFeat: feat });
           cases += 1;
         }
       }
@@ -493,7 +499,7 @@ function runDeterministicCoverage() {
               quantity: 1,
               equipped: false,
             }],
-          }));
+          }), { focusItem: item });
           cases += 1;
         }
       }
@@ -577,3 +583,7 @@ console.log("  Random characters tested:", options.iterations);
 console.log("  Total cases:", coverageCases + options.iterations);
 console.log("  Seed:", options.seed);
 console.log("  Duration:", elapsed + "ms");
+console.log("  Exact assertion calls:", assertionMetrics.total);
+console.log("    assert.ok:", assertionMetrics.ok);
+console.log("    assert.equal:", assertionMetrics.equal);
+console.log("    assert.deepEqual:", assertionMetrics.deepEqual);
