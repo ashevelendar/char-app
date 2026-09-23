@@ -637,8 +637,11 @@ export function getSpellSlotSummary(className: string, level: number, classCatal
   const definition = classDefinitions.find((entry) => entry.name === className);
   if (!definition || definition.spellcasting === "none") return [];
 
+  const useArtificer = className === "Artificer";
   const useHalfCaster = ["Paladin", "Ranger"].includes(className);
-  const progression = useHalfCaster ? HALF_CASTER_SLOTS : FULL_CASTER_SLOTS;
+  const progression = useArtificer
+    ? HALF_CASTER_SLOTS.map((row, index) => index === 0 ? [2] : row)
+    : useHalfCaster ? HALF_CASTER_SLOTS : FULL_CASTER_SLOTS;
 
   return (progression[safeLevel] ?? []).map((count, index) => ({ level: index + 1, count }));
 }
