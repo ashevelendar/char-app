@@ -904,8 +904,18 @@ export function isSpellNormallyAvailable(character: Character, spell: Spell, cla
   const classLevels = getCharacterClassLevels(character);
   if (spell.requiredCharacterLevel && getTotalCharacterLevel(character) < spell.requiredCharacterLevel) return false;
   if (spell.level > 0 && spell.level > getMaxSpellLevel(character, classCatalogue)) return false;
-  const classMatch = classLevels.some((entry) => spell.classes.includes(entry.className));
-  const subclassMatch = classLevels.some((entry) => Boolean(entry.subclass && spell.subclasses?.includes(entry.subclass)));
+  const classMatch = classLevels.some((entry) => {
+    if (!spell.classes.includes(entry.className)) return false;
+    const definition = getClassDefinition(entry.className, classCatalogue);
+    const classMax = definition?.maxSpellLevelByCharacterLevel[Math.max(1, Math.min(20, entry.level))] ?? 0;
+    return spell.level === 0 || spell.level <= classMax;
+  });
+  const subclassMatch = classLevels.some((entry) => {
+    if (!entry.subclass || !spell.subclasses?.includes(entry.subclass)) return false;
+    const definition = getClassDefinition(entry.className, classCatalogue);
+    const classMax = definition?.maxSpellLevelByCharacterLevel[Math.max(1, Math.min(20, entry.level))] ?? 0;
+    return spell.level === 0 || spell.level <= classMax;
+  });
   const raceMatch = Boolean(spell.races?.includes(character.race));
   return classMatch || subclassMatch || raceMatch;
 }
