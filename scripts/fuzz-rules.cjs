@@ -30,6 +30,9 @@ function parseArgs(argv) {
       args.iterations = Math.max(1, Number(argv[++index] ?? DEFAULT_ITERATIONS));
     } else if (arg === "--seed") {
       args.seed = Number(argv[++index] ?? args.seed) >>> 0;
+    } else if (/^\d+$/.test(arg)) {
+      // Also accept a bare positional iteration count.
+      args.iterations = Math.max(1, Number(arg));
     } else if (arg === "--help" || arg === "-h") {
       console.log("Usage: node scripts/fuzz-rules.cjs [--iterations 500000] [--seed 12345]");
       process.exit(0);
