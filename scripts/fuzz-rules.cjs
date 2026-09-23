@@ -65,10 +65,42 @@ const races = Array.from(new Set(
   (data.races ?? []).map((entry) => entry.name).filter(Boolean),
 ));
 const subclasses = data.subclasses ?? [];
-const backgrounds = Array.from(new Set(
-  (data.backgrounds ?? []).map((entry) => entry.name).filter(Boolean),
-));
-const feats = data.feats ?? [];
+const backgrounds = Array.from(new Set(data.backgroundNames ?? (data.backgrounds ?? []).map((entry) => entry.name).filter(Boolean)));
+
+function buildSyntheticFeats() {
+  const result = [];
+  for (let index = 0; index < 36; index += 1) {
+    const ability = abilityKeys[index % abilityKeys.length];
+    const secondAbility = abilityKeys[(index + 1) % abilityKeys.length];
+    const prerequisite = index % 6 === 0
+      ? { level: 8 }
+      : index % 6 === 1
+        ? { ability: [{ [ability]: 13 }] }
+        : index % 6 === 2
+          ? { class: [classes[index % classes.length]] }
+          : index % 6 === 3
+            ? { race: [{ name: races[index % races.length] }] }
+            : index % 6 === 4
+              ? { proficiency: [skills[index % skills.length]] }
+              : { feat: ["Fuzz Prerequisite"] };
+    result.push({
+      id: "fuzz-feat-" + index,
+      name: index === 0 ? "Fuzz Prerequisite" : "Fuzz Feat " + index,
+      description: "Synthetic feat used by the headless rules fuzzer.",
+      prerequisite,
+      ability: index % 5 === 0
+        ? { choose: [ability, secondAbility], amount: 1 }
+        : index % 5 === 1
+          ? { ability, amount: 2 }
+          : { [ability]: 1 },
+      source: "Fuzz Fixture",
+      edition: "custom",
+    });
+  }
+  return result;
+}
+
+const feats = data.feats?.length ? data.feats : buildSyntheticFeats();
 const spells = data.spells ?? [];
 const items = data.items ?? [];
 const features = data.features ?? [];
