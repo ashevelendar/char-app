@@ -9,7 +9,7 @@ import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } fro
 import MulticlassEditor from "../../../../components/MulticlassEditor";
 import { useCharacters } from "../../../../context/CharacterContext";
 import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, CharacterClassLevel, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, Spell, SpellEntry } from "../../../../lib/types";
-import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getCarryingCapacity, getClassDefinition, validateAsiHistory, validateExpertiseHistory, validateMagicalSecretsHistory, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getInventoryWeight, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, getAvailableItems, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
+import { getAbilityScoreImprovementLevelsUpTo, getAbilityScoreImprovementLevelsForCharacter, getCantripsKnown, getCarryingCapacity, getClassDefinition, validateAsiHistory, validateExpertiseHistory, validateMagicalSecretsHistory, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getInventoryWeight, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, getAvailableItems, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
 
@@ -210,7 +210,9 @@ function CharacterEditor({
   const initialAsiHistory = useMemo(() => {
     const parsed = character.asiHistory?.length ? character.asiHistory : parseAsiHistory(character.notes);
     if (parsed.length) return parsed;
-    const levels = getAbilityScoreImprovementLevelsUpTo(character.className, character.level, classRules);
+    const levels = character.classLevels?.length
+      ? getAbilityScoreImprovementLevelsForCharacter(character, classRules)
+      : getAbilityScoreImprovementLevelsUpTo(character.className, character.level, classRules);
     return levels.map((level, index) => {
       const featId = character.feats[index];
       return featId
@@ -427,12 +429,16 @@ function CharacterEditor({
     [selectedClassRules, subclassOptionalFeatureProgression, form.subclass, form.level],
   );
 
-  const allAsiLevels = getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules);
+  const allAsiLevels = form.classLevels?.length
+    ? getAbilityScoreImprovementLevelsForCharacter({ ...character, ...form, classLevels: form.classLevels } as Character, classRules)
+    : getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules);
   const newAsiLevels = getNewAbilityScoreImprovementLevels(character.className, character.level, form.level, classRules);
   const asiChoices = allAsiLevels.map((level) => asiHistory.find((entry) => entry.level === level)?.featId ?? "");
 
   useEffect(() => {
-    const currentAsiLevels = getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules);
+    const currentAsiLevels = form.classLevels?.length
+      ? getAbilityScoreImprovementLevelsForCharacter({ ...character, ...form, classLevels: form.classLevels } as Character, classRules)
+      : getAbilityScoreImprovementLevelsUpTo(form.className, form.level, classRules);
     setAsiHistory((current) => {
       const next = currentAsiLevels.map((level) => current.find((entry) => entry.level === level) ?? {
         level,
