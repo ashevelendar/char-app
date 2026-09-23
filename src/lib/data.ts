@@ -10,7 +10,7 @@ import type {
 
 const fullCasterProgression = [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 9, 9];
 const halfCasterProgression = [0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5];
-const thirdCasterProgression = [0, 0, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5];
+const artificerProgression = [0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5];
 const warlockProgression = [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5];
 
 export const classDefinitions: ClassDefinition[] = [
@@ -26,7 +26,7 @@ export const classDefinitions: ClassDefinition[] = [
   { id: "sorcerer", name: "Sorcerer", spellcasting: "known", maxSpellLevelByCharacterLevel: fullCasterProgression, subclassUnlockLevel: 1 },
   { id: "warlock", name: "Warlock", spellcasting: "known", maxSpellLevelByCharacterLevel: warlockProgression, subclassUnlockLevel: 1 },
   { id: "wizard", name: "Wizard", spellcasting: "prepared", maxSpellLevelByCharacterLevel: fullCasterProgression, subclassUnlockLevel: 2 },
-  { id: "artificer", name: "Artificer", spellcasting: "prepared", maxSpellLevelByCharacterLevel: thirdCasterProgression, subclassUnlockLevel: 3 },
+  { id: "artificer", name: "Artificer", spellcasting: "prepared", maxSpellLevelByCharacterLevel: artificerProgression, subclassUnlockLevel: 3 },
 ];
 
 export const races: RaceDefinition[] = [
