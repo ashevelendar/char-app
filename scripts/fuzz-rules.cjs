@@ -65,6 +65,14 @@ const races = Array.from(new Set(
   (data.races ?? []).map((entry) => entry.name).filter(Boolean),
 ));
 const subclasses = data.subclasses ?? [];
+const abilityKeys = ["str", "dex", "con", "int", "wis", "cha"];
+const skills = [
+  "Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception",
+  "History", "Insight", "Intimidation", "Investigation", "Medicine",
+  "Nature", "Perception", "Performance", "Persuasion", "Religion",
+  "Sleight of Hand", "Stealth", "Survival",
+];
+
 const backgrounds = Array.from(new Set(data.backgroundNames ?? (data.backgrounds ?? []).map((entry) => entry.name).filter(Boolean)));
 
 function buildSyntheticFeats() {
@@ -107,14 +115,6 @@ const features = data.features ?? [];
 
 assert.ok(classes.length > 0, "No classes loaded from src/lib/data.ts");
 assert.ok(races.length > 0, "No races loaded from src/lib/data.ts");
-
-const abilityKeys = ["str", "dex", "con", "int", "wis", "cha"];
-const skills = [
-  "Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception",
-  "History", "Insight", "Intimidation", "Investigation", "Medicine",
-  "Nature", "Perception", "Performance", "Persuasion", "Religion",
-  "Sleight of Hand", "Stealth", "Survival",
-];
 
 function character(overrides = {}) {
   const className = overrides.className ?? rng.pick(classes);
