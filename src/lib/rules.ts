@@ -162,7 +162,7 @@ export function getMulticlassPrerequisites(className: string): Partial<Record<Ab
 export function validateMulticlassClassLevels(
   classLevels: CharacterClassLevel[],
   abilities: AbilityScores,
-  subclasses: SubclassDefinition[] = subclasses,
+  subclassCatalogue: SubclassDefinition[] = subclasses,
   classCatalogue?: RuleClassCatalogue,
 ): string[] {
   const errors: string[] = [];
@@ -196,7 +196,7 @@ export function validateMulticlassClassLevels(
     if (entry.subclass) {
       const unlock = definition?.subclassUnlockLevel ?? 1;
       if (level < unlock) errors.push(`${className} subclass ${entry.subclass} requires class level ${unlock}.`);
-      if (!subclasses.some((candidate) => candidate.className === className && candidate.name === entry.subclass)) {
+      if (!subclassCatalogue.some((candidate) => candidate.className === className && candidate.name === entry.subclass)) {
         errors.push(`Subclass "${entry.subclass}" is not valid for ${className}.`);
       }
     }
