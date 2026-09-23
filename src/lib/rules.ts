@@ -1,7 +1,9 @@
 import { classDefinitions, features, items, races, spells, subclasses } from "./data";
-import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, ClassRuleData, ContentType, ExpertiseHistoryEntry, Feat, Feature, Item, MagicalSecretsHistoryEntry, Spell, SubclassDefinition } from "./types";
+import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, CharacterClassLevel, ClassRuleData, ContentType, ExpertiseHistoryEntry, Feat, Feature, Item, MagicalSecretsHistoryEntry, Spell, SubclassDefinition } from "./types";
 
 type RuleClassCatalogue = Record<string, ClassRuleData>;
+
+export type { RuleClassCatalogue };
 
 function getDynamicClassRule(className: string, classCatalogue?: RuleClassCatalogue) {
   return classCatalogue?.[className];
@@ -105,6 +107,152 @@ export function getExpectedMaxHp(className: string, level: number, constitution:
 export function getExpectedHitDice(className: string, level: number, classCatalogue?: RuleClassCatalogue) {
   const safeLevel = Math.max(1, Math.min(20, level));
   return safeLevel + "d" + getHitDieSize(className, classCatalogue);
+}
+
+
+export function getCharacterClassLevels(character: Character): CharacterClassLevel[] {
+  const supplied = Array.isArray(character.classLevels)
+    ? character.classLevels
+        .filter((entry) => entry && typeof entry.className === "string")
+        .map((entry) => ({
+          className: entry.className,
+          level: Math.max(0, Math.min(20, Number(entry.level) || 0)),
+          subclass: entry.subclass || undefined,
+        }))
+        .filter((entry) => entry.level > 0)
+    : [];
+  if (supplied.length) return supplied;
+  return [{
+    className: character.className,
+    level: Math.max(1, Math.min(20, character.level)),
+    subclass: character.subclass || undefined,
+  }];
+}
+
+export function getTotalCharacterLevel(character: Character): number {
+  return Math.min(20, getCharacterClassLevels(character).reduce((sum, entry) => sum + entry.level, 0));
+}
+
+export function getClassLevel(character: Character, className: string): number {
+  return getCharacterClassLevels(character).find((entry) => entry.className === className)?.level ?? 0;
+}
+
+const MULTICLASS_PREREQUISITES: Record<string, Partial<Record<AbilityKey, number>>> = {
+  Barbarian: { str: 13 },
+  Bard: { cha: 13 },
+  Cleric: { wis: 13 },
+  Druid: { wis: 13 },
+  Fighter: { str: 13, dex: 13 },
+  Monk: { dex: 13, wis: 13 },
+  Paladin: { str: 13, cha: 13 },
+  Ranger: { dex: 13, wis: 13 },
+  Rogue: { dex: 13 },
+  Sorcerer: { cha: 13 },
+  Warlock: { cha: 13 },
+  Wizard: { int: 13 },
+  Artificer: { int: 13 },
+};
+
+export function getMulticlassPrerequisites(className: string): Partial<Record<AbilityKey, number>> {
+  return { ...(MULTICLASS_PREREQUISITES[className] ?? {}) };
+}
+
+export function validateMulticlassClassLevels(
+  classLevels: CharacterClassLevel[],
+  abilities: AbilityScores,
+  subclasses: SubclassDefinition[] = subclasses,
+  classCatalogue?: RuleClassCatalogue,
+): string[] {
+  const errors: string[] = [];
+  const normalized = classLevels
+    .filter((entry) => entry && typeof entry.className === "string")
+    .map((entry) => ({ ...entry, level: Number(entry.level) || 0 }));
+
+  if (!normalized.length) return ["At least one class is required."];
+  const seen = new Set<string>();
+  let total = 0;
+
+  for (const entry of normalized) {
+    const className = entry.className;
+    const level = Math.max(0, Math.min(20, entry.level));
+    if (seen.has(className)) errors.push(`Class ${className} appears more than once. Combine its levels into one entry.`);
+    seen.add(className);
+    if (!getClassDefinition(className, classCatalogue)) errors.push(`Unknown class "${className}".`);
+    if (level < 1 || level > 20) errors.push(`${className} level must be between 1 and 20.`);
+    total += level;
+
+    const prerequisites = getMulticlassPrerequisites(className);
+    for (const [ability, minimum] of Object.entries(prerequisites) as Array<[AbilityKey, number]>) {
+      if ((abilities[ability] ?? 0) < minimum) {
+        errors.push(`Multiclassing into ${className} requires ${ability.toUpperCase()} ${minimum}.`);
+      }
+    }
+
+    const definition = getClassDefinition(className, classCatalogue);
+    if (entry.subclass) {
+      const unlock = definition?.subclassUnlockLevel ?? 1;
+      if (level < unlock) errors.push(`${className} subclass ${entry.subclass} requires class level ${unlock}.`);
+      if (!subclasses.some((candidate) => candidate.className === className && candidate.name === entry.subclass)) {
+        errors.push(`Subclass "${entry.subclass}" is not valid for ${className}.`);
+      }
+    }
+  }
+
+  if (total !== 20 && total > 20) errors.push("Total class levels cannot exceed 20.");
+  if (total < 1) errors.push("Total class levels must be at least 1.");
+  return errors;
+}
+
+export function getMulticlassHitDice(classLevels: CharacterClassLevel[], classCatalogue?: RuleClassCatalogue): string {
+  return classLevels
+    .filter((entry) => entry.level > 0)
+    .map((entry) => `${entry.level}d${getHitDieSize(entry.className, classCatalogue)}`)
+    .join(" + ");
+}
+
+export function getExpectedMulticlassMaxHp(
+  classLevels: CharacterClassLevel[],
+  constitution: number,
+  classCatalogue?: RuleClassCatalogue,
+): number {
+  const conMod = getAbilityModifier(constitution);
+  let hp = 0;
+  for (const entry of classLevels) {
+    const level = Math.max(0, Math.min(20, Number(entry.level) || 0));
+    if (level <= 0) continue;
+    const hitDie = getHitDieSize(entry.className, classCatalogue);
+    const averageGain = Math.floor(hitDie / 2) + 1;
+    hp += hitDie + conMod + Math.max(0, level - 1) * Math.max(1, averageGain + conMod);
+  }
+  return Math.max(1, hp);
+}
+
+function getCasterContribution(className: string, level: number, classCatalogue?: RuleClassCatalogue): number {
+  const rule = getDynamicClassRule(className, classCatalogue);
+  const progression = rule?.casterProgression;
+  if (progression === "full") return level;
+  if (progression === "artificer") return Math.ceil(level / 2);
+  if (progression === "half") return Math.floor(level / 2);
+  if (progression === "third") return Math.floor(level / 3);
+  return 0;
+}
+
+export function getMulticlassSpellcastingLevel(character: Character, classCatalogue?: RuleClassCatalogue): number {
+  return Math.min(20, getCharacterClassLevels(character).reduce(
+    (sum, entry) => sum + getCasterContribution(entry.className, entry.level, classCatalogue),
+    0,
+  ));
+}
+
+export function getMulticlassSpellSlotSummary(character: Character, classCatalogue?: RuleClassCatalogue): SpellSlotSummary[] {
+  const casterLevel = getMulticlassSpellcastingLevel(character, classCatalogue);
+  if (casterLevel < 1) return [];
+  return (FULL_CASTER_SLOTS[casterLevel] ?? []).map((count, index) => ({ level: index + 1, count })).filter((entry) => entry.count > 0);
+}
+
+export function getMulticlassMaxSpellLevel(character: Character, classCatalogue?: RuleClassCatalogue): number {
+  const slots = getMulticlassSpellSlotSummary(character, classCatalogue);
+  return slots.length ? slots[slots.length - 1].level : 0;
 }
 
 
