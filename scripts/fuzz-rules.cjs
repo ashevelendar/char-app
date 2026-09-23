@@ -32,6 +32,7 @@ function loadFuzzCatalogue() {
 }
 
 const fuzzCatalogue = loadFuzzCatalogue();
+const catalogueSource = fuzzCatalogue ? "Supabase snapshot" : "src/lib/data.ts fixture";
 const ts = require("typescript");
 
 require.extensions[".ts"] = function loadTypeScript(module, filename) {
@@ -156,8 +157,8 @@ const validClassSubclasses = classes.flatMap((className) => {
   return (names.length ? names : [""]).map((subclass) => ({ className, subclass }));
 });
 
-assert.ok(classes.length > 0, "No classes loaded from src/lib/data.ts");
-assert.ok(races.length > 0, "No races loaded from src/lib/data.ts");
+assert.ok(classes.length > 0, "No classes loaded from " + catalogueSource);
+assert.ok(races.length > 0, "No races loaded from " + catalogueSource);
 
 function character(overrides = {}) {
   const className = overrides.className ?? rng.pick(classes);
@@ -598,6 +599,7 @@ const started = Date.now();
 console.log("D&D rules fuzz test");
 console.log("Seed:", options.seed);
 console.log("Random iterations:", options.iterations);
+console.log("Catalogue source:", catalogueSource);
 console.log("Catalogue:", classes.length, "classes,", races.length, "races,", subclasses.length, "subclasses,", feats.length, "feats,", spells.length, "spells,", items.length, "items,", features.length, "features");
 console.log("Valid class/subclass combinations:", validClassSubclasses.length);
 console.log("Deterministic base matrix:", validClassSubclasses.length * races.length * 20, "cases");
