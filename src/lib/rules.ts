@@ -378,6 +378,38 @@ export function getAbilityScoreImprovementLevelsForCharacter(character: Characte
   return [...levels].sort((a, b) => a - b);
 }
 
+export function validateAsiHistoryForCharacter(
+  entries: AsiHistoryEntry[],
+  character: Character,
+  featCatalogue: Feat[] = [],
+  classCatalogue?: RuleClassCatalogue,
+): string[] {
+  const expectedLevels = getAbilityScoreImprovementLevelsForCharacter(character, classCatalogue);
+  const errors: string[] = [];
+  const seenLevels = new Set<number>();
+
+  for (const entry of entries) {
+    if (seenLevels.has(entry.level)) {
+      errors.push(`Ability Score Improvement level ${entry.level} is recorded more than once.`);
+      continue;
+    }
+    seenLevels.add(entry.level);
+    if (!expectedLevels.includes(entry.level)) {
+      errors.push(`Ability Score Improvement level ${entry.level} is not valid for this multiclass character.`);
+    }
+  }
+
+  for (const expectedLevel of expectedLevels) {
+    if (!entries.some((entry) => entry.level === expectedLevel)) {
+      errors.push(`Ability Score Improvement level ${expectedLevel} is missing.`);
+    }
+  }
+
+  const detailErrors = validateAsiHistory(entries, character.className, character.level, featCatalogue, classCatalogue);
+  const detailOnly = detailErrors.filter((error) => !/Ability Score Improvement level \d+ is missing\./.test(error) && !/Ability Score Improvement level \d+ is not valid/.test(error));
+  return [...errors, ...detailOnly];
+}
+
 export function validateAsiHistory(
   entries: AsiHistoryEntry[],
   className: string,
