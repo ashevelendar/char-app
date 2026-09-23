@@ -12,7 +12,6 @@ import {
   getExpectedHitDice,
   getExpectedMulticlassMaxHp,
   getMulticlassHitDice,
-  getCharacterClassLevels,
   getProficiencyBonus,
   getCantripsKnown,
   getPreparedSpellCount,
