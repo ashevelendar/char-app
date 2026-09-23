@@ -6,8 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Badge, PageHeader, SectionCard } from "../../../../components/AppShell";
 import AbilityScoreBuilder, { applyAbilityBonuses, type AbilityScoreMethod } from "../../../../components/AbilityScoreBuilder";
+import MulticlassEditor from "../../../../components/MulticlassEditor";
 import { useCharacters } from "../../../../context/CharacterContext";
-import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, Spell, SpellEntry } from "../../../../lib/types";
+import type { AbilityKey, AbilityScores, AsiHistoryEntry, Character, CharacterClassLevel, Currency, ExpertiseHistoryEntry, InventoryEntry, MagicalSecretsHistoryEntry, Spell, SpellEntry } from "../../../../lib/types";
 import { getAbilityScoreImprovementLevelsUpTo, getCantripsKnown, getCarryingCapacity, getClassDefinition, validateAsiHistory, validateExpertiseHistory, validateMagicalSecretsHistory, getExpectedHitDice, getExpectedMaxHp, getFeatAbilityBonuses, getFeatAbilityOptions, getInventoryWeight, getMaxSpellLevel, getNewAbilityScoreImprovementLevels, getPreparedSpellCount, getProficiencyBonus, getSpellsKnown, getSpellbookProgression, getAvailableItems, isFeatAvailable, isSpellNormallyAvailable } from "../../../../lib/rules";
 
 type OptionalChoiceEntry = { title: string; featureTypes: string[]; count: number; level: number };
@@ -185,6 +186,7 @@ function CharacterEditor({
     subrace: character.subrace,
     className: character.className,
     subclass: character.subclass,
+    classLevels: character.classLevels,
     level: character.level,
     background: character.background,
     alignment: character.alignment,
@@ -287,8 +289,9 @@ function CharacterEditor({
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const primaryClassLevel = form.classLevels?.length ? form.classLevels[0].level : form.level;
   const subclassUnlockLevel = getClassDefinition(form.className, classRules)?.subclassUnlockLevel ?? 1;
-  const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className && form.level >= subclassUnlockLevel);
+  const subclassOptions = catalogue.subclasses.filter((entry) => entry.className === form.className && primaryClassLevel >= subclassUnlockLevel);
   const selectedSubclass = subclassOptions.find((entry) => entry.name === form.subclass);
   const selectedSubrace = catalogue.subraces.find((entry) => entry.name === form.subrace && entry.parentRace === form.race);
   const selectedBackgroundRules = backgroundRules[form.background];
@@ -831,10 +834,28 @@ function CharacterEditor({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Character name" value={form.name} onChange={(value) => setForm((current) => ({ ...current, name: value }))} required />
                   <Field label="Player name" value={form.playerName} onChange={(value) => setForm((current) => ({ ...current, playerName: value }))} />
-                  <NumberField label="Level" value={form.level} min={1} max={20} onChange={(value) => setForm((current) => ({ ...current, level: value }))} />
+                  <NumberField label="Level" value={form.level} min={1} max={20} onChange={(value) => {
+                    const secondary = form.classLevels?.slice(1) ?? [];
+                    const secondaryTotal = secondary.reduce((sum, entry) => sum + entry.level, 0);
+                    const nextTotal = Math.max(1, Math.min(20, Math.max(value, secondaryTotal + 1)));
+                    setForm((current) => ({
+                      ...current,
+                      level: nextTotal,
+                      classLevels: secondary.length
+                        ? [{ ...current.classLevels![0], level: nextTotal - secondaryTotal }, ...secondary]
+                        : undefined,
+                    }));
+                  }} />
                   <SelectField label="Class" value={form.className} options={catalogue.classes} onChange={(value) => {
                     const next = catalogue.subclasses.filter((entry) => entry.className === value);
-                    setForm((current) => ({ ...current, className: value, subclass: next[0]?.name ?? "" }));
+                    setForm((current) => ({
+                      ...current,
+                      className: value,
+                      subclass: next[0]?.name ?? "",
+                      classLevels: current.classLevels?.length
+                        ? [{ ...current.classLevels[0], className: value, subclass: next[0]?.name ?? undefined }, ...current.classLevels.slice(1)]
+                        : undefined,
+                    }));
                     setClassSkillSelections([]);
                     setClassLanguageSelections([]);
                     setStartingEquipmentSelections((current) => {
@@ -844,10 +865,29 @@ function CharacterEditor({
                     });
                     setEquipmentSelections((current) => current.filter((entry) => !entry.notes?.startsWith("starting:class-")));
                   }} />
-                  <SelectField label="Subclass" value={form.subclass} options={subclassOptions.map((entry) => entry.name)} onChange={(value) => setForm((current) => ({ ...current, subclass: value }))} />
+                  <SelectField label="Subclass" value={form.subclass} options={subclassOptions.map((entry) => entry.name)} onChange={(value) => setForm((current) => ({
+                    ...current,
+                    subclass: value,
+                    classLevels: current.classLevels?.length
+                      ? [{ ...current.classLevels[0], subclass: value || undefined }, ...current.classLevels.slice(1)]
+                      : undefined,
+                  }))} />
                 </div>
               </SectionCard>
               {selectedSubclass && <InfoBox title={selectedSubclass.name} badge={selectedSubclass.source} text={selectedSubclass.description || "No subclass description is available."} />}
+
+              {form.className && (
+                <MulticlassEditor
+                  totalLevel={form.level}
+                  primaryClass={form.className}
+                  primarySubclass={form.subclass}
+                  classLevels={form.classLevels}
+                  classes={catalogue.classes}
+                  subclasses={catalogue.subclasses}
+                  abilities={abilities}
+                  onChange={(levels) => setForm((current) => ({ ...current, classLevels: levels }))}
+                />
+              )}
               <SectionCard title="Class proficiencies">
                 {selectedClassRules && <>
                   {selectedClassRules.savingThrows.length > 0 && <p className="text-sm text-stone-300"><b>Saving Throws:</b> {selectedClassRules.savingThrows.join(", ")}</p>}
