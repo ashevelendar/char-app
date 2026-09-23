@@ -55,6 +55,8 @@ export function getSubclassDefinition(subclassName: string) {
 }
 
 export function getMaxSpellLevel(character: Character, classCatalogue?: RuleClassCatalogue) {
+  const classLevels = getCharacterClassLevels(character);
+  if (classLevels.length > 1) return getMulticlassMaxSpellLevel(character, classCatalogue);
   const definition = getClassDefinition(character.className, classCatalogue);
   return definition?.maxSpellLevelByCharacterLevel[Math.max(1, Math.min(20, character.level))] ?? 0;
 }
@@ -182,9 +184,11 @@ export function validateMulticlassClassLevels(
     total += level;
 
     const prerequisites = getMulticlassPrerequisites(className);
-    for (const [ability, minimum] of Object.entries(prerequisites) as Array<[AbilityKey, number]>) {
-      if ((abilities[ability] ?? 0) < minimum) {
-        errors.push(`Multiclassing into ${className} requires ${ability.toUpperCase()} ${minimum}.`);
+    if (className === "Fighter") {
+      if (abilities.str < 13 && abilities.dex < 13) errors.push("Multiclassing into Fighter requires STR 13 or DEX 13.");
+    } else {
+      for (const [ability, minimum] of Object.entries(prerequisites) as Array<[AbilityKey, number]>) {
+        if ((abilities[ability] ?? 0) < minimum) errors.push(`Multiclassing into ${className} requires ${ability.toUpperCase()} ${minimum}.`);
       }
     }
 
@@ -814,11 +818,11 @@ export function hasOverride(character: Character, type: ContentType, contentId: 
 }
 
 export function isSpellNormallyAvailable(character: Character, spell: Spell, classCatalogue?: RuleClassCatalogue) {
-  if (spell.requiredCharacterLevel && character.level < spell.requiredCharacterLevel) return false;
-  const withinLevel = spell.level === 0 || spell.level <= getMaxSpellLevel(character, classCatalogue);
-  if (!withinLevel) return false;
-  const classMatch = spell.classes.includes(character.className);
-  const subclassMatch = Boolean(spell.subclasses?.includes(character.subclass));
+  const classLevels = getCharacterClassLevels(character);
+  if (spell.requiredCharacterLevel && getTotalCharacterLevel(character) < spell.requiredCharacterLevel) return false;
+  if (spell.level > 0 && spell.level > getMaxSpellLevel(character, classCatalogue)) return false;
+  const classMatch = classLevels.some((entry) => spell.classes.includes(entry.className));
+  const subclassMatch = classLevels.some((entry) => Boolean(entry.subclass && spell.subclasses?.includes(entry.subclass)));
   const raceMatch = Boolean(spell.races?.includes(character.race));
   return classMatch || subclassMatch || raceMatch;
 }
@@ -837,11 +841,18 @@ export function getSpellRestrictionReason(character: Character, spell: Spell, cl
 }
 
 export function isFeatureNormallyAvailable(character: Character, feature: Feature) {
-  if (feature.requiredLevel > character.level) return false;
-  if (feature.sourceType === "class") return feature.className === character.className;
-  if (feature.sourceType === "subclass") {
-    return feature.className === character.className && feature.subclassName === character.subclass;
+  if (feature.sourceType === "class") {
+    const classLevel = feature.className ? getClassLevel(character, feature.className) : 0;
+    return classLevel >= feature.requiredLevel;
   }
+  if (feature.sourceType === "subclass") {
+    const classLevel = feature.className ? getClassLevel(character, feature.className) : 0;
+    const subclass = feature.className
+      ? getCharacterClassLevels(character).find((entry) => entry.className === feature.className)?.subclass
+      : undefined;
+    return classLevel >= feature.requiredLevel && subclass === feature.subclassName;
+  }
+  if (feature.requiredLevel > getTotalCharacterLevel(character)) return false;
   if (feature.sourceType === "race") return feature.raceName === character.race;
   if (feature.sourceType === "background") return feature.backgroundName === character.background;
   if (feature.sourceType === "feat") return Boolean(feature.featId && character.feats.includes(feature.featId));
@@ -852,7 +863,7 @@ export function getAutomaticallyGrantedFeatureIds(character: Character, featureC
   const granted = new Set(character.features);
   const candidates = featureCatalogue
     .filter((feature) =>
-      feature.requiredLevel <= character.level &&
+      feature.requiredLevel <= getTotalCharacterLevel(character) &&
       (feature.sourceType === "class" || feature.sourceType === "subclass" || feature.sourceType === "race" || feature.sourceType === "background") &&
       isFeatureNormallyAvailable(character, feature) &&
       !/gain a feature from your|gain a feature from the|optional feature/i.test(feature.description),
@@ -876,9 +887,9 @@ export function getAutomaticallyGrantedFeatureIds(character: Character, featureC
 }
 
 export function getFeatureRestrictionReason(character: Character, feature: Feature) {
-  if (feature.requiredLevel > character.level) return `Requires level ${feature.requiredLevel}`;
-  if (feature.sourceType === "class" && feature.className !== character.className) return `Belongs to the ${feature.className} class`;
-  if (feature.sourceType === "subclass" && feature.subclassName !== character.subclass) return `Belongs to ${feature.subclassName}`;
+  if (feature.requiredLevel > getTotalCharacterLevel(character)) return `Requires level ${feature.requiredLevel}`;
+  if (feature.sourceType === "class" && feature.className && getClassLevel(character, feature.className) < feature.requiredLevel) return `Requires ${feature.className} class level ${feature.requiredLevel}`;
+  if (feature.sourceType === "subclass" && feature.className && getClassLevel(character, feature.className) < feature.requiredLevel) return `Requires ${feature.className} class level ${feature.requiredLevel}`;
   if (feature.sourceType === "race" && feature.raceName !== character.race) return `Belongs to the ${feature.raceName} race`;
   if (feature.sourceType === "background" && feature.backgroundName !== character.background) return `Belongs to the ${feature.backgroundName} background`;
   if (feature.sourceType === "feat") return "Requires a feat or other prerequisite";
