@@ -62,6 +62,15 @@ export function getMaxSpellLevel(character: Character, classCatalogue?: RuleClas
 }
 
 export function getSpellcastingMode(character: Character, classCatalogue?: RuleClassCatalogue) {
+  const classLevels = getCharacterClassLevels(character);
+  if (classLevels.length > 1) {
+    const modes = classLevels.map((entry) =>
+      getClassDefinition(entry.className, classCatalogue)?.spellcasting ?? "none",
+    );
+    if (modes.includes("prepared")) return "prepared" as const;
+    if (modes.includes("known")) return "known" as const;
+    return "none" as const;
+  }
   return getClassDefinition(character.className, classCatalogue)?.spellcasting ?? "none";
 }
 
