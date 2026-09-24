@@ -57,6 +57,7 @@ const DEFAULT_ITERATIONS = 500000;
 
 function parseArgs(argv) {
   const args = { iterations: DEFAULT_ITERATIONS, seed: 20260923 };
+  const positional = [];
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--iterations" || arg === "-n") {
@@ -64,13 +65,15 @@ function parseArgs(argv) {
     } else if (arg === "--seed") {
       args.seed = Number(argv[++index] ?? args.seed) >>> 0;
     } else if (/^\d+$/.test(arg)) {
-      // Also accept a bare positional iteration count.
-      args.iterations = Math.max(1, Number(arg));
+      positional.push(Number(arg));
     } else if (arg === "--help" || arg === "-h") {
       console.log("Usage: node scripts/fuzz-rules.cjs [--iterations 500000] [--seed 12345]");
       process.exit(0);
     }
   }
+  // Also accept the convenient positional form: <iterations> <seed>.
+  if (positional[0] !== undefined) args.iterations = Math.max(1, positional[0]);
+  if (positional[1] !== undefined) args.seed = positional[1] >>> 0;
   return args;
 }
 
