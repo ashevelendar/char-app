@@ -247,9 +247,27 @@ function runSequence(initial, rng, steps) {
   return current;
 }
 
-const seed = Number(process.argv[process.argv.indexOf("--seed") + 1] ?? 20260923) >>> 0;
-const iterationsArg = process.argv.find((arg) => /^\d+$/.test(arg));
-const iterations = Math.max(1, Number(iterationsArg ?? 5000));
+function parseArgs(argv) {
+  const args = { iterations: 5000, seed: 20260923 };
+  const positional = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--iterations" || arg === "-n") {
+      args.iterations = Math.max(1, Number(argv[++index] ?? args.iterations));
+    } else if (arg === "--seed") {
+      args.seed = Number(argv[++index] ?? args.seed) >>> 0;
+    } else if (/^\d+$/.test(arg)) {
+      positional.push(Number(arg));
+    }
+  }
+  if (positional[0] !== undefined) args.iterations = Math.max(1, positional[0]);
+  if (positional[1] !== undefined) args.seed = positional[1] >>> 0;
+  return args;
+}
+
+const parsedArgs = parseArgs(process.argv.slice(2));
+const seed = parsedArgs.seed;
+const iterations = parsedArgs.iterations;
 const rng = createRng(seed);
 
 let transitions = 0;
