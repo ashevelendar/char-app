@@ -246,8 +246,17 @@ function getCasterContribution(className: string, level: number, subclass?: stri
   if (progression === "artificer") return Math.ceil(level / 2);
   if (progression === "half") return Math.floor(level / 2);
   if (progression === "third") return Math.floor(level / 3);
+  if (progression === "pact" || progression === "none") return 0;
+
+  // The built-in 2014 rules catalogue remains authoritative when no dynamic
+  // Supabase class catalogue is supplied. This keeps rules tests and legacy
+  // callers fully functional while allowing the database catalogue to override
+  // progression when it is available.
   if (className === "Fighter" && subclass === "Eldritch Knight") return Math.floor(level / 3);
   if (className === "Rogue" && subclass === "Arcane Trickster") return Math.floor(level / 3);
+  if (className === "Artificer") return Math.ceil(level / 2);
+  if (className === "Paladin" || className === "Ranger") return Math.floor(level / 2);
+  if (["Bard", "Cleric", "Druid", "Sorcerer", "Wizard"].includes(className)) return level;
   return 0;
 }
 
