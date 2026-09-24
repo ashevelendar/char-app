@@ -282,8 +282,12 @@ for (let index = 0; index < iterations; index += 1) {
 
 console.log("");
 
-const multiclassBase = character("Fighter", 5, {
-  str: 13, dex: 13, con: 14, int: 13, wis: 10, cha: 13,
+const multiclassBase = character({
+  className: "Fighter",
+  level: 5,
+  abilities: {
+    str: 13, dex: 13, con: 14, int: 13, wis: 10, cha: 13,
+  },
 });
 const multiclassResult = rules.applyCharacterTransition(
   multiclassBase,
@@ -305,7 +309,7 @@ assert.deepEqual(multiclassResult.classLevels, [
 ]);
 assert.equal(multiclassResult.level, 5);
 assert.equal(multiclassResult.hitDice, "3d10 + 2d6");
-assert.equal(multiclassResult.maxHp, rules.getExpectedMulticlassMaxHp(multiclassResult.classLevels, 14, catalogue.classRules));
+assert.equal(multiclassResult.maxHp, rules.getExpectedMulticlassMaxHp(multiclassResult.classLevels, 14));
 
 console.log("✓ Character transition fuzz test passed");
 console.log("  Catalogue source:", source);
