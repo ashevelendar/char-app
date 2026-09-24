@@ -253,7 +253,7 @@ function getCasterContribution(className: string, level: number, subclass?: stri
 
 export function getMulticlassSpellcastingLevel(character: Character, classCatalogue?: RuleClassCatalogue): number {
   return Math.min(20, getCharacterClassLevels(character).reduce(
-    (sum, entry) => sum + getCasterContribution(entry.className, entry.level, classCatalogue),
+    (sum, entry) => sum + getCasterContribution(entry.className, entry.level, entry.subclass, classCatalogue),
     0,
   ));
 }
